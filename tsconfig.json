@@ -1,0 +1,28 @@
+{
+	"extends": "@tsconfig/svelte/tsconfig.json",
+	"compilerOptions": {
+		"target": "ES2022",
+		"useDefineForClassFields": true,
+		"module": "ESNext",
+		"moduleResolution": "bundler",
+		"resolveJsonModule": true,
+		"allowJs": false,
+		"isolatedModules": true,
+		"noEmit": true,
+		"noEmitOnError": true,
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"exactOptionalPropertyTypes": true,
+		"noImplicitOverride": true,
+		"noUncheckedIndexedAccess": true,
+		"types": ["svelte", "vite/client", "vitest/globals"]
+	},
+	"watchOptions": {
+		"watchFile": "useFsEvents",
+		"watchDirectory": "useFsEvents"
+	},
+	"include": ["src/**/*.d.ts", "src/**/*.ts", "src/**/*.svelte", "test/**/*.ts", "*.config.ts"],
+	"exclude": ["node_modules", "build", "dist", "coverage", "EXAMPLES"]
+}

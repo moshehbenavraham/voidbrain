@@ -1,0 +1,9 @@
+{
+	"id": "voidbrain",
+	"name": "Voidbrain",
+	"version": "0.1.1",
+	"minAppVersion": "1.5.0",
+	"description": "Local-first AI second-brain tooling for Obsidian-style markdown vaults.",
+	"author": "Voidbrain contributors",
+	"isDesktopOnly": true
+}

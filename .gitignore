@@ -1,0 +1,65 @@
+# Local research inputs
+EXAMPLES/
+
+# Dependencies
+node_modules/
+.pnp/
+.pnp.cjs
+
+# Build output
+build/
+dist/
+out/
+*.tsbuildinfo
+
+# Test and coverage output
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+
+# Tool caches
+.svelte-kit/
+.vite/
+.vitest/
+.turbo/
+.eslintcache
+.cache/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+bun-debug.log*
+
+# Editor and OS files
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# Local Obsidian runtime artifacts
+.obsidian/
+main.js
+styles.css
+data.json
+.hotreload
+
+# Temporary files
+tmp/
+temp/
+.tmp/

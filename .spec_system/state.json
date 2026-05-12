@@ -1,0 +1,26 @@
+{
+  "version": "2.0",
+  "project_name": "voidbrain",
+  "description": "Research-backed project for exploring and developing open-source Obsidian-style AI second-brain tooling, with local examples and requirements to be refined.",
+  "current_phase": 0,
+  "current_session": null,
+  "monorepo": false,
+  "phases": {
+    "0": {
+      "name": "Foundation",
+      "description": "Establish the repository scaffold, local-first product contracts, provider privacy boundaries, agent surfaces, indexing foundations, and staged-write safety for the Obsidian-compatible AI second-brain MVP.",
+      "status": "in_progress",
+      "session_count": 6
+    }
+  },
+  "completed_sessions": [
+    "phase00-session01-repo-tooling-scaffold"
+  ],
+  "next_session_history": [
+    {
+      "date": "2026-05-12",
+      "session": "phase00-session01-repo-tooling-scaffold",
+      "status": "completed"
+    }
+  ]
+}

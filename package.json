@@ -1,0 +1,50 @@
+{
+	"name": "voidbrain",
+	"version": "0.1.1",
+	"description": "Local-first AI second-brain scaffold for Obsidian-style markdown vaults.",
+	"type": "module",
+	"license": "MIT",
+	"author": "Voidbrain contributors",
+	"repository": {
+		"type": "git",
+		"url": "git+https://github.com/moshehbenavraham/voidbrain.git"
+	},
+	"bugs": {
+		"url": "https://github.com/moshehbenavraham/voidbrain/issues"
+	},
+	"homepage": "https://github.com/moshehbenavraham/voidbrain#readme",
+	"main": "main.js",
+	"files": ["main.js", "manifest.json", "styles.css", "versions.json"],
+	"sideEffects": ["src/styles.css"],
+	"scripts": {
+		"dev": "vite build --mode development --watch",
+		"build": "vite build --mode production",
+		"check": "svelte-check --tsconfig ./tsconfig.json",
+		"lint": "biome check .",
+		"lint:fix": "biome check --write .",
+		"format": "biome format --write .",
+		"test": "vitest run",
+		"test:watch": "vitest",
+		"test:coverage": "vitest run --coverage",
+		"validate": "bun run build && bun run check && bun run lint && bun run test"
+	},
+	"keywords": ["obsidian", "second-brain", "local-first", "markdown", "plugin", "ai"],
+	"engines": {
+		"node": ">=20"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "^1.9.4",
+		"@sveltejs/vite-plugin-svelte": "^5.1.1",
+		"@tsconfig/svelte": "^5.0.8",
+		"@vitest/coverage-v8": "^4.0.18",
+		"builtin-modules": "^5.0.0",
+		"jsdom": "^27.4.0",
+		"obsidian": "^1.12.3",
+		"svelte": "^5.53.7",
+		"svelte-check": "^4.4.5",
+		"tslib": "^2.8.1",
+		"typescript": "^5.9.3",
+		"vite": "^7.3.1",
+		"vitest": "^4.0.18"
+	}
+}
