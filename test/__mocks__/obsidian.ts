@@ -98,14 +98,46 @@ export class App {
 }
 
 export class Vault {
+	private files: TFile[] = [];
+	private readonly readContents = new Map<string, string>();
+	private readonly failedReadPaths = new Set<string>();
+
 	adapter = {
 		exists: vi.fn(async (_path: string): Promise<boolean> => true),
 		read: vi.fn(async (_path: string): Promise<string> => ""),
 		write: vi.fn(async (_path: string, _data: string): Promise<void> => undefined),
 	};
 
-	getFiles = vi.fn((): TFile[] => []);
+	getFiles = vi.fn((): TFile[] => [...this.files]);
 	getName = vi.fn((): string => "test-vault");
+	read = vi.fn(async (file: TFile): Promise<string> => {
+		if (this.failedReadPaths.has(file.path)) {
+			throw new Error("Synthetic vault read failed.");
+		}
+
+		const content = this.readContents.get(file.path);
+		if (content !== undefined) {
+			return content;
+		}
+
+		return this.adapter.read(file.path);
+	});
+
+	setFiles(files: readonly TFile[]): void {
+		this.files = [...files];
+	}
+
+	setReadContent(path: string, content: string): void {
+		this.readContents.set(path, content);
+	}
+
+	setReadFailure(path: string): void {
+		this.failedReadPaths.add(path);
+	}
+
+	clearReadFailure(path: string): void {
+		this.failedReadPaths.delete(path);
+	}
 }
 
 export class Workspace {
@@ -155,9 +187,15 @@ export class Workspace {
 }
 
 export class MetadataCache {
-	getFileCache = vi.fn((_file: TFile): CachedMetadata | null => null);
+	private readonly fileCaches = new Map<string, CachedMetadata | null>();
+
+	getFileCache = vi.fn((file: TFile): CachedMetadata | null => this.fileCaches.get(file.path) ?? null);
 	on = vi.fn((): EventRef => ({ id: "metadata-event" }));
 	offref = vi.fn((_ref: EventRef): void => undefined);
+
+	setFileCache(path: string, cache: CachedMetadata | null): void {
+		this.fileCaches.set(path, cache);
+	}
 }
 
 export class TFile {
@@ -170,6 +208,20 @@ export class TFile {
 		mtime: 0,
 		size: 0,
 	};
+
+	constructor(path = "test.md", stat: Partial<TFile["stat"]> = {}) {
+		const fileName = path.split("/").at(-1) ?? path;
+		const extension = fileName.includes(".") ? (fileName.split(".").at(-1) ?? "") : "";
+		this.path = path;
+		this.name = fileName;
+		this.basename = extension.length === 0 ? fileName : fileName.slice(0, -(extension.length + 1));
+		this.extension = extension;
+		this.stat = {
+			ctime: stat.ctime ?? 0,
+			mtime: stat.mtime ?? 0,
+			size: stat.size ?? 0,
+		};
+	}
 }
 
 export class Notice {

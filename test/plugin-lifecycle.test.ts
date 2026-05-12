@@ -9,6 +9,11 @@ import { VOIDBRAIN_STATUS_VIEW_TYPE } from "../src/views/status-view";
 import type { Command, PluginSettingTab, RibbonAction } from "./__mocks__/obsidian";
 import { App as MockApp } from "./__mocks__/obsidian";
 import { notices, resetObsidianMockState } from "./__mocks__/obsidian";
+import {
+	RUNTIME_INDEXING_FIXTURE_FILES,
+	configureRuntimeFixtureVault,
+	createRuntimeFixtureFiles,
+} from "./fixtures/vault/runtime-indexing-fixtures";
 
 interface MockedPluginRuntime extends VoidbrainPlugin {
 	commands: Command[];
@@ -28,6 +33,16 @@ const createPlugin = (): MockedPluginRuntime => {
 			version: "0.1.0",
 		} as PluginManifest,
 	) as MockedPluginRuntime;
+};
+
+const runtimeIndexingNotes = RUNTIME_INDEXING_FIXTURE_FILES.filter(
+	(file) => file.path === "sources/runtime-source.md" || file.path === "concepts/runtime-concept.md",
+);
+
+const flushPromises = async (count = 8): Promise<void> => {
+	for (let index = 0; index < count; index += 1) {
+		await Promise.resolve();
+	}
 };
 
 describe("VoidbrainPlugin lifecycle", () => {
@@ -176,6 +191,107 @@ describe("VoidbrainPlugin lifecycle", () => {
 			registeredViewCount: 0,
 			settingsTabCount: 0,
 		});
+	});
+
+	it("runs lexical indexing on startup only when the opt-in setting is enabled", async () => {
+		const app = new MockApp();
+		configureRuntimeFixtureVault(app.vault, runtimeIndexingNotes);
+		const plugin = new VoidbrainPlugin(
+			app as unknown as App,
+			{
+				id: "voidbrain",
+				name: "voidbrain",
+				version: "0.1.0",
+			} as PluginManifest,
+		) as MockedPluginRuntime;
+		plugin.loadData.mockResolvedValue({
+			...DEFAULT_PLUGIN_SETTINGS,
+			indexing: {
+				...DEFAULT_PLUGIN_SETTINGS.indexing,
+				shouldIndexOnStartup: true,
+			},
+		});
+
+		await plugin.onload();
+		await flushPromises();
+
+		const indexingState = plugin.getIndexingRuntimeState();
+		expect(indexingState?.lexicalReport.status).toBe("ready");
+		expect(indexingState?.lexicalIndex?.sources).toHaveLength(2);
+		expect(plugin.getRuntimeStatusSnapshot().items.find((item) => item.id === "index-readiness")).toMatchObject({
+			severity: "ready",
+		});
+	});
+
+	it("wires settings tab indexing actions into the runtime service", async () => {
+		const app = new MockApp();
+		configureRuntimeFixtureVault(app.vault, runtimeIndexingNotes);
+		const plugin = new VoidbrainPlugin(
+			app as unknown as App,
+			{
+				id: "voidbrain",
+				name: "voidbrain",
+				version: "0.1.0",
+			} as PluginManifest,
+		) as MockedPluginRuntime;
+		plugin.loadData.mockResolvedValue(undefined);
+
+		await plugin.onload();
+		const settingsTab = plugin.settingTabs[0];
+		settingsTab?.display();
+		const reindexButton = [...(settingsTab?.containerEl.querySelectorAll("button") ?? [])].find(
+			(button) => button.textContent === "Reindex",
+		);
+		reindexButton?.click();
+		await flushPromises();
+
+		expect(plugin.getIndexingRuntimeState()?.lexicalReport.status).toBe("ready");
+		expect(notices.at(-1)?.message).toContain("Lexical index");
+	});
+
+	it("cancels in-flight indexing and clears runtime state on unload", async () => {
+		const app = new MockApp();
+		const files = createRuntimeFixtureFiles(runtimeIndexingNotes);
+		const firstContent = runtimeIndexingNotes[0]?.content ?? "# Runtime Source";
+		let releaseRead: (() => void) | undefined;
+		app.vault.setFiles(files);
+		app.vault.read.mockImplementation(
+			async () =>
+				new Promise<string>((resolve) => {
+					releaseRead = () => resolve(firstContent);
+				}),
+		);
+		const plugin = new VoidbrainPlugin(
+			app as unknown as App,
+			{
+				id: "voidbrain",
+				name: "voidbrain",
+				version: "0.1.0",
+			} as PluginManifest,
+		) as MockedPluginRuntime;
+		plugin.loadData.mockResolvedValue(undefined);
+
+		await plugin.onload();
+		const settingsTab = plugin.settingTabs[0];
+		settingsTab?.display();
+		const reindexButton = [...(settingsTab?.containerEl.querySelectorAll("button") ?? [])].find(
+			(button) => button.textContent === "Reindex",
+		);
+		reindexButton?.click();
+		await Promise.resolve();
+
+		expect(plugin.getIndexingRuntimeState()?.lexicalReport.status).toBe("building");
+
+		plugin.onunload();
+		expect(plugin.getIndexingRuntimeState()).toBeNull();
+		expect(plugin.getRuntimeStatus()).toMatchObject({
+			isLoaded: false,
+			ownedResourceCount: 0,
+		});
+
+		releaseRead?.();
+		await Promise.resolve();
+		await Promise.resolve();
 	});
 
 	it("shows explicit local-first placeholder notices for planned catalog commands", async () => {

@@ -7,6 +7,11 @@ import {
 	summarizeProviderSetup,
 } from "../providers";
 import type { ProviderSecretStore } from "../providers/secret-store";
+import type {
+	IndexingRuntimeActionResult,
+	IndexingRuntimeState,
+	IndexingRuntimeUnsubscribe,
+} from "../types/indexing-runtime";
 import { DEFAULT_PLUGIN_SETTINGS, type VoidbrainPluginSettings } from "../types/plugin";
 import type { UserProviderProfile, UserProviderProfileKind } from "../types/provider-setup";
 import {
@@ -23,6 +28,16 @@ export interface VoidbrainSettingsTabOptions {
 	readonly getSettings: () => VoidbrainPluginSettings;
 	readonly saveSettings: (settings: VoidbrainPluginSettings) => Promise<void>;
 	readonly secretStore?: ProviderSecretStore;
+	readonly indexingRuntime?: VoidbrainSettingsIndexingRuntimeControls;
+}
+
+export interface VoidbrainSettingsIndexingRuntimeControls {
+	readonly getState: () => IndexingRuntimeState;
+	readonly reindexLexical: () => Promise<IndexingRuntimeActionResult>;
+	readonly cancelLexical: () => IndexingRuntimeActionResult;
+	readonly retryLexical: () => Promise<IndexingRuntimeActionResult>;
+	readonly refreshReadiness: () => IndexingRuntimeActionResult;
+	readonly subscribe?: (subscriber: (state: IndexingRuntimeState) => void) => IndexingRuntimeUnsubscribe;
 }
 
 type SettingsUpdater = (settings: VoidbrainPluginSettings) => VoidbrainPluginSettings;
@@ -87,6 +102,7 @@ const parseExcludedFolders = (value: string): readonly NormalizedVaultPath[] => 
 export class VoidbrainSettingsTab extends PluginSettingTab {
 	private isSaving = false;
 	private readonly inFlightProviderActions = new Set<string>();
+	private readonly inFlightIndexingActions = new Set<string>();
 
 	constructor(
 		app: App,
@@ -469,6 +485,77 @@ export class VoidbrainSettingsTab extends PluginSettingTab {
 				})),
 			),
 		);
+		this.addIndexingRuntimeControls(settings);
+	}
+
+	private addIndexingRuntimeControls(settings: VoidbrainPluginSettings): void {
+		const runtime = this.options.indexingRuntime;
+		if (runtime === undefined) {
+			new Setting(this.containerEl)
+				.setName("Runtime index report")
+				.setDesc("Runtime indexing controls are unavailable until the plugin runtime is loaded.");
+			return;
+		}
+
+		const state = runtime.getState();
+		const report = state.lexicalReport;
+		const isRuntimeActionInFlight = report.status === "building" || this.inFlightIndexingActions.size > 0;
+		const currentPath = report.currentPath === null ? "No current path." : `Current path: ${report.currentPath}.`;
+		const freshnessSummary =
+			report.freshness === null ? "Freshness has not been checked." : `Freshness: ${report.freshness.state}.`;
+		const pathSummary = [
+			`${report.skippedPaths.length} skipped`,
+			`${report.failedPaths.length} failed`,
+			`${report.stalePaths.length} stale`,
+			`${report.missingPaths.length} missing`,
+			`${report.extraPaths.length} extra`,
+		].join(", ");
+
+		new Setting(this.containerEl)
+			.setName("Lexical readiness")
+			.setDesc(
+				`${report.readinessState}: ${report.message} Indexed ${report.indexedNoteCount}/${report.totalNoteCount} note(s). ${currentPath}`,
+			);
+		new Setting(this.containerEl)
+			.setName("Index report")
+			.setDesc(`${freshnessSummary} Paths: ${pathSummary}. ${formatDiagnosticSample(report.failedPaths)}`);
+		new Setting(this.containerEl)
+			.setName("Semantic readiness")
+			.setDesc(`${state.semanticReadiness.readinessState}: ${state.semanticReadiness.message}`);
+		new Setting(this.containerEl)
+			.setName("Index actions")
+			.addButton((button) =>
+				button
+					.setButtonText("Reindex")
+					.setDisabled(isRuntimeActionInFlight || !settings.indexing.isLexicalIndexEnabled)
+					.onClick(() => {
+						void this.runIndexingAction("reindex-lexical", () => runtime.reindexLexical());
+					}),
+			)
+			.addButton((button) =>
+				button
+					.setButtonText("Cancel")
+					.setDisabled(!isRuntimeActionInFlight)
+					.onClick(() => {
+						void this.runIndexingAction("cancel-lexical", () => runtime.cancelLexical());
+					}),
+			)
+			.addButton((button) =>
+				button
+					.setButtonText("Retry")
+					.setDisabled(isRuntimeActionInFlight)
+					.onClick(() => {
+						void this.runIndexingAction("retry-lexical", () => runtime.retryLexical());
+					}),
+			)
+			.addButton((button) =>
+				button
+					.setButtonText("Refresh")
+					.setDisabled(isRuntimeActionInFlight)
+					.onClick(() => {
+						void this.runIndexingAction("refresh-readiness", () => runtime.refreshReadiness());
+					}),
+			);
 	}
 
 	private addUiSection(settings: VoidbrainPluginSettings): void {
@@ -647,6 +734,36 @@ export class VoidbrainSettingsTab extends PluginSettingTab {
 		}
 	}
 
+	private async runIndexingAction(
+		actionKey: string,
+		action: () => Promise<IndexingRuntimeActionResult> | IndexingRuntimeActionResult,
+	): Promise<void> {
+		if (this.inFlightIndexingActions.has(actionKey)) {
+			new Notice("Indexing action is already in progress.", 4000);
+			return;
+		}
+
+		this.inFlightIndexingActions.add(actionKey);
+		try {
+			const pendingResult = action();
+			this.redrawIfRendered();
+			const result = await pendingResult;
+			new Notice(result.message, result.accepted ? 5000 : 7000);
+			this.options.indexingRuntime?.refreshReadiness();
+		} catch {
+			new Notice("Indexing action failed. No vault files were changed.", 7000);
+		} finally {
+			this.inFlightIndexingActions.delete(actionKey);
+			this.redrawIfRendered();
+		}
+	}
+
+	private redrawIfRendered(): void {
+		if (this.containerEl.childElementCount > 0) {
+			this.display();
+		}
+	}
+
 	private async persist(updater: SettingsUpdater): Promise<void> {
 		if (this.isSaving) {
 			new Notice("Voidbrain settings save is already in progress.", 4000);
@@ -687,6 +804,19 @@ const addProviderId = (providerIds: readonly ProviderId[], providerId: ProviderI
 
 const removeProviderId = (providerIds: readonly ProviderId[], providerId: ProviderId): readonly ProviderId[] =>
 	providerIds.filter((currentProviderId) => currentProviderId !== providerId);
+
+const formatDiagnosticSample = (diagnostics: readonly { readonly path: string; readonly reason: string }[]): string => {
+	if (diagnostics.length === 0) {
+		return "No recent indexing failures.";
+	}
+
+	const sample = diagnostics
+		.slice(0, 3)
+		.map((diagnostic) => `${diagnostic.path}: ${diagnostic.reason}`)
+		.join("; ");
+
+	return `Recent failures: ${sample}.`;
+};
 
 const resetRoleModelsForProvider = (
 	roles: VoidbrainPluginSettings["providerRoles"],

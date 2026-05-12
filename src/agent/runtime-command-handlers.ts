@@ -29,9 +29,9 @@ export class RuntimeCommandRegistrationError extends Error {
 
 const plannedWorkflowMessages: Readonly<Record<AgentCommandId, string>> = {
 	"voidbrain.ingest-source":
-		"Source ingestion is not ready yet. This command will create staged changes only after the ingestion workflow is implemented.",
+		"Source ingestion is not ready yet. Retrieval readiness must be checked before provider work, and this command will create staged changes only after the ingestion workflow is implemented.",
 	"voidbrain.chat-with-vault":
-		"Grounded vault chat is not ready yet. Vault content will not be sent to a provider before explicit provider review exists.",
+		"Grounded vault chat is not ready yet. Retrieval readiness must be ready, and vault content will not be sent to a provider before explicit provider review exists.",
 	"voidbrain.health-check":
 		"Runtime health checks are not ready yet. This command is currently a local-first readiness placeholder.",
 	"voidbrain.stage-change":
@@ -45,9 +45,10 @@ const plannedWorkflowMessages: Readonly<Record<AgentCommandId, string>> = {
 };
 
 const recoveryHints: Readonly<Record<AgentCommandId, string>> = {
-	"voidbrain.ingest-source": "Use synthetic source fixtures until the ingestion staging workflow is implemented.",
+	"voidbrain.ingest-source":
+		"Refresh retrieval readiness and use synthetic source fixtures until the ingestion staging workflow is implemented.",
 	"voidbrain.chat-with-vault":
-		"Configure providers and indexes first; chat remains blocked until provider preflight exists.",
+		"Build or refresh the lexical index and configure providers first; chat remains blocked until retrieval and provider preflight are ready.",
 	"voidbrain.health-check": "Use the repository validation commands until runtime health checks are implemented.",
 	"voidbrain.stage-change": "Review staged-change support records only; do not edit user notes directly.",
 	"voidbrain.recover-session": "Keep command IDs and staged-change IDs available for later recovery workflows.",

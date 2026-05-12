@@ -9,6 +9,7 @@ import {
 	normalizeProviderProfiles,
 } from "../src/providers";
 import type { VaultHealthReport } from "../src/types/health";
+import type { IndexingRuntimeReport, SemanticIndexReadiness } from "../src/types/indexing-runtime";
 import { DEFAULT_PLUGIN_SETTINGS } from "../src/types/plugin";
 import type { IndexSourceFingerprint } from "../src/types/retrieval";
 import type { StagedChangeRecord, StagedChangeStatus } from "../src/types/vault";
@@ -22,6 +23,39 @@ const fixedTimestamp = makeIsoTimestamp("2026-05-13T00:00:00.000Z");
 const sourceFingerprint = (path: string, fingerprint: string): IndexSourceFingerprint => ({
 	path: makeNormalizedVaultPath(path),
 	contentFingerprint: fingerprint,
+});
+
+const indexingReport = (overrides: Partial<IndexingRuntimeReport> = {}): IndexingRuntimeReport => ({
+	indexId: "runtime-index",
+	jobId: "runtime-job",
+	status: "ready",
+	readinessState: "ready",
+	progress: null,
+	freshness: null,
+	indexedNoteCount: 1,
+	totalNoteCount: 1,
+	skippedPaths: [],
+	failedPaths: [],
+	stalePaths: [],
+	missingPaths: [],
+	extraPaths: [],
+	currentPath: null,
+	updatedAt: fixedTimestamp,
+	message: "Synthetic runtime index report.",
+	...overrides,
+});
+
+const semanticReadiness = (overrides: Partial<SemanticIndexReadiness> = {}): SemanticIndexReadiness => ({
+	state: "disabled",
+	readinessState: "disabled",
+	checkedAt: fixedTimestamp,
+	contentSensitivity: "private-vault",
+	providerId: null,
+	modelId: null,
+	sourcePathCount: 0,
+	message: "Semantic indexing is disabled in settings.",
+	diagnosticCode: null,
+	...overrides,
 });
 
 const readySettings = {
@@ -278,5 +312,83 @@ describe("runtime status composition", () => {
 
 		expect(snapshot.overallSeverity).toBe("error");
 		expect(snapshot.counts.error).toBe(4);
+	});
+
+	it("reports runtime index reports with canceled, skipped, failed, and semantic gate details", () => {
+		const report = indexingReport({
+			status: "canceled",
+			readinessState: "canceled",
+			indexedNoteCount: 1,
+			totalNoteCount: 3,
+			currentPath: makeNormalizedVaultPath("sources/runtime-source.md"),
+			skippedPaths: [
+				{
+					path: makeNormalizedVaultPath("archive/excluded-note.md"),
+					code: "excluded-folder",
+					reason: "Path is under an excluded folder.",
+				},
+			],
+			failedPaths: [
+				{
+					path: makeNormalizedVaultPath("sources/read-failure.md"),
+					code: "read-failed",
+					reason: "Vault note could not be read.",
+				},
+			],
+			stalePaths: [makeNormalizedVaultPath("sources/runtime-source.md")],
+			message: "Lexical index job was canceled.",
+		});
+		const snapshot = createRuntimeStatusSnapshot({
+			settings: readySettings,
+			providers: BASELINE_PROVIDERS,
+			indexReports: [report],
+			semanticIndexReadiness: semanticReadiness({
+				state: "privacy-denied",
+				readinessState: "blocked",
+				message: "Cloud provider workflows are disabled.",
+				diagnosticCode: "cloud-disabled",
+			}),
+			now: fixedDate,
+		});
+		const indexItem = snapshot.items.find((item) => item.id === "index-readiness");
+
+		expect(indexItem).toMatchObject({
+			severity: "error",
+			summary: "At least one retrieval index report is in an error state.",
+		});
+		expect(indexItem?.details.join(" ")).toContain("1 skipped; 1 failed");
+		expect(indexItem?.details.join(" ")).toContain("Semantic indexing: blocked");
+		expect(indexItem?.paths).toEqual(
+			expect.arrayContaining([
+				makeNormalizedVaultPath("archive/excluded-note.md"),
+				makeNormalizedVaultPath("sources/read-failure.md"),
+				makeNormalizedVaultPath("sources/runtime-source.md"),
+			]),
+		);
+		expect(JSON.stringify(indexItem)).not.toContain("Synthetic runtime note body");
+	});
+
+	it("distinguishes semantic disabled and missing-provider readiness in index summaries", () => {
+		const disabledSnapshot = createRuntimeStatusSnapshot({
+			settings: readySettings,
+			providers: BASELINE_PROVIDERS,
+			indexReports: [indexingReport()],
+			semanticIndexReadiness: semanticReadiness(),
+			now: fixedDate,
+		});
+		expect(disabledSnapshot.items.find((item) => item.id === "index-readiness")?.severity).toBe("ready");
+
+		const missingSnapshot = createRuntimeStatusSnapshot({
+			settings: readySettings,
+			providers: BASELINE_PROVIDERS,
+			indexReports: [indexingReport()],
+			semanticIndexReadiness: semanticReadiness({
+				state: "missing-provider",
+				readinessState: "missing",
+				message: "embedding provider is not selected.",
+			}),
+			now: fixedDate,
+		});
+		expect(missingSnapshot.items.find((item) => item.id === "index-readiness")?.severity).toBe("missing");
 	});
 });

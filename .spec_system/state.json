@@ -27,7 +27,8 @@
     "phase00-session05-agent-surfaces-commands",
     "phase00-session06-staged-changes-health-foundation",
     "phase01-session01-obsidian-runtime-settings",
-    "phase01-session02-provider-setup-privacy-preflight"
+    "phase01-session02-provider-setup-privacy-preflight",
+    "phase01-session03-indexing-runtime-retrieval-readiness"
   ],
   "next_session_history": [
     {
@@ -98,6 +99,16 @@
     {
       "date": "2026-05-13",
       "session": "phase01-session02-provider-setup-privacy-preflight",
+      "status": "completed"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase01-session03-indexing-runtime-retrieval-readiness",
+      "status": "planned"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase01-session03-indexing-runtime-retrieval-readiness",
       "status": "completed"
     }
   ]

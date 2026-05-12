@@ -1,5 +1,6 @@
 import type { AgentCommand, AgentCommandId } from "./agent-commands";
 import type { VaultHealthReport } from "./health";
+import type { IndexingPathDiagnostic, IndexingRuntimeReport, SemanticIndexReadiness } from "./indexing-runtime";
 import type { VoidbrainPluginSettings } from "./plugin";
 import type { ProviderRoleCapabilitySummary, ProviderSetupSummary } from "./provider-setup";
 import type { ProviderDefinition } from "./providers";
@@ -45,8 +46,11 @@ export interface RuntimeStatusInput {
 	readonly providers: readonly ProviderDefinition[];
 	readonly providerSetup?: ProviderSetupSummary;
 	readonly providerRoleCapabilities?: readonly ProviderRoleCapabilitySummary[];
+	readonly indexReports?: readonly IndexingRuntimeReport[];
 	readonly indexProgress?: readonly IndexProgressSnapshot[];
 	readonly indexFreshness?: readonly IndexFreshnessSnapshot[];
+	readonly semanticIndexReadiness?: SemanticIndexReadiness | null;
+	readonly recentIndexFailures?: readonly IndexingPathDiagnostic[];
 	readonly stagedChanges?: readonly StagedChangeRecord[];
 	readonly healthReport?: VaultHealthReport | null;
 	readonly now?: Date;

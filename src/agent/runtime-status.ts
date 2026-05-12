@@ -1,4 +1,5 @@
 import { summarizeProviderRoleCapabilities, summarizeProviderSetup } from "../providers/provider-preflight";
+import type { IndexingPathDiagnostic, IndexingRuntimeReport, SemanticIndexReadiness } from "../types/indexing-runtime";
 import type { IndexFreshnessState, IndexJobStatus } from "../types/retrieval";
 import type {
 	RuntimeStatusCounts,
@@ -8,6 +9,7 @@ import type {
 	RuntimeStatusSnapshot,
 } from "../types/runtime";
 import { type IsoTimestamp, type NormalizedVaultPath, type StagedChangeRecord, makeIsoTimestamp } from "../types/vault";
+import { normalizeVaultPath } from "../utils/vault-paths";
 
 const activeStagedStatuses = new Set(["proposed", "review-ready", "conflicted", "approved"]);
 const maxStatusPaths = 10;
@@ -130,20 +132,103 @@ const freshnessSeverity = (state: IndexFreshnessState): RuntimeStatusSeverity =>
 	}
 };
 
+const reportSeverity = (report: IndexingRuntimeReport): RuntimeStatusSeverity => {
+	if (report.failedPaths.length > 0) {
+		return "error";
+	}
+
+	switch (report.readinessState) {
+		case "ready":
+			return report.skippedPaths.length > 0 ||
+				report.stalePaths.length > 0 ||
+				report.missingPaths.length > 0 ||
+				report.extraPaths.length > 0
+				? "warning"
+				: "ready";
+		case "disabled":
+			return "ready";
+		case "missing":
+			return "missing";
+		case "building":
+		case "stale":
+		case "canceled":
+			return "warning";
+		case "blocked":
+		case "error":
+			return "error";
+		default: {
+			const exhaustive: never = report.readinessState;
+			throw new Error(`Unhandled report readiness state: ${String(exhaustive)}`);
+		}
+	}
+};
+
+const semanticSeverity = (readiness: SemanticIndexReadiness): RuntimeStatusSeverity => {
+	switch (readiness.readinessState) {
+		case "ready":
+		case "disabled":
+			return "ready";
+		case "missing":
+			return "missing";
+		case "building":
+		case "stale":
+		case "canceled":
+			return "warning";
+		case "blocked":
+		case "error":
+			return readiness.state === "privacy-denied" ? "warning" : "error";
+		default: {
+			const exhaustive: never = readiness.readinessState;
+			throw new Error(`Unhandled semantic readiness state: ${String(exhaustive)}`);
+		}
+	}
+};
+
+const diagnosticPaths = (diagnostics: readonly IndexingPathDiagnostic[]): readonly NormalizedVaultPath[] =>
+	diagnostics.flatMap((diagnostic) => {
+		const normalized = normalizeVaultPath(diagnostic.path);
+		return normalized.ok ? [normalized.value] : [];
+	});
+
+const reportPaths = (reports: readonly IndexingRuntimeReport[]): readonly NormalizedVaultPath[] =>
+	reports.flatMap((report) => [
+		...report.stalePaths,
+		...report.missingPaths,
+		...report.extraPaths,
+		...(report.currentPath === null ? [] : [report.currentPath]),
+		...diagnosticPaths(report.skippedPaths),
+		...diagnosticPaths(report.failedPaths),
+	]);
+
+const reportDetails = (reports: readonly IndexingRuntimeReport[]): readonly string[] =>
+	reports.flatMap((report) => [
+		`${report.indexId}: ${report.readinessState}; ${report.indexedNoteCount}/${report.totalNoteCount} indexed; ${report.skippedPaths.length} skipped; ${report.failedPaths.length} failed.`,
+		...(report.currentPath === null ? [] : [`Current path: ${report.currentPath}.`]),
+		...(report.freshness === null ? [] : [`Freshness: ${report.freshness.state}.`]),
+		report.message,
+	]);
+
 const indexStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
+	const reports = input.indexReports ?? [];
 	const progress = input.indexProgress ?? [];
 	const freshness = input.indexFreshness ?? [];
+	const semanticReadiness = input.semanticIndexReadiness ?? null;
+	const recentFailures = input.recentIndexFailures ?? [];
 	const allSeverities = [
+		...reports.map(reportSeverity),
 		...progress.map((snapshot) => progressSeverity(snapshot.status)),
 		...freshness.map((snapshot) => freshnessSeverity(snapshot.state)),
+		...(semanticReadiness === null ? [] : [semanticSeverity(semanticReadiness)]),
 	];
-	const paths = limitedPaths(
-		freshness.flatMap((snapshot) => [
+	const paths = limitedPaths([
+		...reportPaths(reports),
+		...diagnosticPaths(recentFailures),
+		...freshness.flatMap((snapshot) => [
 			...snapshot.staleSourcePaths,
 			...snapshot.missingSourcePaths,
 			...snapshot.extraSourcePaths,
 		]),
-	);
+	]);
 
 	if (allSeverities.length === 0) {
 		return {
@@ -152,22 +237,29 @@ const indexStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
 			label: "Index readiness",
 			severity: "missing",
 			summary: "No index snapshot has been created yet.",
-			details: ["Index orchestration is planned for a later session."],
+			details: ["Runtime indexing has not reported readiness yet."],
 			paths,
 			count: 0,
 		};
 	}
 
 	const severity = allSeverities.reduce(bySeverity, "ready");
-	const detail = `${progress.length} progress snapshot(s), ${freshness.length} freshness snapshot(s).`;
+	const details = [
+		...reportDetails(reports),
+		`${progress.length} progress snapshot(s), ${freshness.length} freshness snapshot(s).`,
+		...(semanticReadiness === null
+			? []
+			: [`Semantic indexing: ${semanticReadiness.readinessState}; ${semanticReadiness.message}`]),
+		...(recentFailures.length === 0 ? [] : [`${recentFailures.length} recent failed path(s).`]),
+	];
 	const summary =
 		severity === "ready"
-			? "Index snapshots are ready or fresh."
+			? "Retrieval indexes are ready or intentionally disabled."
 			: severity === "error"
-				? "At least one index snapshot is in an error state."
+				? "At least one retrieval index report is in an error state."
 				: severity === "missing"
-					? "At least one index snapshot is missing."
-					: "At least one index snapshot needs attention.";
+					? "At least one retrieval index report is missing."
+					: "At least one retrieval index report needs attention.";
 
 	return {
 		id: "index-readiness",
@@ -175,9 +267,9 @@ const indexStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
 		label: "Index readiness",
 		severity,
 		summary,
-		details: [detail],
+		details,
 		paths,
-		count: progress.length + freshness.length,
+		count: reports.length + progress.length + freshness.length + (semanticReadiness === null ? 0 : 1),
 	};
 };
 

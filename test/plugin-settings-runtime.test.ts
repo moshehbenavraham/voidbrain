@@ -117,6 +117,29 @@ describe("Phase 01 plugin settings migration", () => {
 		});
 	});
 
+	it("ignores runtime index reports and diagnostics inside persisted indexing settings", () => {
+		const result = parsePluginSettings({
+			...DEFAULT_PLUGIN_SETTINGS,
+			indexing: {
+				...DEFAULT_PLUGIN_SETTINGS.indexing,
+				indexReports: [
+					{
+						message: "Synthetic runtime note body should not persist.",
+						failedPaths: ["sources/read-failure.md"],
+					},
+				],
+				semanticIndexReadiness: {
+					message: "Provider readiness is runtime-only.",
+				},
+			},
+		});
+
+		expect(result.status).toBe("loaded");
+		expect(result.settings.indexing).toEqual(DEFAULT_PLUGIN_SETTINGS.indexing);
+		expect(JSON.stringify(result.settings)).not.toContain("Synthetic runtime note body");
+		expect(JSON.stringify(result.settings)).not.toContain("read-failure");
+	});
+
 	it("migrates provider profiles and opaque secret references without raw runtime values", () => {
 		const result = parsePluginSettings({
 			schemaVersion: SETTINGS_SCHEMA_VERSION,

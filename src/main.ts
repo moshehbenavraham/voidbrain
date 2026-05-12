@@ -1,4 +1,4 @@
-import { Notice, Plugin } from "obsidian";
+import { Notice, Plugin, type TFile } from "obsidian";
 import "./styles.css";
 import { createRuntimeCommandHandlers, createRuntimeStatusSnapshot } from "./agent";
 import {
@@ -9,6 +9,7 @@ import {
 } from "./providers";
 import { BASELINE_PROVIDERS } from "./providers/provider-registry";
 import { type RuntimeStatusStore, createRuntimeStatusStore } from "./stores/runtime-status-store";
+import type { IndexingRuntimeState } from "./types/indexing-runtime";
 import { DEFAULT_PLUGIN_SETTINGS, SHOW_STATUS_COMMAND_ID, type VoidbrainPluginSettings } from "./types/plugin";
 import type { RuntimeCommandOutcome, RuntimeStatusSnapshot } from "./types/runtime";
 import {
@@ -17,6 +18,7 @@ import {
 	loadPluginSettings,
 	savePluginSettings,
 } from "./utils/settings";
+import { IndexingRuntimeService, createObsidianMarkdownIndexSource } from "./vectorstore";
 import { VoidbrainSettingsTab } from "./views/settings-tab";
 import { VOIDBRAIN_STATUS_VIEW_TYPE, VoidbrainStatusView } from "./views/status-view";
 
@@ -42,6 +44,8 @@ export default class VoidbrainPlugin extends Plugin {
 	private settingsLoadErrors: SettingsValidationError[] = [];
 	private settingsLoadStatus: SettingsLoadStatus = "defaulted";
 	private readonly providerSecretStore = createInMemoryProviderSecretStore();
+	private indexingRuntime: IndexingRuntimeService | null = null;
+	private unsubscribeFromIndexingRuntime: CleanupCallback | null = null;
 	private ribbonActionCount = 0;
 	private settingsTabCount = 0;
 	private runtimeStatusSnapshot: RuntimeStatusSnapshot = createRuntimeStatusSnapshot({
@@ -56,6 +60,7 @@ export default class VoidbrainPlugin extends Plugin {
 		this.settings = settingsLoadResult.settings;
 		this.settingsLoadErrors = settingsLoadResult.errors;
 		this.settingsLoadStatus = settingsLoadResult.status;
+		this.createIndexingRuntime();
 		this.refreshRuntimeStatusSnapshot();
 		this.isRuntimeLoaded = true;
 
@@ -68,8 +73,13 @@ export default class VoidbrainPlugin extends Plugin {
 		this.registerStatusView();
 		this.registerRibbonAction();
 		this.registerSettingsTab();
+		this.startIndexingOnStartup();
 
 		this.registerOwnedCleanup(() => {
+			this.unsubscribeFromIndexingRuntime?.();
+			this.unsubscribeFromIndexingRuntime = null;
+			this.indexingRuntime?.dispose();
+			this.indexingRuntime = null;
 			this.isRuntimeLoaded = false;
 			this.runtimeStatusStore.clear();
 		});
@@ -100,22 +110,74 @@ export default class VoidbrainPlugin extends Plugin {
 		return this.runtimeStatusSnapshot;
 	}
 
+	getIndexingRuntimeState(): IndexingRuntimeState | null {
+		return this.indexingRuntime?.getState() ?? null;
+	}
+
 	async saveSettings(settings: VoidbrainPluginSettings): Promise<void> {
 		this.settings = await savePluginSettings(this, settings);
+		this.indexingRuntime?.refreshReadiness();
 		this.refreshRuntimeStatusSnapshot();
 	}
 
 	private refreshRuntimeStatusSnapshot(): RuntimeStatusSnapshot {
 		const providers = buildProviderDefinitionsForSettings(this.settings, BASELINE_PROVIDERS);
+		const indexingState = this.indexingRuntime?.getState() ?? null;
+		const lexicalReport = indexingState?.lexicalReport ?? null;
 		this.runtimeStatusSnapshot = createRuntimeStatusSnapshot({
 			settings: this.settings,
 			providers,
 			providerSetup: summarizeProviderSetup(this.settings, providers),
 			providerRoleCapabilities: summarizeProviderRoleCapabilities(this.settings, providers),
+			...(lexicalReport === null ? {} : { indexReports: [lexicalReport] }),
+			...(lexicalReport?.progress === undefined || lexicalReport.progress === null
+				? {}
+				: { indexProgress: [lexicalReport.progress] }),
+			...(lexicalReport?.freshness === undefined || lexicalReport.freshness === null
+				? {}
+				: { indexFreshness: [lexicalReport.freshness] }),
+			...(indexingState === null ? {} : { semanticIndexReadiness: indexingState.semanticReadiness }),
+			...(lexicalReport === null || lexicalReport.failedPaths.length === 0
+				? {}
+				: { recentIndexFailures: lexicalReport.failedPaths }),
 		});
 		this.runtimeStatusStore.setSnapshot(this.runtimeStatusSnapshot);
 
 		return this.runtimeStatusSnapshot;
+	}
+
+	private createIndexingRuntime(): void {
+		const source = createObsidianMarkdownIndexSource({
+			vault: {
+				getFiles: () => this.app.vault.getFiles(),
+				read: (file) => this.app.vault.read(file as TFile),
+			},
+			metadataCache: {
+				getFileCache: (file) => this.app.metadataCache.getFileCache(file as TFile),
+			},
+		});
+		this.indexingRuntime = new IndexingRuntimeService({
+			source,
+			getSettings: () => this.settings,
+			getProviders: () => buildProviderDefinitionsForSettings(this.settings, BASELINE_PROVIDERS),
+		});
+		this.unsubscribeFromIndexingRuntime = this.indexingRuntime.subscribe(() => {
+			this.refreshRuntimeStatusSnapshot();
+		});
+	}
+
+	private startIndexingOnStartup(): void {
+		if (!this.settings.indexing.shouldIndexOnStartup || this.indexingRuntime === null) {
+			return;
+		}
+
+		void this.indexingRuntime.reindexLexical().then((result) => {
+			if (!result.accepted || !this.settings.shouldShowStatusNotices) {
+				return;
+			}
+
+			new Notice(result.message, 5000);
+		});
 	}
 
 	private registerStatusCommand(): void {
@@ -189,10 +251,23 @@ export default class VoidbrainPlugin extends Plugin {
 	}
 
 	private registerSettingsTab(): void {
+		const indexingRuntime = this.indexingRuntime;
 		const settingsTab = new VoidbrainSettingsTab(this.app, this, {
 			getSettings: () => this.getSettings(),
 			saveSettings: (settings) => this.saveSettings(settings),
 			secretStore: this.providerSecretStore,
+			...(indexingRuntime === null
+				? {}
+				: {
+						indexingRuntime: {
+							getState: () => indexingRuntime.getState(),
+							reindexLexical: () => indexingRuntime.reindexLexical(),
+							cancelLexical: () => indexingRuntime.cancelLexical(),
+							retryLexical: () => indexingRuntime.retryLexical(),
+							refreshReadiness: () => indexingRuntime.refreshReadiness(),
+							subscribe: (subscriber) => indexingRuntime.subscribe(subscriber),
+						},
+					}),
 		});
 
 		this.addSettingTab(settingsTab);

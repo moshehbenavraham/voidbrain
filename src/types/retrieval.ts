@@ -18,6 +18,16 @@ export const RETRIEVAL_ERROR_CODES = [
 	"retrieval.index-not-ready",
 	"retrieval.unsupported-filter",
 ] as const;
+export const RETRIEVAL_READINESS_STATES = [
+	"ready",
+	"building",
+	"stale",
+	"missing",
+	"error",
+	"canceled",
+	"disabled",
+	"blocked",
+] as const;
 export const INDEX_JOB_STATUSES = ["idle", "building", "ready", "stale", "error", "canceled"] as const;
 export const INDEX_FRESHNESS_STATES = ["fresh", "stale", "missing", "partial"] as const;
 export const SEMANTIC_DISTANCE_METRICS = ["cosine", "dot-product", "euclidean"] as const;
@@ -33,6 +43,7 @@ export type WikilinkTargetStatus = (typeof WIKILINK_TARGET_STATUSES)[number];
 export type MarkdownTagSource = (typeof MARKDOWN_TAG_SOURCES)[number];
 export type RetrievalScoreMethod = (typeof RETRIEVAL_SCORE_METHODS)[number];
 export type RetrievalErrorCode = (typeof RETRIEVAL_ERROR_CODES)[number];
+export type RetrievalReadinessState = (typeof RETRIEVAL_READINESS_STATES)[number];
 export type IndexJobStatus = (typeof INDEX_JOB_STATUSES)[number];
 export type IndexFreshnessState = (typeof INDEX_FRESHNESS_STATES)[number];
 export type SemanticDistanceMetric = (typeof SEMANTIC_DISTANCE_METRICS)[number];

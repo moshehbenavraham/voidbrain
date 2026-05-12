@@ -134,14 +134,28 @@ export class VoidbrainStatusView extends ItemView {
 			const label = document.createElement("h3");
 			label.textContent = item.label;
 
+			const meta = document.createElement("p");
+			meta.className = "voidbrain-status-card__meta";
+			meta.textContent =
+				item.count === undefined
+					? `Severity: ${item.severity}.`
+					: `Severity: ${item.severity}; count: ${item.count}.`;
+
 			const summary = document.createElement("p");
 			summary.textContent = item.summary;
 
-			const details = document.createElement("p");
+			const details = document.createElement("ul");
 			details.className = "voidbrain-status-card__details";
-			details.textContent = item.details.join(" ");
+			for (const detail of item.details.length === 0 ? ["No details reported."] : item.details) {
+				const detailItem = document.createElement("li");
+				detailItem.textContent = detail;
+				details.append(detailItem);
+			}
 
-			article.append(label, summary, details);
+			article.append(label, meta, summary, details);
+			if (item.paths.length > 0) {
+				article.append(this.createPathList(item.paths));
+			}
 			list.append(article);
 		}
 
@@ -155,5 +169,24 @@ export class VoidbrainStatusView extends ItemView {
 		root.setAttribute("role", state === "error" ? "alert" : "status");
 		root.textContent = message;
 		return root;
+	}
+
+	private createPathList(paths: readonly string[]): HTMLElement {
+		const section = document.createElement("section");
+		section.className = "voidbrain-status-card__paths";
+		section.setAttribute("aria-label", "Sampled vault paths");
+
+		const title = document.createElement("h4");
+		title.textContent = "Paths";
+
+		const list = document.createElement("ul");
+		for (const path of paths) {
+			const item = document.createElement("li");
+			item.textContent = path;
+			list.append(item);
+		}
+
+		section.append(title, list);
+		return section;
 	}
 }
