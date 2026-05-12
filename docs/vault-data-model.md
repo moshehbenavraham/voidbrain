@@ -41,6 +41,53 @@ They may describe user notes, but they are not the durable source of truth. A
 healthy implementation can delete and rebuild indexes or cache records from
 markdown notes and manifests.
 
+## Derived Index Metadata
+
+Lexical and semantic indexes are derived support artifacts. They may be stored
+under `.voidbrain/indexes/` or represented in `.voidbrain/runtime-state.json`,
+but they must always be rebuildable from markdown notes and manifests.
+
+Index metadata records:
+
+- Index ID and kind (`lexical` or `semantic`).
+- Status and update timestamp.
+- Sorted source paths used to build the index.
+- Content fingerprints for freshness checks in runtime service contracts.
+- Embedding model family for semantic indexes.
+
+Freshness is not inferred from file presence alone. Runtime code compares the
+source path set and content fingerprints from the current vault scan against the
+index metadata. Missing sources, extra sources, or changed fingerprints make the
+index partial or stale until rebuilt. A stale index can still be useful for
+diagnostics, but chat and agent workflows must not treat it as current evidence.
+
+## Retrieval Traceability
+
+Retrieval results are citation-ready evidence records, not synthesized answers.
+Every result must preserve:
+
+- Vault-relative path.
+- Heading text and level when the chunk came from a heading section.
+- Bounded snippet.
+- Score and score details.
+- Chunk ID.
+- Source paths inherited from generated note frontmatter or the source note
+  itself.
+
+Later answer synthesis must cite these fields instead of citing opaque vector
+IDs or untraceable cache records.
+
+## Embedding Compatibility
+
+Semantic indexes are keyed by embedding model family, not provider display
+name. A semantic index built with one embedding family must reject entries from
+another family or from vectors with mismatched dimensions.
+
+Before private vault content is prepared for embedding, runtime code must run
+provider preflight with `embeddings` capability and local-first disclosure
+policy. Cloud providers require explicit cloud enablement and a trusted provider
+ID before any private vault content can leave the local boundary.
+
 ## Artifact Kinds
 
 | Kind | File type | Allowed location |

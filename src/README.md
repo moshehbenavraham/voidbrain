@@ -42,6 +42,23 @@ Provider services must stay testable outside the Obsidian runtime. Runtime
 commands, views, retrieval jobs, and future agent workflows should call the
 privacy guard and capability selector before constructing a provider request.
 
+## Vectorstore and Retrieval Ownership
+
+| Path | Owner | Notes |
+|------|-------|-------|
+| `types/retrieval.ts` | Markdown parse, chunk, retrieval result, index progress, freshness, lexical, and semantic contracts | Retrieval results must preserve path, heading, snippet, score details, chunk ID, and source paths. |
+| `vectorstore/markdown-parser.ts` | Pure markdown parsing and chunk/snippet extraction | Validate vault paths, parse fixture-safe markdown, and keep chunks traceable to headings and source paths. |
+| `vectorstore/index-state.ts` | Index progress, cancellation, freshness, and reset helpers | Treat indexes as rebuildable support state and report stale or partial state explicitly. |
+| `vectorstore/lexical-index.ts` | Deterministic in-memory lexical index and search | Bound query limits and sort by score, path, heading, and chunk ID for stable fixture tests. |
+| `vectorstore/semantic-index.ts` | Embedding family compatibility and provider preflight bridge | Check `embeddings` capability and local-first disclosure before private vault content can be embedded. |
+| `vectorstore/indexing-service.ts` | Index build orchestration | Keep long-running work cancellable, idempotent, and independent from Obsidian lifecycle APIs. |
+| `vectorstore/retrieval-service.ts` | Citation-ready retrieval result composition | Convert index hits into bounded snippets with score details and source traceability. |
+
+Retrieval code must not synthesize user-facing claims. It returns evidence
+records that later chat and agent workflows can cite. Semantic indexing must
+key derived support artifacts by embedding model family; provider display names
+are not compatibility boundaries.
+
 ## Boundaries
 
 - Use Obsidian vault and adapter APIs for runtime file access.

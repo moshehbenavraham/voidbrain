@@ -16,7 +16,8 @@
   "completed_sessions": [
     "phase00-session01-repo-tooling-scaffold",
     "phase00-session02-vault-data-model",
-    "phase00-session03-provider-privacy-boundaries"
+    "phase00-session03-provider-privacy-boundaries",
+    "phase00-session04-indexing-retrieval-foundation"
   ],
   "next_session_history": [
     {
@@ -42,6 +43,16 @@
     {
       "date": "2026-05-12",
       "session": "phase00-session03-provider-privacy-boundaries",
+      "status": "completed"
+    },
+    {
+      "date": "2026-05-12",
+      "session": "phase00-session04-indexing-retrieval-foundation",
+      "status": "planned"
+    },
+    {
+      "date": "2026-05-12",
+      "session": "phase00-session04-indexing-retrieval-foundation",
       "status": "completed"
     }
   ]
