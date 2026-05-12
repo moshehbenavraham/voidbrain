@@ -6,6 +6,16 @@ export {
 	validateAgentCommandCatalog,
 } from "./command-catalog";
 export {
+	RuntimeCommandRegistrationError,
+	createRuntimeCommandHandlers,
+	mapRuntimeCommandError,
+} from "./runtime-command-handlers";
+export type {
+	RuntimeCommandHandlerEntry,
+	RuntimeCommandHandlerOptions,
+} from "./runtime-command-handlers";
+export { createRuntimeStatusSnapshot } from "./runtime-status";
+export {
 	findMissingRequiredSafetyPhrases,
 	validateAgentSurfaceMarkdown,
 	validateAgentSurfaces,

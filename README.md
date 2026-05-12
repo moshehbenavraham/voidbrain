@@ -40,10 +40,16 @@ bun run preview:framework-update
 
 ## Project Docs
 
+- [Contributing](CONTRIBUTING.md)
 - [Product Requirements](.spec_system/PRD/PRD.md)
 - [UX Requirements](.spec_system/PRD/PRD_UX.md)
 - [Phase 00 Plan](.spec_system/PRD/phase_00/PRD_phase_00.md)
 - [Engineering Conventions](.spec_system/CONVENTIONS.md)
+- [Architecture](docs/ARCHITECTURE.md)
+- [Onboarding](docs/onboarding.md)
+- [Development Guide](docs/development.md)
+- [Environment Guide](docs/environments.md)
+- [Deployment Guide](docs/deployment.md)
 - [Agent Surfaces and Commands](docs/agent-surfaces-commands.md)
 - [Provider Privacy Boundaries](docs/provider-privacy-boundaries.md)
 - [Indexing and Retrieval Foundation](docs/indexing-retrieval-foundation.md)
@@ -65,4 +71,10 @@ dry-run framework update behavior, and recovery expectations.
 
 ## Repository Policy
 
-`EXAMPLES/` is local research input and is intentionally ignored. 
+`EXAMPLES/` is local research input and is intentionally ignored.
+
+## Documentation Status
+
+Phase 00 is complete. The standard documentation set now lives at the repository
+root and in `docs/`, with repository-specific workflow and architecture details
+kept alongside the phase and domain docs.

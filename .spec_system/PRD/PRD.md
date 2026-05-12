@@ -117,7 +117,7 @@ This system delivers the product via phases. Each phase is implemented via multi
 | Phase | Name | Sessions | Status |
 |-------|------|----------|--------|
 | 00 | Foundation | 6 | Complete |
-| 01 | Vault Intelligence MVP | TBD | Not Started |
+| 01 | Vault Intelligence MVP | 8 | In Progress |
 | 02 | Agentic Maintenance | TBD | Not Started |
 | 03 | Offline and Provider Hardening | TBD | Not Started |
 | 04 | Distribution and Ecosystem | TBD | Not Started |
@@ -143,6 +143,30 @@ Phase 00 is complete and archived in `.spec_system/archive/phases/phase_00/`.
 | 04 | Indexing and Retrieval Foundation | Create indexing and retrieval service foundations for grounded vault workflows. |
 | 05 | Agent Surfaces and Commands | Create synchronized markdown agent surfaces and local command scripts. |
 | 06 | Staged Changes and Health Foundation | Implement staged-change and vault-health primitives for reviewable AI note mutations. |
+
+## Phase 01: Vault Intelligence MVP
+
+Phase 01 turns the completed foundations into the first usable local-first Obsidian MVP. It focuses on provider setup, indexing readiness, grounded chat, source ingestion, staged-change review, health reporting, and recoverable recent context.
+
+### Objectives
+
+1. Let users configure provider, privacy, vault, index, and settings state without exposing secrets or mutating notes unexpectedly.
+2. Let users index a vault and ask retrieval-grounded questions that return cited vault paths, headings, and source records.
+3. Let users ingest source material into reviewable staged markdown changes before anything touches user vault files.
+4. Let users review, apply, reject, recover, and audit AI-created changes through explicit local workflows.
+
+### Sessions
+
+| Session | Name | Objective |
+|---------|------|-----------|
+| 01 | Obsidian Runtime and Settings Surface | Wire plugin lifecycle, settings, commands, and status surfaces for MVP workflows. |
+| 02 | Provider Setup and Privacy Preflight | Build provider configuration, capability checks, and cloud disclosure gates. |
+| 03 | Indexing Runtime and Retrieval Readiness | Run vault indexing through Obsidian APIs with progress, cancellation, and retrieval status. |
+| 04 | Grounded Vault Chat | Implement cited retrieval chat with provider guardrails and recoverable thread state. |
+| 05 | Source Ingestion Staging | Convert approved sources into citation-backed staged markdown records. |
+| 06 | Staged Change Review and Apply | Add explicit review, conflict handling, confirmed apply, and recovery for staged changes. |
+| 07 | Vault Health Check and Repair Staging | Surface health findings, export reports, and stage safe repairs while unsafe items remain report-only. |
+| 08 | Hot Cache and MVP Integration Validation | Persist recent context and validate the complete MVP workflow with docs and tests. |
 
 ## Technical Stack
 

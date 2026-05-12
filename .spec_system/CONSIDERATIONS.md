@@ -1,7 +1,7 @@
 # Considerations
 
 > Institutional memory for AI assistants. Updated between phases via carryforward.
-> **Line budget**: 600 max | **Last updated**: Phase 00 (2026-05-12)
+> **Line budget**: 600 max | **Last updated**: Phase 00 (2026-05-13)
 
 ---
 
@@ -10,16 +10,20 @@
 Items requiring attention in upcoming phases. Review before each session.
 
 ### Technical Debt <!-- Max 5 items -->
-*None yet - add items as technical debt accumulates.*
+- [P00] **Tracker synchronization**: Phase state, PRD rows, session specs, and archive artifacts must stay machine-readable and aligned so later workflow commands can trust repo state.
+- [P00] **Staged-write gap**: Review-first staged-change builders exist, but the apply workflow is still deferred; do not introduce direct note writes without review hooks.
 
 ### External Dependencies <!-- Max 5 items -->
-*None yet - add items when external API/service risks are identified.*
+- [P00] **Bun baseline**: Local validation scripts assume Bun is available; keep setup guidance explicit and preserve a fallback path for contributors.
+- [P00] **Command-surface sync**: Markdown agent surfaces, scripts, and the canonical command catalog must remain aligned or validation should fail closed.
 
 ### Performance / Security <!-- Max 5 items -->
-*None yet - add items when thresholds or security requirements emerge.*
+- [P00] **Provider disclosure boundary**: Any future cloud provider workflow must keep fail-closed disclosure preflight and recursive redaction as mandatory gates.
+- [P00] **Fixture safety**: Synthetic vault and example files must stay free of secrets, personal data, and private path hints.
 
 ### Architecture <!-- Max 5 items -->
-*None yet - add items when architectural constraints are discovered.*
+- [P00] **Contract-first boundaries**: Keep durable vault, provider, retrieval, agent, and staged-change contracts isolated so later features compose without refactoring plugin lifecycle code.
+- [P00] **Framework-vault separation**: Framework updates must remain separate from user vault content and staged review paths.
 
 ---
 
@@ -28,13 +32,21 @@ Items requiring attention in upcoming phases. Review before each session.
 Proven patterns and anti-patterns. Reference during implementation.
 
 ### What Worked <!-- Max 15 items -->
-*None yet - add patterns that prove effective.*
+- [P00] **Contract-first modeling**: Define TypeScript contracts and safety helpers before behavior so later ingestion and retrieval code share one vocabulary.
+- [P00] **Synthetic fixtures**: Use fake vault data to validate path, metadata, retrieval, and health rules without exposing user content.
+- [P00] **Canonical command catalog**: Keep markdown surfaces and scripts tied to one command source of truth.
+- [P00] **Deterministic state models**: Explicit freshness, progress, staged-change, and recovery metadata are easier to validate than inferred state.
+- [P00] **Fail-closed boundaries**: Explicit provider disclosure and redaction checks simplify safe defaults.
 
 ### What to Avoid <!-- Max 10 items -->
-*None yet - add anti-patterns discovered during implementation.*
+- [P00] **Direct user-vault writes**: Avoid bypassing staged-review flows when note mutations are introduced.
+- [P00] **Tracker drift**: Do not update code without updating session and phase tracking artifacts at the same time.
+- [P00] **Implicit provider trust**: Never assume cloud use is allowed without explicit settings and capability checks.
+- [P00] **Hidden local assumptions**: Do not assume bundled scripts or input files are present; provide clear fallbacks and validation.
 
 ### Tool/Library Notes <!-- Max 5 items -->
-*None yet - add key insights about tools and libraries.*
+- [P00] **Bun**: Use Bun for local validation in this repo, but keep installation guidance explicit for contributors.
+- [P00] **Local analyzer fallback**: If local spec scripts are missing, use the bundled analyzer path instead of assuming `.spec_system/scripts/` already exists.
 
 ---
 

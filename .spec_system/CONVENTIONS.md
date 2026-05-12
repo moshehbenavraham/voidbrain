@@ -116,6 +116,17 @@
 | Retrieval | MiniSearch, local vector index | service-specific config |
 | Agent Runtime | LangChain, LangGraph | provider and agent modules |
 
+## Infrastructure
+
+| Component | Provider | Details |
+|-----------|----------|---------|
+| CDN/DNS | Not configured | Local-first plugin; no public web tier. |
+| Hosting | Obsidian desktop | Runs inside the Obsidian app. |
+| Database | None | Vault markdown is the source of truth; no external database. |
+| Backup | Git / filesystem | User-managed backups; no automated infra bundle yet. |
+| Deploy | Not configured | No production deploy target in the current phase. |
+| Local Dev | Bun + Vite | `bun run validate` builds, type-checks, lints, tests, and checks agent docs. |
+
 ## Git and Releases
 
 - Keep framework files separate from user vault content.
