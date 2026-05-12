@@ -3,6 +3,12 @@ import { LOCAL_FIXTURE_PROVIDER_ID, TRUSTED_CLOUD_FIXTURE_PROVIDER_ID, makeProvi
 import { DEFAULT_PLUGIN_SETTINGS, SETTINGS_SCHEMA_VERSION } from "../src/types/plugin";
 import { makeNormalizedVaultPath } from "../src/types/vault";
 import { parsePluginSettings, savePluginSettings } from "../src/utils/settings";
+import {
+	SYNTHETIC_CLOUD_PROFILE_ID,
+	SYNTHETIC_CLOUD_PROFILE_INPUT,
+	SYNTHETIC_LOCAL_PROFILE_INPUT,
+	SYNTHETIC_PROFILE_REFERENCE,
+} from "./fixtures/providers/provider-setup-fixtures";
 
 describe("Phase 01 plugin settings migration", () => {
 	it("migrates schema 1 settings into schema 2 local-first defaults", () => {
@@ -109,6 +115,87 @@ describe("Phase 01 plugin settings migration", () => {
 				excludedFolders: ["fixtures/demo-vault/archive"],
 			},
 		});
+	});
+
+	it("migrates provider profiles and opaque secret references without raw runtime values", () => {
+		const result = parsePluginSettings({
+			schemaVersion: SETTINGS_SCHEMA_VERSION,
+			providerProfiles: [SYNTHETIC_CLOUD_PROFILE_INPUT],
+			providerAuthStatuses: [
+				{
+					providerId: SYNTHETIC_CLOUD_PROFILE_ID,
+					status: "passed",
+					checkedAt: "2026-05-13T00:00:00.000Z",
+					statusCode: 200,
+					modelCount: 2,
+					durationMs: 1,
+					diagnostic: {
+						providerId: SYNTHETIC_CLOUD_PROFILE_ID,
+						modelCount: 2,
+					},
+				},
+			],
+			providerRoles: {
+				chat: {
+					providerId: SYNTHETIC_CLOUD_PROFILE_ID,
+					modelId: "synthetic-cloud-chat",
+				},
+			},
+			trustedProviderIds: [SYNTHETIC_CLOUD_PROFILE_ID],
+		});
+
+		expect(result.status).toBe("loaded");
+		expect(result.errors).toEqual([]);
+		expect(result.settings.providerProfiles[0]?.credentialReference).toEqual(SYNTHETIC_PROFILE_REFERENCE);
+		expect(result.settings.providerAuthStatuses[0]).toMatchObject({
+			providerId: SYNTHETIC_CLOUD_PROFILE_ID,
+			status: "passed",
+		});
+		expect(result.settings.providerRoles.chat).toMatchObject({
+			providerId: SYNTHETIC_CLOUD_PROFILE_ID,
+			modelId: makeProviderModelId("synthetic-cloud-chat"),
+		});
+		expect(JSON.stringify(result.settings)).not.toContain("inline-runtime-value");
+	});
+
+	it("recovers provider profiles with raw secret-like fields and resets stale auth tests", () => {
+		const result = parsePluginSettings({
+			schemaVersion: SETTINGS_SCHEMA_VERSION,
+			providerProfiles: [
+				{
+					...SYNTHETIC_LOCAL_PROFILE_INPUT,
+					password: "inline-runtime-value",
+				},
+				SYNTHETIC_CLOUD_PROFILE_INPUT,
+			],
+			providerAuthStatuses: [
+				{
+					providerId: SYNTHETIC_CLOUD_PROFILE_ID,
+					status: "running",
+					checkedAt: "2026-05-13T00:00:00.000Z",
+					statusCode: null,
+					modelCount: 2,
+					durationMs: 0,
+					diagnostic: {
+						runtimeSecret: "inline-runtime-value",
+					},
+				},
+			],
+		});
+
+		expect(result.status).toBe("recovered");
+		expect(result.settings.providerProfiles.map((profile) => profile.id)).toEqual([SYNTHETIC_CLOUD_PROFILE_ID]);
+		expect(result.settings.providerAuthStatuses[0]).toMatchObject({
+			providerId: SYNTHETIC_CLOUD_PROFILE_ID,
+			status: "untested",
+			diagnostic: {
+				runtimeSecret: "[REDACTED]",
+			},
+		});
+		expect(result.errors.map((error) => error.field)).toEqual(
+			expect.arrayContaining(["providerProfiles[0].root", "providerAuthStatuses[0].status"]),
+		);
+		expect(JSON.stringify(result.settings)).not.toContain("inline-runtime-value");
 	});
 
 	it("drops unsupported hidden provider state from raw persisted objects", () => {

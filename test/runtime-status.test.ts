@@ -1,12 +1,20 @@
 import { describe, expect, it } from "vitest";
 import { createRuntimeStatusSnapshot } from "../src/agent";
-import { BASELINE_PROVIDERS, LOCAL_FIXTURE_PROVIDER_ID, TRUSTED_CLOUD_FIXTURE_PROVIDER_ID } from "../src/providers";
+import {
+	BASELINE_PROVIDERS,
+	LOCAL_FIXTURE_PROVIDER_ID,
+	TRUSTED_CLOUD_FIXTURE_PROVIDER_ID,
+	buildProviderDefinitionsForSettings,
+	makeProviderModelId,
+	normalizeProviderProfiles,
+} from "../src/providers";
 import type { VaultHealthReport } from "../src/types/health";
 import { DEFAULT_PLUGIN_SETTINGS } from "../src/types/plugin";
 import type { IndexSourceFingerprint } from "../src/types/retrieval";
 import type { StagedChangeRecord, StagedChangeStatus } from "../src/types/vault";
 import { makeIsoTimestamp, makeNormalizedVaultPath } from "../src/types/vault";
 import { createProgressSnapshot, evaluateIndexFreshness } from "../src/vectorstore";
+import { SYNTHETIC_CLOUD_PROFILE_INPUT } from "./fixtures/providers/provider-setup-fixtures";
 
 const fixedDate = new Date("2026-05-13T00:00:00.000Z");
 const fixedTimestamp = makeIsoTimestamp("2026-05-13T00:00:00.000Z");
@@ -26,6 +34,8 @@ const readySettings = {
 		},
 	},
 };
+
+const syntheticCloudProfile = normalizeProviderProfiles([SYNTHETIC_CLOUD_PROFILE_INPUT]).profiles[0];
 
 const healthReport = (errorCount: number, warningCount: number): VaultHealthReport => ({
 	reportId: "runtime-health-fixture",
@@ -170,6 +180,76 @@ describe("runtime status composition", () => {
 		expect(snapshot.items.find((item) => item.area === "index")?.paths).toEqual([
 			makeNormalizedVaultPath("sources/demo-article.md"),
 		]);
+	});
+
+	it("reports provider auth failures without exposing auth diagnostics", () => {
+		if (syntheticCloudProfile === undefined) {
+			throw new Error("Expected synthetic cloud profile fixture");
+		}
+
+		const settings = {
+			...DEFAULT_PLUGIN_SETTINGS,
+			areCloudProvidersEnabled: true,
+			trustedProviderIds: [syntheticCloudProfile.id],
+			providerProfiles: [syntheticCloudProfile],
+			providerAuthStatuses: [
+				{
+					providerId: syntheticCloudProfile.id,
+					status: "failed" as const,
+					checkedAt: "2026-05-13T00:00:00.000Z",
+					statusCode: 401,
+					modelCount: 0,
+					durationMs: 1,
+					diagnostic: {
+						runtimeSecret: "inline-runtime-value",
+					},
+				},
+			],
+			providerRoles: {
+				...DEFAULT_PLUGIN_SETTINGS.providerRoles,
+				chat: {
+					providerId: syntheticCloudProfile.id,
+					modelId: syntheticCloudProfile.models[0]?.id ?? null,
+				},
+			},
+		};
+		const snapshot = createRuntimeStatusSnapshot({
+			settings,
+			providers: buildProviderDefinitionsForSettings(settings),
+			now: fixedDate,
+		});
+		const providerItem = snapshot.items.find((item) => item.id === "provider-readiness");
+
+		expect(providerItem).toMatchObject({
+			severity: "error",
+			summary: "Provider setup has auth or capability issues.",
+		});
+		expect(JSON.stringify(providerItem)).not.toContain("inline-runtime-value");
+		expect(JSON.stringify(providerItem)).not.toContain("runtimeSecret");
+	});
+
+	it("reports provider capability mismatches before workflow execution", () => {
+		const settings = {
+			...DEFAULT_PLUGIN_SETTINGS,
+			providerRoles: {
+				...DEFAULT_PLUGIN_SETTINGS.providerRoles,
+				embedding: {
+					providerId: LOCAL_FIXTURE_PROVIDER_ID,
+					modelId: makeProviderModelId("local-chat-fixture"),
+				},
+			},
+		};
+		const snapshot = createRuntimeStatusSnapshot({
+			settings,
+			providers: BASELINE_PROVIDERS,
+			now: fixedDate,
+		});
+		const providerItem = snapshot.items.find((item) => item.id === "provider-readiness");
+
+		expect(providerItem).toMatchObject({
+			severity: "error",
+		});
+		expect(providerItem?.details.join(" ")).toContain("embedding model does not support embeddings.");
 	});
 
 	it("reports errors for failed subsystem snapshots", () => {

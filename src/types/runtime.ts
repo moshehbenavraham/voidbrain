@@ -1,6 +1,7 @@
 import type { AgentCommand, AgentCommandId } from "./agent-commands";
 import type { VaultHealthReport } from "./health";
 import type { VoidbrainPluginSettings } from "./plugin";
+import type { ProviderRoleCapabilitySummary, ProviderSetupSummary } from "./provider-setup";
 import type { ProviderDefinition } from "./providers";
 import type { IndexFreshnessSnapshot, IndexProgressSnapshot } from "./retrieval";
 import type { IsoTimestamp, NormalizedVaultPath, StagedChangeRecord } from "./vault";
@@ -42,6 +43,8 @@ export interface RuntimeStatusSnapshot {
 export interface RuntimeStatusInput {
 	readonly settings: VoidbrainPluginSettings;
 	readonly providers: readonly ProviderDefinition[];
+	readonly providerSetup?: ProviderSetupSummary;
+	readonly providerRoleCapabilities?: readonly ProviderRoleCapabilitySummary[];
 	readonly indexProgress?: readonly IndexProgressSnapshot[];
 	readonly indexFreshness?: readonly IndexFreshnessSnapshot[];
 	readonly stagedChanges?: readonly StagedChangeRecord[];

@@ -1,4 +1,5 @@
 import type { AgentCommandId } from "./agent-commands";
+import type { ProviderAuthTestRecord, UserProviderProfile } from "./provider-setup";
 import type { ContentSensitivity, ModelRole, ProviderId, ProviderModelId } from "./providers";
 import type { NormalizedVaultPath } from "./vault";
 
@@ -6,7 +7,7 @@ export const PLUGIN_ID = "voidbrain";
 export const PLUGIN_NAME = "Voidbrain";
 export const PLUGIN_VERSION = "0.1.0";
 export const SHOW_STATUS_COMMAND_ID = "show-local-first-status";
-export const SETTINGS_SCHEMA_VERSION = 2;
+export const SETTINGS_SCHEMA_VERSION = 3;
 
 export type PrivacyMode = "local-first";
 export type VaultScope = "active-vault";
@@ -54,6 +55,8 @@ export interface VoidbrainPluginSettings {
 	areCloudProvidersEnabled: boolean;
 	shouldRequireProviderReview: boolean;
 	trustedProviderIds: readonly ProviderId[];
+	providerProfiles: readonly UserProviderProfile[];
+	providerAuthStatuses: readonly ProviderAuthTestRecord[];
 	providerRoles: ProviderRoleSettings;
 	indexing: IndexingPreferences;
 	ui: PluginUiState;
@@ -76,6 +79,8 @@ export const DEFAULT_PLUGIN_SETTINGS: VoidbrainPluginSettings = {
 	areCloudProvidersEnabled: false,
 	shouldRequireProviderReview: true,
 	trustedProviderIds: [],
+	providerProfiles: [],
+	providerAuthStatuses: [],
 	providerRoles: {
 		chat: {
 			providerId: null,

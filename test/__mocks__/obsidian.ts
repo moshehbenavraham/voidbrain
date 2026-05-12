@@ -347,6 +347,11 @@ class ValueComponent<TValue> {
 	}
 
 	setDisabled(_disabled: boolean): this {
+		if (_disabled) {
+			this.controlEl.setAttribute("disabled", "true");
+		} else {
+			this.controlEl.removeAttribute("disabled");
+		}
 		return this;
 	}
 }
@@ -439,6 +444,16 @@ export class ButtonComponent {
 
 	onClick(callback: (evt: MouseEvent) => unknown): this {
 		this.buttonEl.addEventListener("click", callback);
+		return this;
+	}
+
+	setDisabled(disabled: boolean): this {
+		this.buttonEl.disabled = disabled;
+		return this;
+	}
+
+	setTooltip(tooltip: string): this {
+		this.buttonEl.title = tooltip;
 		return this;
 	}
 }

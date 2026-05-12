@@ -1,6 +1,12 @@
 import { Notice, Plugin } from "obsidian";
 import "./styles.css";
 import { createRuntimeCommandHandlers, createRuntimeStatusSnapshot } from "./agent";
+import {
+	buildProviderDefinitionsForSettings,
+	createInMemoryProviderSecretStore,
+	summarizeProviderRoleCapabilities,
+	summarizeProviderSetup,
+} from "./providers";
 import { BASELINE_PROVIDERS } from "./providers/provider-registry";
 import { type RuntimeStatusStore, createRuntimeStatusStore } from "./stores/runtime-status-store";
 import { DEFAULT_PLUGIN_SETTINGS, SHOW_STATUS_COMMAND_ID, type VoidbrainPluginSettings } from "./types/plugin";
@@ -35,6 +41,7 @@ export default class VoidbrainPlugin extends Plugin {
 	private settings: VoidbrainPluginSettings = { ...DEFAULT_PLUGIN_SETTINGS };
 	private settingsLoadErrors: SettingsValidationError[] = [];
 	private settingsLoadStatus: SettingsLoadStatus = "defaulted";
+	private readonly providerSecretStore = createInMemoryProviderSecretStore();
 	private ribbonActionCount = 0;
 	private settingsTabCount = 0;
 	private runtimeStatusSnapshot: RuntimeStatusSnapshot = createRuntimeStatusSnapshot({
@@ -99,9 +106,12 @@ export default class VoidbrainPlugin extends Plugin {
 	}
 
 	private refreshRuntimeStatusSnapshot(): RuntimeStatusSnapshot {
+		const providers = buildProviderDefinitionsForSettings(this.settings, BASELINE_PROVIDERS);
 		this.runtimeStatusSnapshot = createRuntimeStatusSnapshot({
 			settings: this.settings,
-			providers: BASELINE_PROVIDERS,
+			providers,
+			providerSetup: summarizeProviderSetup(this.settings, providers),
+			providerRoleCapabilities: summarizeProviderRoleCapabilities(this.settings, providers),
 		});
 		this.runtimeStatusStore.setSnapshot(this.runtimeStatusSnapshot);
 
@@ -182,6 +192,7 @@ export default class VoidbrainPlugin extends Plugin {
 		const settingsTab = new VoidbrainSettingsTab(this.app, this, {
 			getSettings: () => this.getSettings(),
 			saveSettings: (settings) => this.saveSettings(settings),
+			secretStore: this.providerSecretStore,
 		});
 
 		this.addSettingTab(settingsTab);
@@ -285,6 +296,8 @@ export default class VoidbrainPlugin extends Plugin {
 const clonePluginSettings = (settings: VoidbrainPluginSettings): VoidbrainPluginSettings => ({
 	...settings,
 	trustedProviderIds: [...settings.trustedProviderIds],
+	providerProfiles: [...settings.providerProfiles],
+	providerAuthStatuses: [...settings.providerAuthStatuses],
 	providerRoles: {
 		chat: { ...settings.providerRoles.chat },
 		embedding: { ...settings.providerRoles.embedding },

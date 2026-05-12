@@ -4,7 +4,7 @@
 **Sessions**: 8
 **Estimated Duration**: 8-12 days
 
-**Progress**: 1/8 sessions (12.5%)
+**Progress**: 2/8 sessions (25.0%)
 
 ---
 
@@ -21,7 +21,7 @@ The phase preserves the vault as user-owned data. Provider calls require explici
 | Session | Name | Status | Est. Tasks | Validated |
 |---------|------|--------|------------|-----------|
 | 01 | Obsidian Runtime and Settings Surface | Complete | ~12-25 | PASS |
-| 02 | Provider Setup and Privacy Preflight | Not Started | ~12-25 | - |
+| 02 | Provider Setup and Privacy Preflight | Complete | ~12-25 | PASS |
 | 03 | Indexing Runtime and Retrieval Readiness | Not Started | ~12-25 | - |
 | 04 | Grounded Vault Chat | Not Started | ~12-25 | - |
 | 05 | Source Ingestion Staging | Not Started | ~12-25 | - |
@@ -34,6 +34,7 @@ The phase preserves the vault as user-owned data. Provider calls require explici
 ## Completed Sessions
 
 - `phase01-session01-obsidian-runtime-settings`
+- `phase01-session02-provider-setup-privacy-preflight`
 
 ---
 

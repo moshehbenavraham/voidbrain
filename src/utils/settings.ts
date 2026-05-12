@@ -1,6 +1,9 @@
 import type { Plugin } from "obsidian";
 import { getAgentCommandById } from "../agent/command-catalog";
-import { findRegisteredModel, findRegisteredProvider } from "../providers/provider-registry";
+import { findModel, findProvider } from "../providers/capability-selection";
+import { mergeProviderDefinitions, normalizeProviderProfiles } from "../providers/provider-profile-service";
+import { BASELINE_PROVIDERS } from "../providers/provider-registry";
+import { redactDiagnostic } from "../providers/redaction";
 import {
 	DEFAULT_PLUGIN_SETTINGS,
 	type IndexingPreferences,
@@ -13,9 +16,17 @@ import {
 	type VoidbrainPluginSettings,
 } from "../types/plugin";
 import {
+	PROVIDER_AUTH_TEST_STATUSES,
+	type ProviderAuthTestRecord,
+	type ProviderProfileValidationError,
+} from "../types/provider-setup";
+import {
 	type ModelRole,
+	type ProviderAuthState,
+	type ProviderDefinition,
 	type ProviderId,
 	type ProviderModelId,
+	type RedactedDiagnosticObject,
 	isContentSensitivity,
 	makeProviderId,
 	makeProviderModelId,
@@ -46,7 +57,7 @@ export interface SettingsLoadResult {
 
 type PluginDataLoader = Pick<Plugin, "loadData">;
 type PluginDataWriter = Pick<Plugin, "saveData">;
-type SupportedSettingsSchemaVersion = 1 | typeof SETTINGS_SCHEMA_VERSION;
+type SupportedSettingsSchemaVersion = 1 | 2 | typeof SETTINGS_SCHEMA_VERSION;
 
 export class PluginSettingsError extends Error {
 	readonly code: SettingsValidationCode;
@@ -64,6 +75,8 @@ export const createDefaultPluginSettings = (): VoidbrainPluginSettings => {
 	return {
 		...DEFAULT_PLUGIN_SETTINGS,
 		trustedProviderIds: [...DEFAULT_PLUGIN_SETTINGS.trustedProviderIds],
+		providerProfiles: [...DEFAULT_PLUGIN_SETTINGS.providerProfiles],
+		providerAuthStatuses: [...DEFAULT_PLUGIN_SETTINGS.providerAuthStatuses],
 		providerRoles: cloneProviderRoles(DEFAULT_PLUGIN_SETTINGS.providerRoles),
 		indexing: {
 			...DEFAULT_PLUGIN_SETTINGS.indexing,
@@ -158,10 +171,26 @@ export const parsePluginSettings = (rawSettings: unknown): SettingsLoadResult =>
 	}
 
 	const errors: SettingsValidationError[] = [];
+	const normalizedProfiles = normalizeProviderProfiles(rawSettings.providerProfiles);
+	errors.push(...normalizedProfiles.errors.map(profileErrorToSettingsError));
+	const profileAuthStates = createAuthStateMap(rawSettings.providerAuthStatuses);
+	const mergedProviders = mergeProviderDefinitions(
+		BASELINE_PROVIDERS,
+		normalizedProfiles.profiles,
+		profileAuthStates,
+	);
+	errors.push(...mergedProviders.profileErrors.map(profileErrorToSettingsError));
+	const availableProviders = mergedProviders.providers;
 	const areCloudProvidersEnabled = readBoolean(rawSettings, "areCloudProvidersEnabled", false, errors);
 	const trustedProviderErrorStart = errors.length;
-	const trustedProviderIds = readProviderIdArray(rawSettings, "trustedProviderIds", errors);
+	const trustedProviderIds = readProviderIdArray(rawSettings, "trustedProviderIds", errors, availableProviders);
 	const hasTrustedProviderErrors = errors.length > trustedProviderErrorStart;
+	const providerAuthStatuses = readProviderAuthStatuses(
+		rawSettings,
+		"providerAuthStatuses",
+		availableProviders,
+		errors,
+	);
 	const settings: VoidbrainPluginSettings = {
 		schemaVersion: SETTINGS_SCHEMA_VERSION,
 		privacyMode: readLiteral(rawSettings, "privacyMode", "local-first", errors),
@@ -170,7 +199,9 @@ export const parsePluginSettings = (rawSettings: unknown): SettingsLoadResult =>
 		areCloudProvidersEnabled: hasTrustedProviderErrors ? false : areCloudProvidersEnabled,
 		shouldRequireProviderReview: readRequiredTrue(rawSettings, "shouldRequireProviderReview", errors),
 		trustedProviderIds,
-		providerRoles: readProviderRoleSettings(rawSettings, errors),
+		providerProfiles: normalizedProfiles.profiles,
+		providerAuthStatuses,
+		providerRoles: readProviderRoleSettings(rawSettings, errors, availableProviders),
 		indexing: readIndexingPreferences(rawSettings, errors),
 		ui: readPluginUiState(rawSettings, errors),
 		status: readStatusSurfaceSettings(rawSettings, errors),
@@ -201,6 +232,51 @@ const settingError = (code: SettingsValidationCode, field: string, message: stri
 	message,
 });
 
+const profileErrorToSettingsError = (error: ProviderProfileValidationError): SettingsValidationError =>
+	settingError("unsupported-value", error.field, error.message);
+
+const authStateFromStatus = (status: unknown): ProviderAuthState => {
+	switch (status) {
+		case "passed":
+			return "passed";
+		case "failed":
+			return "failed";
+		case "timeout":
+			return "timeout";
+		case "missing-secret":
+			return "missing-secret";
+		case "running":
+		case "untested":
+			return "untested";
+	}
+
+	return "untested";
+};
+
+const createAuthStateMap = (rawStatuses: unknown): ReadonlyMap<ProviderId, ProviderAuthState> => {
+	if (!Array.isArray(rawStatuses)) {
+		return new Map<ProviderId, ProviderAuthState>();
+	}
+
+	const authStates = new Map<ProviderId, ProviderAuthState>();
+	for (const rawStatus of rawStatuses) {
+		if (
+			!isRecord(rawStatus) ||
+			typeof rawStatus.providerId !== "string" ||
+			rawStatus.providerId.trim().length === 0
+		) {
+			continue;
+		}
+
+		const providerId = makeProviderId(rawStatus.providerId.trim());
+		if (!authStates.has(providerId)) {
+			authStates.set(providerId, authStateFromStatus(rawStatus.status));
+		}
+	}
+
+	return authStates;
+};
+
 const readSchemaVersion = (
 	source: Record<string, unknown>,
 ):
@@ -212,7 +288,7 @@ const readSchemaVersion = (
 		return { ok: true, version: 1 };
 	}
 
-	if (schemaVersion !== 1 && schemaVersion !== SETTINGS_SCHEMA_VERSION) {
+	if (schemaVersion !== 1 && schemaVersion !== 2 && schemaVersion !== SETTINGS_SCHEMA_VERSION) {
 		return {
 			ok: false,
 			error:
@@ -220,7 +296,7 @@ const readSchemaVersion = (
 					? settingError(
 							"unsupported-schema",
 							"schemaVersion",
-							`Settings schema must be 1 or ${SETTINGS_SCHEMA_VERSION}; local-first defaults were applied.`,
+							`Settings schema must be 1, 2, or ${SETTINGS_SCHEMA_VERSION}; local-first defaults were applied.`,
 						)
 					: settingError(
 							"invalid-type",
@@ -346,7 +422,12 @@ const readRecordField = (
 	return undefined;
 };
 
-const readProviderId = (rawValue: unknown, field: string, errors: SettingsValidationError[]): ProviderId | null => {
+const readProviderId = (
+	rawValue: unknown,
+	field: string,
+	errors: SettingsValidationError[],
+	providers: readonly ProviderDefinition[],
+): ProviderId | null => {
 	if (rawValue === undefined || rawValue === null) {
 		return null;
 	}
@@ -357,7 +438,7 @@ const readProviderId = (rawValue: unknown, field: string, errors: SettingsValida
 	}
 
 	const providerId = makeProviderId(rawValue.trim());
-	if (findRegisteredProvider(providerId) === undefined) {
+	if (findProvider(providers, providerId) === undefined) {
 		errors.push(settingError("unsupported-value", field, `${field} references an unknown provider.`));
 		return null;
 	}
@@ -370,6 +451,7 @@ const readProviderModelId = (
 	providerId: ProviderId | null,
 	field: string,
 	errors: SettingsValidationError[],
+	providers: readonly ProviderDefinition[],
 ): ProviderModelId | null => {
 	if (rawValue === undefined || rawValue === null) {
 		return null;
@@ -386,7 +468,8 @@ const readProviderModelId = (
 	}
 
 	const modelId = makeProviderModelId(rawValue.trim());
-	if (findRegisteredModel(providerId, modelId) === undefined) {
+	const provider = findProvider(providers, providerId);
+	if (provider === undefined || findModel(provider, modelId) === undefined) {
 		errors.push(settingError("unsupported-value", field, `${field} references an unknown provider model.`));
 		return null;
 	}
@@ -398,6 +481,7 @@ const readProviderRoleSelection = (
 	rawValue: unknown,
 	role: ModelRole,
 	errors: SettingsValidationError[],
+	providers: readonly ProviderDefinition[],
 ): ProviderRoleSelection => {
 	const defaults = DEFAULT_PLUGIN_SETTINGS.providerRoles[role];
 	const field = `providerRoles.${role}`;
@@ -411,8 +495,8 @@ const readProviderRoleSelection = (
 		return { ...defaults };
 	}
 
-	const providerId = readProviderId(rawValue.providerId, `${field}.providerId`, errors);
-	const modelId = readProviderModelId(rawValue.modelId, providerId, `${field}.modelId`, errors);
+	const providerId = readProviderId(rawValue.providerId, `${field}.providerId`, errors, providers);
+	const modelId = readProviderModelId(rawValue.modelId, providerId, `${field}.modelId`, errors, providers);
 
 	return { providerId, modelId };
 };
@@ -420,6 +504,7 @@ const readProviderRoleSelection = (
 const readProviderRoleSettings = (
 	source: Record<string, unknown>,
 	errors: SettingsValidationError[],
+	providers: readonly ProviderDefinition[],
 ): ProviderRoleSettings => {
 	const rawRoles = readRecordField(source, "providerRoles", errors);
 
@@ -428,9 +513,9 @@ const readProviderRoleSettings = (
 	}
 
 	return {
-		chat: readProviderRoleSelection(rawRoles.chat, "chat", errors),
-		embedding: readProviderRoleSelection(rawRoles.embedding, "embedding", errors),
-		utility: readProviderRoleSelection(rawRoles.utility, "utility", errors),
+		chat: readProviderRoleSelection(rawRoles.chat, "chat", errors, providers),
+		embedding: readProviderRoleSelection(rawRoles.embedding, "embedding", errors, providers),
+		utility: readProviderRoleSelection(rawRoles.utility, "utility", errors, providers),
 	};
 };
 
@@ -624,10 +709,152 @@ const readStatusSurfaceSettings = (
 	};
 };
 
+const readProviderAuthStatuses = (
+	source: Record<string, unknown>,
+	field: string,
+	providers: readonly ProviderDefinition[],
+	errors: SettingsValidationError[],
+): readonly ProviderAuthTestRecord[] => {
+	const rawValue = source[field];
+
+	if (rawValue === undefined) {
+		return [];
+	}
+
+	if (!Array.isArray(rawValue)) {
+		errors.push(settingError("invalid-type", field, `${field} must be an array of redacted auth status records.`));
+		return [];
+	}
+
+	const statuses: ProviderAuthTestRecord[] = [];
+	const seenProviderIds = new Set<ProviderId>();
+
+	for (const [index, value] of rawValue.entries()) {
+		const status = readProviderAuthStatus(value, `${field}[${index}]`, providers, errors);
+		if (status === null) {
+			continue;
+		}
+
+		if (seenProviderIds.has(status.providerId)) {
+			errors.push(
+				settingError(
+					"unsupported-value",
+					`${field}[${index}].providerId`,
+					"Duplicate provider auth statuses are ignored after the first valid record.",
+				),
+			);
+			continue;
+		}
+
+		seenProviderIds.add(status.providerId);
+		statuses.push(status);
+	}
+
+	return statuses.sort((left, right) =>
+		left.providerId.localeCompare(right.providerId, "en", { sensitivity: "base" }),
+	);
+};
+
+const readProviderAuthStatus = (
+	value: unknown,
+	field: string,
+	providers: readonly ProviderDefinition[],
+	errors: SettingsValidationError[],
+): ProviderAuthTestRecord | null => {
+	if (!isRecord(value)) {
+		errors.push(settingError("invalid-type", field, `${field} must be an object.`));
+		return null;
+	}
+
+	const providerId = readProviderId(value.providerId, `${field}.providerId`, errors, providers);
+	if (providerId === null) {
+		return null;
+	}
+
+	let status: ProviderAuthTestRecord["status"];
+	if (PROVIDER_AUTH_TEST_STATUSES.includes(value.status as ProviderAuthTestRecord["status"])) {
+		status = value.status as ProviderAuthTestRecord["status"];
+	} else {
+		errors.push(settingError("unsupported-value", `${field}.status`, `${field}.status is not supported.`));
+		return null;
+	}
+
+	if (status === "running") {
+		errors.push(
+			settingError(
+				"unsupported-value",
+				`${field}.status`,
+				"Stale running provider auth status was reset to untested.",
+			),
+		);
+		status = "untested";
+	}
+
+	const checkedAt =
+		typeof value.checkedAt === "string" && value.checkedAt.trim().length > 0
+			? value.checkedAt.trim()
+			: "1970-01-01T00:00:00.000Z";
+	const statusCode = readNullableStatusCode(value.statusCode, `${field}.statusCode`, errors);
+	const modelCount = readNonNegativeInteger(value.modelCount, `${field}.modelCount`, errors);
+	const durationMs = readNonNegativeInteger(value.durationMs, `${field}.durationMs`, errors);
+	const redactedDiagnostic = redactDiagnostic(value.diagnostic ?? {});
+	const diagnostic =
+		redactedDiagnostic.ok && isRecord(redactedDiagnostic.value)
+			? (redactedDiagnostic.value as RedactedDiagnosticObject)
+			: {};
+
+	if (!redactedDiagnostic.ok || !isRecord(redactedDiagnostic.value)) {
+		errors.push(
+			settingError(
+				"unsupported-value",
+				`${field}.diagnostic`,
+				`${field}.diagnostic must be a redacted diagnostic object.`,
+			),
+		);
+	}
+
+	return {
+		providerId,
+		status,
+		checkedAt,
+		statusCode,
+		modelCount,
+		durationMs,
+		diagnostic,
+	};
+};
+
+const readNullableStatusCode = (value: unknown, field: string, errors: SettingsValidationError[]): number | null => {
+	if (value === undefined || value === null) {
+		return null;
+	}
+
+	if (typeof value === "number" && Number.isInteger(value) && value >= 100 && value <= 599) {
+		return value;
+	}
+
+	errors.push(settingError("unsupported-value", field, `${field} must be an HTTP status code or null.`));
+	return null;
+};
+
+const readNonNegativeInteger = (value: unknown, field: string, errors: SettingsValidationError[]): number => {
+	if (value === undefined) {
+		return 0;
+	}
+
+	if (typeof value === "number" && Number.isInteger(value) && value >= 0) {
+		return value;
+	}
+
+	errors.push(settingError("unsupported-value", field, `${field} must be a non-negative integer.`));
+	return 0;
+};
+
 const readProviderIdArray = (
 	source: Record<string, unknown>,
 	field: keyof VoidbrainPluginSettings,
 	errors: SettingsValidationError[],
+	providers: readonly ProviderDefinition[],
 ): readonly ProviderId[] => {
 	const rawValue = source[field];
 
@@ -660,7 +887,7 @@ const readProviderIdArray = (
 		}
 
 		const providerId = value.trim();
-		if (findRegisteredProvider(makeProviderId(providerId)) === undefined) {
+		if (findProvider(providers, makeProviderId(providerId)) === undefined) {
 			errors.push({
 				code: "unsupported-value",
 				field: `${field}[${index}]`,

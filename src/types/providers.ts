@@ -5,12 +5,16 @@ export const PROVIDER_TRUST_LEVELS = ["local-runtime", "trusted-cloud", "untrust
 export const MODEL_ROLES = ["chat", "embedding", "utility"] as const;
 export const MODEL_CAPABILITIES = ["chat", "embeddings", "streaming", "tools", "attachments"] as const;
 export const CONTENT_SENSITIVITIES = ["public", "vault-metadata", "private-vault"] as const;
+export const PROVIDER_PROFILE_SOURCES = ["baseline", "user-profile"] as const;
+export const PROVIDER_AUTH_STATES = ["untested", "passed", "failed", "timeout", "missing-secret"] as const;
 
 export type ProviderKind = (typeof PROVIDER_KINDS)[number];
 export type ProviderTrustLevel = (typeof PROVIDER_TRUST_LEVELS)[number];
 export type ModelRole = (typeof MODEL_ROLES)[number];
 export type ModelCapability = (typeof MODEL_CAPABILITIES)[number];
 export type ContentSensitivity = (typeof CONTENT_SENSITIVITIES)[number];
+export type ProviderProfileSource = (typeof PROVIDER_PROFILE_SOURCES)[number];
+export type ProviderAuthState = (typeof PROVIDER_AUTH_STATES)[number];
 
 export type ProviderId = string & { readonly __providerId: unique symbol };
 export type ProviderModelId = string & { readonly __providerModelId: unique symbol };
@@ -24,6 +28,7 @@ export interface ProviderIdentity {
 
 export interface ProviderDefinition extends ProviderIdentity {
 	readonly models: readonly ProviderModelDefinition[];
+	readonly setupMetadata?: ProviderSetupSafeMetadata;
 }
 
 export interface ProviderModelDefinition {
@@ -39,6 +44,28 @@ export interface ProviderModelDefinition {
 export interface ProviderPrivacyPolicy {
 	readonly areCloudProvidersEnabled: boolean;
 	readonly trustedProviderIds: readonly ProviderId[];
+}
+
+export interface ProviderEndpointContract {
+	readonly baseUrl: string | null;
+	readonly isCloudEndpoint: boolean;
+	readonly hostname: string | null;
+}
+
+export interface ProviderSetupSafeMetadata {
+	readonly source: ProviderProfileSource;
+	readonly endpoint: ProviderEndpointContract | null;
+	readonly hasCredentialReference: boolean;
+	readonly authState: ProviderAuthState;
+	readonly modelCount: number;
+}
+
+export interface ProviderSetupSafeModelMetadata {
+	readonly providerId: ProviderId;
+	readonly modelId: ProviderModelId;
+	readonly roles: readonly ModelRole[];
+	readonly capabilities: readonly ModelCapability[];
+	readonly embeddingFamily?: string;
 }
 
 export const makeProviderId = (id: string): ProviderId => id as ProviderId;
@@ -63,6 +90,9 @@ export const isModelCapability = (value: unknown): value is ModelCapability =>
 
 export const isContentSensitivity = (value: unknown): value is ContentSensitivity =>
 	typeof value === "string" && CONTENT_SENSITIVITIES.includes(value as ContentSensitivity);
+
+export const isProviderAuthState = (value: unknown): value is ProviderAuthState =>
+	typeof value === "string" && PROVIDER_AUTH_STATES.includes(value as ProviderAuthState);
 
 export const isCloudProviderKind = (kind: ProviderKind): boolean => {
 	switch (kind) {

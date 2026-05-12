@@ -1,3 +1,4 @@
+import { summarizeProviderRoleCapabilities, summarizeProviderSetup } from "../providers/provider-preflight";
 import type { IndexFreshnessState, IndexJobStatus } from "../types/retrieval";
 import type {
 	RuntimeStatusCounts,
@@ -52,68 +53,45 @@ const limitedPaths = (paths: readonly NormalizedVaultPath[]): readonly Normalize
 const isActiveStagedChange = (change: StagedChangeRecord): boolean => activeStagedStatuses.has(change.status);
 
 const providerStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
-	const localProviders = input.providers.filter((provider) => provider.kind === "local");
-	const trustedProviderIds = new Set(input.settings.trustedProviderIds);
-	const trustedCloudProviders = input.providers.filter(
-		(provider) => provider.kind === "cloud" && trustedProviderIds.has(provider.id),
+	const setupSummary = input.providerSetup ?? summarizeProviderSetup(input.settings, input.providers);
+	const roleSummaries =
+		input.providerRoleCapabilities ?? summarizeProviderRoleCapabilities(input.settings, input.providers);
+	const failedAuthStatuses = input.settings.providerAuthStatuses.filter(
+		(status) => status.status === "failed" || status.status === "timeout" || status.status === "missing-secret",
 	);
-	const selectedRoles = Object.entries(input.settings.providerRoles).filter(
-		([, selection]) => selection.providerId !== null,
+	const capabilityProblems = roleSummaries.filter(
+		(summary) =>
+			summary.status === "provider-missing" ||
+			summary.status === "model-missing" ||
+			summary.status === "capability-mismatch",
 	);
 	const details = [
-		`${localProviders.length} local provider(s) available.`,
-		`${trustedCloudProviders.length} trusted cloud provider(s) selected.`,
-		`${selectedRoles.length} provider role(s) selected.`,
+		...setupSummary.details,
+		`${failedAuthStatuses.length} provider auth status(es) need attention.`,
+		`${capabilityProblems.length} role capability problem(s).`,
+		...roleSummaries.map((summary) => `${summary.role}: ${summary.message}`),
 	];
+	const severity =
+		failedAuthStatuses.length > 0 ? "error" : capabilityProblems.length > 0 ? "error" : setupSummary.severity;
 
-	if (input.providers.length === 0 || localProviders.length === 0) {
-		return {
-			id: "provider-readiness",
-			area: "provider",
-			label: "Provider readiness",
-			severity: "error",
-			summary: "No local provider runtime is registered.",
-			details,
-			paths: [],
-			count: input.providers.length,
-		};
-	}
-
-	if (selectedRoles.length === 0) {
-		return {
-			id: "provider-readiness",
-			area: "provider",
-			label: "Provider readiness",
-			severity: "missing",
-			summary: "Provider roles are not selected yet.",
-			details,
-			paths: [],
-			count: input.providers.length,
-		};
-	}
-
-	if (input.settings.areCloudProvidersEnabled && trustedCloudProviders.length === 0) {
-		return {
-			id: "provider-readiness",
-			area: "provider",
-			label: "Provider readiness",
-			severity: "warning",
-			summary: "Cloud workflows are enabled but no trusted cloud provider is selected.",
-			details,
-			paths: [],
-			count: input.providers.length,
-		};
-	}
+	const summary =
+		severity === "ready"
+			? "Provider setup, auth, trust, and role capabilities are ready."
+			: severity === "error"
+				? "Provider setup has auth or capability issues."
+				: severity === "missing"
+					? "Provider setup is incomplete."
+					: "Provider setup has trust or auth warnings.";
 
 	return {
 		id: "provider-readiness",
 		area: "provider",
 		label: "Provider readiness",
-		severity: "ready",
-		summary: "Provider settings are explicit and local-first safeguards are active.",
+		severity,
+		summary,
 		details,
 		paths: [],
-		count: input.providers.length,
+		count: setupSummary.providerCount,
 	};
 };
 
