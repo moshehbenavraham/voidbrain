@@ -1,10 +1,10 @@
 # PRD Phase 00: Foundation
 
-**Status**: In Progress
+**Status**: Complete
 **Sessions**: 6 (initial estimate)
 **Estimated Duration**: 3-5 days
 
-**Progress**: 4/6 sessions (67%)
+**Progress**: 6/6 sessions (100%)
 
 ---
 
@@ -26,8 +26,8 @@ write safety, and repeatable validation.
 | 02 | Vault Data Model | Complete | ~12-25 | PASS |
 | 03 | Provider Privacy Boundaries | Complete | ~12-25 | PASS |
 | 04 | Indexing and Retrieval Foundation | Complete | ~12-25 | PASS |
-| 05 | Agent Surfaces and Commands | Not Started | ~12-25 | - |
-| 06 | Staged Changes and Health Foundation | Not Started | ~12-25 | - |
+| 05 | Agent Surfaces and Commands | Complete | ~12-25 | PASS |
+| 06 | Staged Changes and Health Foundation | Complete | ~12-25 | PASS |
 
 ---
 
@@ -37,13 +37,14 @@ write safety, and repeatable validation.
 - `phase00-session02-vault-data-model`
 - `phase00-session03-provider-privacy-boundaries`
 - `phase00-session04-indexing-retrieval-foundation`
+- `phase00-session05-agent-surfaces-commands`
+- `phase00-session06-staged-changes-health-foundation`
 
 ---
 
 ## Upcoming Sessions
 
-- Session 05: Agent Surfaces and Commands
-- Session 06: Staged Changes and Health Foundation
+- None. Phase 00 is complete.
 
 ---
 

@@ -116,13 +116,15 @@ This system delivers the product via phases. Each phase is implemented via multi
 
 | Phase | Name | Sessions | Status |
 |-------|------|----------|--------|
-| 00 | Foundation | 6 | In Progress |
+| 00 | Foundation | 6 | Complete |
 | 01 | Vault Intelligence MVP | TBD | Not Started |
 | 02 | Agentic Maintenance | TBD | Not Started |
 | 03 | Offline and Provider Hardening | TBD | Not Started |
 | 04 | Distribution and Ecosystem | TBD | Not Started |
 
 ## Phase 00: Foundation
+
+Phase 00 is complete and archived in `.spec_system/archive/phases/phase_00/`.
 
 ### Objectives
 

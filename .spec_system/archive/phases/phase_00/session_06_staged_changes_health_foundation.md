@@ -1,7 +1,7 @@
 # Session 06: Staged Changes and Health Foundation
 
 **Session ID**: `phase00-session06-staged-changes-health-foundation`
-**Status**: Not Started
+**Status**: Complete
 **Estimated Tasks**: ~12-25
 **Estimated Duration**: 2-4 hours
 
@@ -36,8 +36,8 @@ AI-created note mutations reviewable, reversible, and auditable.
 
 ## Prerequisites
 
-- [ ] Vault data model and indexing foundation exist
-- [ ] Privacy boundaries and agent command rules are documented
+- [x] Vault data model and indexing foundation exist
+- [x] Privacy boundaries and agent command rules are documented
 
 ---
 
@@ -52,7 +52,7 @@ AI-created note mutations reviewable, reversible, and auditable.
 
 ## Success Criteria
 
-- [ ] AI-proposed note mutations are represented as staged changes first
-- [ ] Existing note edits expose before and after content
-- [ ] Health findings link to affected vault paths
-- [ ] Tests cover data loss, stale index, broken link, and missing citation cases
+- [x] AI-proposed note mutations are represented as staged changes first
+- [x] Existing note edits expose before and after content
+- [x] Health findings link to affected vault paths
+- [x] Tests cover data loss, stale index, broken link, and missing citation cases

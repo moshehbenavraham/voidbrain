@@ -6,7 +6,7 @@ The plugin keeps Obsidian lifecycle wiring in `src/main.ts` and groups durable l
 
 | Folder | Owner | Notes |
 |--------|-------|-------|
-| `agent/` | Agent orchestration, prompts, tool calls, and thread state | Keep provider calls behind explicit privacy checks. |
+| `agent/` | Agent command catalog, surface validation, fixture safety, framework update previews, and later orchestration | Keep provider calls behind explicit privacy checks. |
 | `providers/` | Provider definitions, model capabilities, auth state, and invocation adapters | Do not store secrets in markdown, fixtures, or logs. |
 | `vectorstore/` | Embedding indexes, local vector persistence, and semantic retrieval helpers | Key indexes by embedding model compatibility. |
 | `stores/` | Cross-view Svelte stores and typed state facades | Keep long-running work in services, not components. |
@@ -58,6 +58,20 @@ Retrieval code must not synthesize user-facing claims. It returns evidence
 records that later chat and agent workflows can cite. Semantic indexing must
 key derived support artifacts by embedding model family; provider display names
 are not compatibility boundaries.
+
+## Agent Command Ownership
+
+| Path | Owner | Notes |
+|------|-------|-------|
+| `types/agent-commands.ts` | Agent command, surface, safety, validation, fixture, and framework preview contracts | Keep command IDs, statuses, privacy levels, and write policies explicit. |
+| `agent/command-catalog.ts` | Canonical command catalog and surface metadata | This is the source of truth for agent-facing command IDs and statuses. |
+| `agent/surface-validation.ts` | Markdown command surface validation | Detect stale command references and missing local-first safety language. |
+| `agent/fixture-safety.ts` | Fixture and example safety checks | Scan bounded text for secret-like keys, credential-like values, and private path hints. |
+| `agent/framework-update-preview.ts` | Dry-run framework update planning | Exclude user vault content and generated knowledge notes from preview actions. |
+
+Agent command code is repository-local and independent from Obsidian lifecycle
+APIs. Later runtime commands should call provider privacy and staged-write
+services before touching cloud providers or user notes.
 
 ## Boundaries
 

@@ -1,7 +1,8 @@
 # Session 05: Agent Surfaces and Commands
 
 **Session ID**: `phase00-session05-agent-surfaces-commands`
-**Status**: Not Started
+**Status**: Complete
+**Completed**: 2026-05-13
 **Estimated Tasks**: ~12-25
 **Estimated Duration**: 2-4 hours
 
@@ -35,8 +36,8 @@ Codex, Claude Code, Gemini CLI, and similar tools operate on the vault safely.
 
 ## Prerequisites
 
-- [ ] Repository scaffold and vault data contracts exist
-- [ ] Privacy and staged write rules are documented enough for agents to follow
+- [x] Repository scaffold and vault data contracts exist
+- [x] Privacy and staged write rules are documented enough for agents to follow
 
 ---
 
@@ -51,7 +52,7 @@ Codex, Claude Code, Gemini CLI, and similar tools operate on the vault safely.
 
 ## Success Criteria
 
-- [ ] Agent surfaces describe only implemented or explicitly planned behavior
-- [ ] Commands preserve local-first and staged-write defaults
-- [ ] Documentation checks catch missing or stale workflow references
-- [ ] Examples are safe to commit and contain no real secrets or personal data
+- [x] Agent surfaces describe only implemented or explicitly planned behavior
+- [x] Commands preserve local-first and staged-write defaults
+- [x] Documentation checks catch missing or stale workflow references
+- [x] Examples are safe to commit and contain no real secrets or personal data

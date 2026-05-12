@@ -9,6 +9,10 @@ import {
 	type MarkdownArtifactKind,
 	type OperationLog,
 	type RuntimeState,
+	STAGED_CHANGE_CONFLICT_KINDS,
+	STAGED_CHANGE_OPERATION_KINDS,
+	STAGED_CHANGE_RECOVERY_STATUSES,
+	STAGED_CHANGE_STATUSES,
 	type SourceManifest,
 	type SourceManifestRecord,
 	type StagedChangeRecord,
@@ -46,12 +50,12 @@ const OPERATION_KIND_SET: ReadonlySet<string> = new Set([
 	"summary-generated",
 	"staged-change-created",
 ]);
-const STAGED_CHANGE_OPERATION_SET: ReadonlySet<string> = new Set([
-	"create-note",
-	"update-frontmatter",
-	"append-section",
-]);
-const STAGED_CHANGE_STATUS_SET: ReadonlySet<string> = new Set(["proposed", "approved", "applied", "rejected"]);
+const STAGED_CHANGE_OPERATION_SET: ReadonlySet<string> = new Set(STAGED_CHANGE_OPERATION_KINDS);
+const STAGED_CHANGE_STATUS_SET: ReadonlySet<string> = new Set(STAGED_CHANGE_STATUSES);
+const STAGED_CHANGE_CONFLICT_SET: ReadonlySet<string> = new Set(STAGED_CHANGE_CONFLICT_KINDS);
+const STAGED_CHANGE_RECOVERY_STATUS_SET: ReadonlySet<string> = new Set(STAGED_CHANGE_RECOVERY_STATUSES);
+const STAGED_CHANGE_CONFLICT_SEVERITY_SET: ReadonlySet<string> = new Set(["warning", "blocking"]);
+const STAGED_CHANGE_DIFF_LINE_KIND_SET: ReadonlySet<string> = new Set(["context", "added", "removed"]);
 
 const SECRET_FIELD_NAMES: ReadonlySet<string> = new Set([
 	"api-key",
@@ -155,6 +159,23 @@ const validateRequiredNumber = (record: UnknownRecord, field: string): Validatio
 	return [];
 };
 
+const validateOptionalNumber = (record: UnknownRecord, field: string): ValidationIssue[] => {
+	const value = record[field];
+	if (value !== undefined && (typeof value !== "number" || !Number.isInteger(value) || value < 0)) {
+		return [issue("metadata.invalid-type", `${field} must be a non-negative integer when present.`, field)];
+	}
+
+	return [];
+};
+
+const validateRequiredBoolean = (record: UnknownRecord, field: string): ValidationIssue[] => {
+	if (typeof record[field] !== "boolean") {
+		return [issue("metadata.invalid-type", `${field} must be a boolean.`, field)];
+	}
+
+	return [];
+};
+
 const validateStringArray = (
 	record: UnknownRecord,
 	field: string,
@@ -241,6 +262,32 @@ const validateArtifactPathField = (
 
 	return path.errors.map((error) => ({ ...error, field }));
 };
+
+const validateStagedTargetPath = (input: unknown, field: string): ValidationIssue[] => {
+	const normalized = normalizeVaultPath(input);
+	if (!normalized.ok) {
+		return normalized.errors.map((error) => ({ ...error, field }));
+	}
+
+	if (!normalized.value.endsWith(".md")) {
+		return [issue("path.invalid-extension", "Staged-change target paths must reference markdown notes.", field)];
+	}
+
+	if (normalized.value.startsWith(".voidbrain/")) {
+		return [
+			issue(
+				"path.unsupported-location",
+				"Staged-change target paths cannot mutate Voidbrain support records.",
+				field,
+			),
+		];
+	}
+
+	return [];
+};
+
+const validateOptionalStagedTargetPath = (record: UnknownRecord, field: string): ValidationIssue[] =>
+	record[field] === undefined ? [] : validateStagedTargetPath(record[field], field);
 
 const validateCommonFrontmatter = (record: UnknownRecord, requireSourceTrace: boolean): ValidationIssue[] => [
 	...validateRequiredString(record, "voidbrain-id"),
@@ -473,18 +520,175 @@ const validateOperationLogRecord = (record: UnknownRecord): ValidationIssue[] =>
 	...validateRecordArray(record, "entries", validateOperationLogEntry),
 ];
 
+const validateDiffLine = (record: UnknownRecord): ValidationIssue[] => [
+	...validateEnum(record, "kind", STAGED_CHANGE_DIFF_LINE_KIND_SET),
+	...validateOptionalNumber(record, "oldLineNumber"),
+	...validateOptionalNumber(record, "newLineNumber"),
+	...(typeof record.content === "string"
+		? []
+		: [issue("metadata.invalid-type", "content must be a string.", "content")]),
+];
+
+const validateStagedChangeDiff = (record: UnknownRecord): ValidationIssue[] => {
+	const diff = record.diff;
+	if (!isRecord(diff)) {
+		return [issue("metadata.not-object", "diff must be an object.", "diff")];
+	}
+
+	return [
+		...validateOptionalString(diff, "beforeContent"),
+		...validateOptionalString(diff, "afterContent"),
+		...validateOptionalString(diff, "beforeSha256"),
+		...validateOptionalString(diff, "afterSha256"),
+		...validateRequiredBoolean(diff, "hasTextChanges"),
+		...validateRecordArray(diff, "lineDiff", validateDiffLine),
+	].map((error) => prefixIssueField(error, "diff"));
+};
+
+const validateStagedChangeConflict = (record: UnknownRecord): ValidationIssue[] => [
+	...validateEnum(record, "kind", STAGED_CHANGE_CONFLICT_SET),
+	...validateEnum(record, "severity", STAGED_CHANGE_CONFLICT_SEVERITY_SET),
+	...validateRequiredString(record, "message"),
+	...validatePathArray(record, "paths"),
+	...validateOptionalString(record, "expectedSha256"),
+	...validateOptionalString(record, "actualSha256"),
+];
+
+const validateStagedChangeReview = (record: UnknownRecord): ValidationIssue[] => {
+	const review = record.review;
+	if (!isRecord(review)) {
+		return [issue("metadata.not-object", "review must be an object.", "review")];
+	}
+
+	return [
+		...validateRequiredBoolean(review, "requiresExplicitReview"),
+		...validateRequiredBoolean(review, "destructive"),
+		...validateStringArray(review, "reasons", { requireNonEmpty: true }),
+	].map((error) => prefixIssueField(error, "review"));
+};
+
+const validateStoredValidationIssue = (record: UnknownRecord): ValidationIssue[] => [
+	...validateRequiredString(record, "code"),
+	...validateRequiredString(record, "message"),
+	...validateOptionalString(record, "path"),
+	...validateOptionalString(record, "field"),
+];
+
+const validateStagedChangeRecovery = (record: UnknownRecord): ValidationIssue[] => {
+	const recovery = record.recovery;
+	if (!isRecord(recovery)) {
+		return [issue("metadata.not-object", "recovery must be an object.", "recovery")];
+	}
+
+	return [
+		...validateRequiredString(recovery, "commandId"),
+		...validateRequiredString(recovery, "stagedChangeId"),
+		...validateStagedTargetPath(recovery.targetPath, "targetPath"),
+		...validateEnum(recovery, "status", STAGED_CHANGE_RECOVERY_STATUS_SET),
+		...(recovery.backupPathIntent === undefined
+			? []
+			: normalizeVaultPath(recovery.backupPathIntent).ok
+				? []
+				: [issue("path.unsupported-location", "backupPathIntent must be vault-relative.", "backupPathIntent")]),
+		...validateRecordArray(recovery, "validationOutput", validateStoredValidationIssue),
+		...(recovery.rejectedAt === undefined ? [] : validateIsoTimestamp(recovery.rejectedAt, "rejectedAt")),
+		...(recovery.failedAt === undefined ? [] : validateIsoTimestamp(recovery.failedAt, "failedAt")),
+		...validateOptionalString(recovery, "lastFailureMessage"),
+	].map((error) => prefixIssueField(error, "recovery"));
+};
+
+const isStagedFrontmatterValue = (value: unknown): boolean => {
+	if (value === null || ["string", "number", "boolean"].includes(typeof value)) {
+		return true;
+	}
+
+	return Array.isArray(value) && value.every((item) => isStagedFrontmatterValue(item) && !Array.isArray(item));
+};
+
+const validateFrontmatterPatchEntry = (record: UnknownRecord): ValidationIssue[] => [
+	...validateRequiredString(record, "key"),
+	...(record.before === undefined || isStagedFrontmatterValue(record.before)
+		? []
+		: [issue("metadata.invalid-type", "before must be a frontmatter primitive or array.", "before")]),
+	...(record.after === undefined || isStagedFrontmatterValue(record.after)
+		? []
+		: [issue("metadata.invalid-type", "after must be a frontmatter primitive or array.", "after")]),
+];
+
+const validateStagedOperationMetadata = (record: UnknownRecord): ValidationIssue[] => {
+	const operationKind = record.operationKind;
+	const metadata = record.operationMetadata;
+	if (metadata === undefined) {
+		return operationKind === "move-note" || operationKind === "update-frontmatter"
+			? [
+					issue(
+						"metadata.missing-field",
+						"operationMetadata is required for move-note and update-frontmatter.",
+						"operationMetadata",
+					),
+				]
+			: [];
+	}
+
+	if (!isRecord(metadata)) {
+		return [issue("metadata.not-object", "operationMetadata must be an object.", "operationMetadata")];
+	}
+
+	const errors = [
+		...validateOptionalStagedTargetPath(metadata, "destinationPath"),
+		...(metadata.frontmatterPatch === undefined
+			? []
+			: validateRecordArray(metadata, "frontmatterPatch", validateFrontmatterPatchEntry)),
+	].map((error) => prefixIssueField(error, "operationMetadata"));
+
+	if (operationKind === "move-note" && metadata.destinationPath === undefined) {
+		errors.push(
+			issue(
+				"metadata.missing-field",
+				"move-note staged changes require operationMetadata.destinationPath.",
+				"operationMetadata.destinationPath",
+			),
+		);
+	}
+
+	if (operationKind === "update-frontmatter" && metadata.frontmatterPatch === undefined) {
+		errors.push(
+			issue(
+				"metadata.missing-field",
+				"update-frontmatter staged changes require operationMetadata.frontmatterPatch.",
+				"operationMetadata.frontmatterPatch",
+			),
+		);
+	}
+
+	return errors;
+};
+
 const validateStagedChangeRecordShape = (record: UnknownRecord): ValidationIssue[] => [
 	...validateSchemaVersion(record),
 	...validateRequiredString(record, "changeId"),
 	...validateEnum(record, "operationKind", STAGED_CHANGE_OPERATION_SET),
 	...validateEnum(record, "status", STAGED_CHANGE_STATUS_SET),
-	...validateArtifactPathField(record, "targetPath", "summary"),
+	...validateStagedTargetPath(record.targetPath, "targetPath"),
 	...validateIsoTimestamp(record.createdAt, "createdAt"),
 	...validateIsoTimestamp(record.updatedAt, "updatedAt"),
 	...validateRequiredString(record, "rationale"),
 	...validatePathArray(record, "sourcePaths", { requireNonEmpty: true }),
 	...validateOptionalString(record, "beforeSha256"),
 	...validateOptionalString(record, "afterSha256"),
+	...validateStagedChangeDiff(record),
+	...validateRecordArray(record, "conflicts", validateStagedChangeConflict),
+	...validateStagedChangeReview(record),
+	...validateStagedChangeRecovery(record),
+	...validateStagedOperationMetadata(record),
+	...(Array.isArray(record.conflicts) &&
+	record.conflicts.some((conflict) => isRecord(conflict) && conflict.severity === "blocking") &&
+	record.status !== "conflicted"
+		? [issue("record.invalid-state", "Blocking staged-change conflicts require conflicted status.", "status")]
+		: []),
+	...(Array.isArray(record.conflicts) && record.conflicts.length === 0 && record.status === "conflicted"
+		? [issue("record.invalid-state", "Conflicted staged-change status requires at least one conflict.", "status")]
+		: []),
 ];
 
 const validateRuntimeStagedChangeRecord = (record: UnknownRecord): ValidationIssue[] => {

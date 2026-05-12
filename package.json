@@ -1,6 +1,6 @@
 {
 	"name": "voidbrain",
-	"version": "0.1.4",
+	"version": "0.1.6",
 	"description": "Local-first AI second-brain scaffold for Obsidian-style markdown vaults.",
 	"type": "module",
 	"license": "MIT",
@@ -26,7 +26,11 @@
 		"test": "vitest run",
 		"test:watch": "vitest",
 		"test:coverage": "vitest run --coverage",
-		"validate": "bun run build && bun run check && bun run lint && bun run test"
+		"validate:agent-surfaces": "bun scripts/validate-agent-surfaces.ts",
+		"validate:fixture-safety": "bun scripts/check-fixture-safety.ts",
+		"validate:agent-docs": "bun run validate:agent-surfaces && bun run validate:fixture-safety",
+		"preview:framework-update": "bun scripts/preview-framework-update.ts",
+		"validate": "bun run build && bun run check && bun run lint && bun run test && bun run validate:agent-docs"
 	},
 	"keywords": ["obsidian", "second-brain", "local-first", "markdown", "plugin", "ai"],
 	"engines": {

@@ -1,3 +1,56 @@
 # AGENTS.md
 
-See `docs/`
+Voidbrain is a local-first Obsidian-style AI second-brain scaffold. Treat the
+vault as user-owned data and the durable source of truth. Agent work must stay
+inspectable, provider-aware, and recoverable.
+
+## Core Rules
+
+- Local-first: do not send vault content to cloud providers unless the workflow
+  has explicit provider review and the user approves that disclosure.
+- Staged changes: never apply AI-proposed note edits directly to user vault
+  files; create reviewable staged changes first.
+- Provider secrets: never write API keys, tokens, passwords, authorization
+  headers, or raw hidden provider state to docs, fixtures, logs, screenshots, or
+  generated examples.
+- Synthetic fixtures: examples and tests use `test/fixtures/vault/` or clearly
+  fake paths such as `fixtures/demo-vault/`.
+- Citations: user-facing answers grounded in retrieval must cite vault paths,
+  headings, and source records.
+- Dry-run: framework update behavior is preview-only until a later apply
+  workflow is implemented.
+- Recovery: failures should preserve command ID, target path, staged-change ID,
+  and validation output needed for inspection or retry.
+
+## Command Catalog
+
+| Command ID | Status | Agent Behavior |
+|------------|--------|----------------|
+| `voidbrain.ingest-source` | planned | Use only synthetic source examples; generated artifacts must be staged changes linked to source paths. |
+| `voidbrain.chat-with-vault` | planned | Require retrieval citations and explicit provider review before any cloud call. |
+| `voidbrain.health-check` | planned | Report plugin, provider, index, fixture, and documentation status without mutating files. |
+| `voidbrain.stage-change` | planned | Produce before/after diff context and a staged-change ID; do not write directly to notes. |
+| `voidbrain.recover-session` | planned | Read recoverable logs and staged files; redact provider secrets in diagnostics. |
+| `voidbrain.validate-agent-surfaces` | scaffolded | Check markdown command IDs, safety phrases, and fixture-safe examples from bounded repository paths. |
+| `voidbrain.preview-framework-update` | scaffolded | Produce a dry-run plan for framework files and exclude user vault content. |
+
+## Repository Workflow
+
+Read `.spec_system/CONVENTIONS.md` and the relevant session spec before code
+changes. Keep Obsidian lifecycle wiring in `src/main.ts`; keep testable domain
+logic under `src/agent/`, `src/providers/`, `src/vectorstore/`, `src/stores/`,
+`src/views/`, `src/components/`, `src/utils/`, and `src/types/`.
+
+Use these validation commands from the repository root:
+
+```bash
+bun run validate:agent-surfaces
+bun run validate:fixture-safety
+bun run validate:agent-docs
+bun run validate
+```
+
+The first two commands are local read-only checks for agent documentation and
+synthetic fixtures. They must fail closed on stale command references, missing
+safety language, secret-like examples, private path hints, or credential-like
+values.

@@ -198,8 +198,103 @@ export interface OperationLog {
 	readonly entries: readonly OperationLogEntry[];
 }
 
-export type StagedChangeOperationKind = "create-note" | "update-frontmatter" | "append-section";
-export type StagedChangeStatus = "proposed" | "approved" | "applied" | "rejected";
+export const STAGED_CHANGE_OPERATION_KINDS = [
+	"create-note",
+	"update-note",
+	"delete-note",
+	"move-note",
+	"update-frontmatter",
+] as const;
+
+export const STAGED_CHANGE_STATUSES = [
+	"proposed",
+	"review-ready",
+	"conflicted",
+	"approved",
+	"applied",
+	"rejected",
+	"failed",
+] as const;
+
+export type StagedChangeOperationKind = (typeof STAGED_CHANGE_OPERATION_KINDS)[number];
+export type StagedChangeStatus = (typeof STAGED_CHANGE_STATUSES)[number];
+
+export const STAGED_CHANGE_CONFLICT_KINDS = [
+	"target-missing",
+	"target-exists",
+	"target-changed",
+	"destination-exists",
+	"duplicate-in-flight",
+	"validation-failed",
+] as const;
+
+export const STAGED_CHANGE_RECOVERY_STATUSES = [
+	"not-needed",
+	"pending-review",
+	"retryable",
+	"rejected",
+	"failed-apply",
+] as const;
+
+export type StagedChangeConflictKind = (typeof STAGED_CHANGE_CONFLICT_KINDS)[number];
+export type StagedChangeConflictSeverity = "warning" | "blocking";
+export type StagedChangeRecoveryStatus = (typeof STAGED_CHANGE_RECOVERY_STATUSES)[number];
+export type StagedChangeDiffLineKind = "context" | "added" | "removed";
+export type StagedFrontmatterValue = string | number | boolean | null | readonly (string | number | boolean | null)[];
+
+export interface StagedChangeDiffLine {
+	readonly kind: StagedChangeDiffLineKind;
+	readonly oldLineNumber?: number;
+	readonly newLineNumber?: number;
+	readonly content: string;
+}
+
+export interface StagedChangeDiffContext {
+	readonly beforeContent?: string;
+	readonly afterContent?: string;
+	readonly beforeSha256?: string;
+	readonly afterSha256?: string;
+	readonly lineDiff: readonly StagedChangeDiffLine[];
+	readonly hasTextChanges: boolean;
+}
+
+export interface StagedChangeConflict {
+	readonly kind: StagedChangeConflictKind;
+	readonly severity: StagedChangeConflictSeverity;
+	readonly message: string;
+	readonly paths: readonly NormalizedVaultPath[];
+	readonly expectedSha256?: string;
+	readonly actualSha256?: string;
+}
+
+export interface StagedChangeReviewMetadata {
+	readonly requiresExplicitReview: boolean;
+	readonly destructive: boolean;
+	readonly reasons: readonly string[];
+}
+
+export interface StagedFrontmatterPatchEntry {
+	readonly key: string;
+	readonly before?: StagedFrontmatterValue;
+	readonly after?: StagedFrontmatterValue;
+}
+
+export interface StagedChangeOperationMetadata {
+	readonly destinationPath?: NormalizedVaultPath;
+	readonly frontmatterPatch?: readonly StagedFrontmatterPatchEntry[];
+}
+
+export interface StagedChangeRecoveryMetadata {
+	readonly commandId: string;
+	readonly stagedChangeId: string;
+	readonly targetPath: NormalizedVaultPath;
+	readonly status: StagedChangeRecoveryStatus;
+	readonly backupPathIntent?: NormalizedVaultPath;
+	readonly validationOutput: readonly ValidationIssue[];
+	readonly rejectedAt?: IsoTimestamp;
+	readonly failedAt?: IsoTimestamp;
+	readonly lastFailureMessage?: string;
+}
 
 export interface StagedChangeRecord {
 	readonly artifactKind: "staged-change";
@@ -214,6 +309,11 @@ export interface StagedChangeRecord {
 	readonly sourcePaths: readonly NormalizedVaultPath[];
 	readonly beforeSha256?: string;
 	readonly afterSha256?: string;
+	readonly diff: StagedChangeDiffContext;
+	readonly conflicts: readonly StagedChangeConflict[];
+	readonly review: StagedChangeReviewMetadata;
+	readonly recovery: StagedChangeRecoveryMetadata;
+	readonly operationMetadata?: StagedChangeOperationMetadata;
 }
 
 export interface RuntimeState {

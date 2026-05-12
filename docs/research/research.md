@@ -1,4 +1,4 @@
-# Open‑source "Obsidian second brain" style apps and tools
+# Open-source "Obsidian second brain" style apps and tools
 
 ## Overview
 
@@ -14,13 +14,13 @@ The phrase "Obsidian second mind/second brain" is used informally across blogs, 
 
 Many personal vault repos on GitHub use "second brain" in their description but are just private note dumps, not reusable tools, so they are not included unless they expose reusable code or a pattern.[^7]
 
-## Open‑source Obsidian AI second‑brain skills and plugins
+## Open-source Obsidian AI second-brain skills and plugins
 
 ### claude-obsidian
 
 - **Type:** Obsidian + Claude Code skill / system, open source (MIT).[^8][^9][^10]
 - **Repo:** `AgriciDaniel/claude-obsidian` on GitHub.[^10]
-- **What it does:** Implements Andrej Karpathy’s "LLM wiki" pattern on top of an Obsidian vault: ingest sources, create 8–15 interlinked wiki pages per source, manage an index, and run autonomous research and vault maintenance workflows.[^9][^8]
+- **What it does:** Implements Andrej Karpathy's "LLM wiki" pattern on top of an Obsidian vault: ingest sources, create 8-15 interlinked wiki pages per source, manage an index, and run autonomous research and vault maintenance workflows.[^9][^8]
 - **Second-brain features:**
   - Automatic creation of entities, concepts, and cross-references when ingesting documents, so the vault evolves into a structured wiki over time.[^8][^9][^10]
   - "Hot cache" session memory that preserves about one screen (~500 words) of context between conversations, reducing recap overhead.[^8]
@@ -66,13 +66,13 @@ Many personal vault repos on GitHub use "second brain" in their description but 
 GitHub topics around "second-brain" and "obsidian" show numerous small or personal projects that interact with Obsidian notes as a second brain.[^22][^7]
 Examples include:
 
-- `yigal100/second-brain` – a personal knowledge base managed via Obsidian; more of a vault than a reusable tool.[^7]
-- `zarazinsfuss/quak` – a shell utility for managing Quartz-based digital garden notes that can interoperate with Obsidian-style markdown.[^7]
+- `yigal100/second-brain` - a personal knowledge base managed via Obsidian; more of a vault than a reusable tool.[^7]
+- `zarazinsfuss/quak` - a shell utility for managing Quartz-based digital garden notes that can interoperate with Obsidian-style markdown.[^7]
 - Various Vim plugins (for example, `sb.vim`) that connect a second brain CLI with editors, often assuming an Obsidian-like markdown PKM structure.[^7]
 
 Because these are either highly personal vaults or thin wrappers around generic note operations, they are not as complete as the dedicated AI second-brain plugins above.
 
-## Open‑source Obsidian alternatives for a second brain
+## Open-source Obsidian alternatives for a second brain
 
 Because Obsidian itself is not fully open source, many users prefer open-source apps that replicate the local-first, markdown-based, graph/outline-centric "second brain" experience. The following tools are commonly recommended.[^23][^2][^3]
 
@@ -88,7 +88,7 @@ Because Obsidian itself is not fully open source, many users prefer open-source 
 
 - **Type:** Open-source note-taking app with plugin ecosystem and encryption.[^25][^24][^23]
 - **Second-brain characteristics:**
-  - Markdown notes organized into notebooks with tags, plus optional end‑to‑end encryption and flexible storage backends.[^24][^23]
+  - Markdown notes organized into notebooks with tags, plus optional end-to-end encryption and flexible storage backends.[^24][^23]
   - Community plugins enable backlinks, graph views, and Git-based versioning, enabling a "version-controlled second brain" system.[^25][^23][^24]
 
 ### Trilium Notes
@@ -123,7 +123,7 @@ Several projects use "Second Brain" in their name for broader AI knowledge runti
 
 ### NicholasSpisak/second-brain
 
-- **Type:** LLM-maintained personal wiki / knowledge base based on Karpathy’s LLM Wiki pattern.[^28]
+- **Type:** LLM-maintained personal wiki / knowledge base based on Karpathy's LLM Wiki pattern.[^28]
 - **What it does:** Uses an AI coding agent (Claude) to maintain a markdown knowledge base (personal wiki), treating it as a second brain.[^28]
 - **Relation to Obsidian:** The underlying data model (markdown wiki with backlinks) is compatible with Obsidian-style PKM, though Obsidian is not a hard dependency.[^28]
 
@@ -138,7 +138,7 @@ Because the "second brain" meme is evolving fast, new open-source projects appea
 To discover more:
 
 - Monitor GitHub topics like `second-brain`, `obsidian`, `personal-knowledge-management`, and `tools-for-thought` and sort by most recently updated.[^22][^7]
-- Watch Obsidian’s community plugin directory (especially AI and "second brain" tagged plugins) for new open-source releases.[^12]
+- Watch Obsidian's community plugin directory (especially AI and "second brain" tagged plugins) for new open-source releases.[^12]
 - Follow blogs and communities focused on Claude + Obsidian setups, which frequently link to new skills and repos (for example, claude-obsidian and related tutorials).[^30][^9][^8]
 
 Although no exhaustive global registry exists, the tools above cover many of the major open-source and Obsidian-adjacent "second brain" systems that are actively maintained as of early 2026.[^2][^8][^23]
@@ -157,9 +157,9 @@ Although no exhaustive global registry exists, the tools above cover many of the
 
 5. [PKM Tools, Self-Hosted Wikis & Digital Systems - Rost Glukhov](https://www.glukhov.org/knowledge-management/) - Using Obsidian for Personal Knowledge Management walks through Obsidian from vault setup through the...
 
-6. [This Is Your Second Brain on OpenClaw | Ron Forbes](https://www.ronforbes.com/blog/openclaw-and-your-second-brain) - The second brain movement — Tiago Forte's Building a Second Brain, the rise of Obsidian, Notion, per...
+6. [This Is Your Second Brain on OpenClaw | Ron Forbes](https://www.ronforbes.com/blog/openclaw-and-your-second-brain) - The second brain movement - Tiago Forte's Building a Second Brain, the rise of Obsidian, Notion, per...
 
-7. [second-brain · GitHub Topics](https://github.com/topics/second-brain?o=asc&s=stars) - A simple system for managing your knowledge with bash. bash markdown knowledge notes note-taking bas...
+7. [second-brain - GitHub Topics](https://github.com/topics/second-brain?o=asc&s=stars) - A simple system for managing your knowledge with bash. bash markdown knowledge notes note-taking bas...
 
 8. [Obsidian AI Second Brain: The Open-Source Plugin That ...](https://agricidaniel.com/blog/claude-obsidian-ai-second-brain) - Instead of embedding your notes into vectors and doing semantic search, you structure them as plain ...
 
@@ -173,7 +173,7 @@ Although no exhaustive global registry exists, the tools above cover many of the
 
 13. [New Plugin: Smart Second Brain - Local AI Assistant](https://www.reddit.com/r/ObsidianMD/comments/1btwsjj/new_plugin_smart_second_brain_local_ai_assistant/) - Leveraging our AI assistant turns your Obsidian vault into a smart second brain. Features. Chat with...
 
-14. [Smart Second Brain – Obsidian Plugin](https://www.obsidianstats.com/plugins/smart-second-brain) - The Smart Second Brain plugin enhances knowledge management in Obsidian by integrating AI-powered as...
+14. [Smart Second Brain - Obsidian Plugin](https://www.obsidianstats.com/plugins/smart-second-brain) - The Smart Second Brain plugin enhances knowledge management in Obsidian by integrating AI-powered as...
 
 15. [Seamless Content Ingestion for Claude-Obsidian Second Brain](https://www.jdhwilkins.com/seamless-content-ingestion-for-claude-obsidian-second-brain) - Explore seamless content ingestion for the Claude-Obsidian second brain. Discover tips on efficientl...
 
@@ -183,13 +183,13 @@ Although no exhaustive global registry exists, the tools above cover many of the
 
 18. [I Finally Built a Second Brain That I Actually Use (6th Attempt)](https://dev.to/huy_tieu/i-finally-built-a-second-brain-that-i-actually-use-6th-attempt-4075) - What is COG? COG = Claude + Obsidian + Git. It's a self-organizing second brain system where: You du...
 
-19. [A Self-Evolving Second Brain (Claude + Obsidian + Git) – ...](https://www.reddit.com/r/ObsidianMD/comments/1oo18gi/i_built_cog_a_selfevolving_second_brain_claude/) - I built COG: A Self-Evolving Second Brain (Claude + Obsidian + Git) – No Database, Just .md Files Th...
+19. [A Self-Evolving Second Brain (Claude + Obsidian + Git) - ...](https://www.reddit.com/r/ObsidianMD/comments/1oo18gi/i_built_cog_a_selfevolving_second_brain_claude/) - I built COG: A Self-Evolving Second Brain (Claude + Obsidian + Git) - No Database, Just .md Files Th...
 
-20. [huytieu/COG-second-brain: Self-evolving ...](https://github.com/huytieu/COG-second-brain) - Initial COG setup: Self-evolving second brain with Claude + Obsidian … 7 months ago. README.md · REA...
+20. [huytieu/COG-second-brain: Self-evolving ...](https://github.com/huytieu/COG-second-brain) - Initial COG setup: Self-evolving second brain with Claude + Obsidian ... 7 months ago. README.md - REA...
 
 21. [Obsidian Second Brain](https://github.com/Obsidian-Second-Brain) - Obsidian PKM Vault is a structured repository designed to help you build a powerful Obsidian Second ...
 
-22. [second-brain · GitHub Topics](https://github.com/topics/second-brain?l=css&o=desc&s=stars) - A skilled virtual assistant for Obsidian. chatbot zettelkasten non-linear-note-taking second-brain t...
+22. [second-brain - GitHub Topics](https://github.com/topics/second-brain?l=css&o=desc&s=stars) - A skilled virtual assistant for Obsidian. chatbot zettelkasten non-linear-note-taking second-brain t...
 
 23. [9 Open Source Second Brain Knowledge Base Tools - It's FOSS](https://itsfoss.com/open-source-second-brain-apps/) - Discover 9 powerful open source second brain and personal knowledge base apps that offer features si...
 
@@ -201,7 +201,7 @@ Although no exhaustive global registry exists, the tools above cover many of the
 
 27. [henrydaum/second-brain: Second ...](https://github.com/henrydaum/second-brain) - Second Brain is a local-first AI runtime for your machine. It indexes your files, remembers durable ...
 
-28. [NicholasSpisak/second-brain: LLM-maintained personal ...](https://github.com/NicholasSpisak/second-brain) - An AI coding agent — Claude ... Based on Andrej Karpathy's LLM Wiki pattern. Topics. markdown ai kno...
+28. [NicholasSpisak/second-brain: LLM-maintained personal ...](https://github.com/NicholasSpisak/second-brain) - An AI coding agent - Claude ... Based on Andrej Karpathy's LLM Wiki pattern. Topics. markdown ai kno...
 
 29. [Second Brain - AI-Powered Knowledge Management](https://github.com/violettance/second_brain) - AI-assisted second brain system designed to help you ... nextjs datadog pkm auto-tagging bun zettelk...
 

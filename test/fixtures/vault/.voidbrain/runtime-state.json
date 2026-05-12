@@ -34,15 +34,75 @@
 			"artifactKind": "staged-change",
 			"schemaVersion": 1,
 			"changeId": "stage-demo-summary-refresh",
-			"operationKind": "append-section",
-			"status": "proposed",
+			"operationKind": "update-note",
+			"status": "review-ready",
 			"targetPath": "summaries/demo-article-summary.md",
 			"createdAt": "2026-05-12T00:40:00Z",
 			"updatedAt": "2026-05-12T00:40:00Z",
 			"rationale": "Add an explicit source trace section to the synthetic summary.",
 			"sourcePaths": ["sources/demo-article.md"],
 			"beforeSha256": "1111111111111111111111111111111111111111111111111111111111111111",
-			"afterSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+			"afterSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+			"diff": {
+				"beforeContent": "# Demo Article Summary\n\nThe synthetic article describes local-first vault behavior.\n",
+				"afterContent": "# Demo Article Summary\n\nThe synthetic article describes local-first vault behavior.\n\n## Source Trace\n\n- `sources/demo-article.md`\n",
+				"beforeSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+				"afterSha256": "2222222222222222222222222222222222222222222222222222222222222222",
+				"lineDiff": [
+					{
+						"kind": "context",
+						"oldLineNumber": 1,
+						"newLineNumber": 1,
+						"content": "# Demo Article Summary"
+					},
+					{
+						"kind": "context",
+						"oldLineNumber": 2,
+						"newLineNumber": 2,
+						"content": ""
+					},
+					{
+						"kind": "context",
+						"oldLineNumber": 3,
+						"newLineNumber": 3,
+						"content": "The synthetic article describes local-first vault behavior."
+					},
+					{
+						"kind": "added",
+						"newLineNumber": 4,
+						"content": ""
+					},
+					{
+						"kind": "added",
+						"newLineNumber": 5,
+						"content": "## Source Trace"
+					},
+					{
+						"kind": "added",
+						"newLineNumber": 6,
+						"content": ""
+					},
+					{
+						"kind": "added",
+						"newLineNumber": 7,
+						"content": "- `sources/demo-article.md`"
+					}
+				],
+				"hasTextChanges": true
+			},
+			"conflicts": [],
+			"review": {
+				"requiresExplicitReview": true,
+				"destructive": false,
+				"reasons": ["existing-note-edit"]
+			},
+			"recovery": {
+				"commandId": "voidbrain.stage-change",
+				"stagedChangeId": "stage-demo-summary-refresh",
+				"targetPath": "summaries/demo-article-summary.md",
+				"status": "pending-review",
+				"validationOutput": []
+			}
 		}
 	],
 	"operationLog": {

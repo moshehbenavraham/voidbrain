@@ -141,6 +141,42 @@ Durable support file examples:
 | `.voidbrain/manifests/sources.json` | Ordered source records with stable IDs, paths, titles, and optional public URLs. |
 | `.voidbrain/runtime-state.json` | Synthetic test aggregate for index metadata, hot cache, staged changes, and operation logs. |
 
+## Staged Change Support Records
+
+Staged changes are review records for proposed markdown note mutations. They do
+not apply edits by themselves and must not target `.voidbrain/` support files.
+
+Each staged change records:
+
+- Operation kind: `create-note`, `update-note`, `delete-note`, `move-note`, or
+  `update-frontmatter`.
+- Review status, target path, source paths, rationale, timestamps, and content
+  hashes.
+- Before and after content plus deterministic line diff context.
+- Conflict metadata for missing targets, path collisions, stale before hashes,
+  duplicate active staged changes, and validation failures.
+- Destructive review metadata for delete and move operations.
+- Recovery metadata with command ID, staged-change ID, target path, backup path
+  intent, and validation output.
+
+Delete and move records are destructive review paths. This foundation does not
+include an apply workflow or automatic backup creation.
+
+## Health Report Contracts
+
+Vault health reports are local diagnostic records derived from parsed notes and
+index freshness snapshots. They are report-only and can be regenerated.
+
+Foundation findings cover:
+
+- Orphan generated notes with no inbound wikilink or valid source trace.
+- Broken wikilinks with line evidence.
+- Stale, missing, partial, or extra index fingerprints.
+- Missing citations on source-grounded summaries.
+
+Findings include severity, kind, affected paths, evidence, and remediation
+guidance. Repair behavior remains staged or manual in later workflows.
+
 ## Validation and Safety
 
 All vault-relative paths and durable metadata are validated before use. Expected
