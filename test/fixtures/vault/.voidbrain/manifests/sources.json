@@ -1,0 +1,18 @@
+{
+	"artifactKind": "source-manifest",
+	"schemaVersion": 1,
+	"generatedAt": "2026-05-12T00:25:00Z",
+	"records": [
+		{
+			"id": "source-demo-article",
+			"path": "sources/demo-article.md",
+			"title": "Demo Article About Local Vaults",
+			"sourceType": "article",
+			"sourceUrl": "https://example.invalid/research/local-vaults",
+			"contentSha256": "8f0f8a6f3d9d2f6b5d4c3b2a19080706050403020100ffeeddccbbaa99887766",
+			"createdAt": "2026-05-12T00:00:00Z",
+			"updatedAt": "2026-05-12T00:00:00Z",
+			"tags": ["fixture", "source", "local-first"]
+		}
+	]
+}

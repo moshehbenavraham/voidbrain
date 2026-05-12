@@ -15,6 +15,18 @@ The plugin keeps Obsidian lifecycle wiring in `src/main.ts` and groups durable l
 | `utils/` | Small shared helpers with no Obsidian lifecycle ownership | Prefer pure functions that are easy to test. |
 | `types/` | Public contracts shared across services, views, and tests | Avoid secret-bearing fields in durable types. |
 
+## Vault Data Model Ownership
+
+| Path | Owner | Notes |
+|------|-------|-------|
+| `types/vault.ts` | Durable vault artifact contracts | Defines generated note frontmatter, support JSON records, branded vault paths, wikilinks, timestamps, and validation result shapes. |
+| `utils/vault-paths.ts` | Vault-relative path rules | Normalizes untrusted path input and rejects unsafe or unsupported artifact locations before runtime I/O. |
+| `utils/vault-validation.ts` | Durable record validation | Validates generated note frontmatter and JSON support records without importing Obsidian runtime APIs. |
+
+The vault data model is contract-first. Later ingestion, indexing, provider, and
+staged-write services should import these contracts rather than redefining
+artifact kinds or support record shapes.
+
 ## Boundaries
 
 - Use Obsidian vault and adapter APIs for runtime file access.

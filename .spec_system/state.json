@@ -14,12 +14,23 @@
     }
   },
   "completed_sessions": [
-    "phase00-session01-repo-tooling-scaffold"
+    "phase00-session01-repo-tooling-scaffold",
+    "phase00-session02-vault-data-model"
   ],
   "next_session_history": [
     {
       "date": "2026-05-12",
       "session": "phase00-session01-repo-tooling-scaffold",
+      "status": "completed"
+    },
+    {
+      "date": "2026-05-12",
+      "session": "phase00-session02-vault-data-model",
+      "status": "planned"
+    },
+    {
+      "date": "2026-05-12",
+      "session": "phase00-session02-vault-data-model",
       "status": "completed"
     }
   ]

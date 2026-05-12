@@ -1,0 +1,71 @@
+{
+	"schemaVersion": 1,
+	"indexMetadata": {
+		"artifactKind": "index-metadata",
+		"schemaVersion": 1,
+		"indexId": "lexical-demo-vault",
+		"indexKind": "lexical",
+		"status": "ready",
+		"updatedAt": "2026-05-12T00:30:00Z",
+		"sourcePaths": [
+			"sources/demo-article.md",
+			"entities/demo-researcher.md",
+			"concepts/local-first-vaults.md",
+			"summaries/demo-article-summary.md",
+			"conversations/2026-05-12-demo-chat.md"
+		]
+	},
+	"hotCache": {
+		"artifactKind": "hot-cache",
+		"schemaVersion": 1,
+		"cacheId": "demo-hot-cache",
+		"updatedAt": "2026-05-12T00:35:00Z",
+		"entries": [
+			{
+				"key": "source-demo-article",
+				"path": "sources/demo-article.md",
+				"lastAccessedAt": "2026-05-12T00:35:00Z",
+				"summary": "Synthetic source about local-first vault contracts."
+			}
+		]
+	},
+	"stagedChanges": [
+		{
+			"artifactKind": "staged-change",
+			"schemaVersion": 1,
+			"changeId": "stage-demo-summary-refresh",
+			"operationKind": "append-section",
+			"status": "proposed",
+			"targetPath": "summaries/demo-article-summary.md",
+			"createdAt": "2026-05-12T00:40:00Z",
+			"updatedAt": "2026-05-12T00:40:00Z",
+			"rationale": "Add an explicit source trace section to the synthetic summary.",
+			"sourcePaths": ["sources/demo-article.md"],
+			"beforeSha256": "1111111111111111111111111111111111111111111111111111111111111111",
+			"afterSha256": "2222222222222222222222222222222222222222222222222222222222222222"
+		}
+	],
+	"operationLog": {
+		"artifactKind": "operation-log",
+		"schemaVersion": 1,
+		"logId": "demo-operation-log",
+		"entries": [
+			{
+				"id": "op-source-imported",
+				"operationKind": "source-imported",
+				"occurredAt": "2026-05-12T00:25:00Z",
+				"status": "succeeded",
+				"summary": "Registered synthetic source note in the source manifest.",
+				"paths": ["sources/demo-article.md"]
+			},
+			{
+				"id": "op-summary-generated",
+				"operationKind": "summary-generated",
+				"occurredAt": "2026-05-12T00:30:00Z",
+				"status": "succeeded",
+				"summary": "Generated synthetic summary with source citation.",
+				"paths": ["summaries/demo-article-summary.md", "sources/demo-article.md"]
+			}
+		]
+	}
+}
