@@ -2,6 +2,7 @@ import type { App, PluginManifest } from "obsidian";
 import type { Mock } from "vitest";
 import { beforeEach, describe, expect, it } from "vitest";
 import VoidbrainPlugin from "../src/main";
+import { TRUSTED_CLOUD_FIXTURE_PROVIDER_ID } from "../src/providers/provider-registry";
 import { DEFAULT_PLUGIN_SETTINGS, SHOW_STATUS_COMMAND_ID } from "../src/types/plugin";
 import type { Command } from "./__mocks__/obsidian";
 import { App as MockApp } from "./__mocks__/obsidian";
@@ -72,6 +73,7 @@ describe("VoidbrainPlugin lifecycle", () => {
 		plugin.loadData.mockResolvedValue({
 			schemaVersion: 1,
 			areCloudProvidersEnabled: true,
+			trustedProviderIds: [TRUSTED_CLOUD_FIXTURE_PROVIDER_ID],
 			shouldShowStatusNotices: false,
 		});
 
@@ -81,6 +83,7 @@ describe("VoidbrainPlugin lifecycle", () => {
 		expect(plugin.getSettings()).toEqual({
 			...DEFAULT_PLUGIN_SETTINGS,
 			areCloudProvidersEnabled: true,
+			trustedProviderIds: [TRUSTED_CLOUD_FIXTURE_PROVIDER_ID],
 			shouldShowStatusNotices: false,
 		});
 		expect(plugin.getRuntimeStatus()).toMatchObject({
@@ -90,6 +93,24 @@ describe("VoidbrainPlugin lifecycle", () => {
 		expect(notices[0]?.message).toBe(
 			"voidbrain is running locally. Cloud provider workflows still require explicit review.",
 		);
+	});
+
+	it("recovers malformed trusted provider settings to safe cloud defaults", async () => {
+		const plugin = createPlugin();
+		plugin.loadData.mockResolvedValue({
+			schemaVersion: 1,
+			areCloudProvidersEnabled: true,
+			trustedProviderIds: [TRUSTED_CLOUD_FIXTURE_PROVIDER_ID, 42],
+		});
+
+		await plugin.onload();
+
+		expect(plugin.getSettings()).toEqual(DEFAULT_PLUGIN_SETTINGS);
+		expect(plugin.getRuntimeStatus()).toMatchObject({
+			settingsLoadErrorCount: 1,
+			settingsLoadStatus: "recovered",
+		});
+		expect(notices[0]?.message).toBe("voidbrain settings were reset to local-first defaults.");
 	});
 
 	it("cleans up owned resources idempotently on unload", async () => {
@@ -117,11 +138,13 @@ describe("VoidbrainPlugin lifecycle", () => {
 		await plugin.saveSettings({
 			...DEFAULT_PLUGIN_SETTINGS,
 			areCloudProvidersEnabled: true,
+			trustedProviderIds: [TRUSTED_CLOUD_FIXTURE_PROVIDER_ID],
 		});
 
 		expect(plugin.saveData).toHaveBeenCalledWith({
 			...DEFAULT_PLUGIN_SETTINGS,
 			areCloudProvidersEnabled: true,
+			trustedProviderIds: [TRUSTED_CLOUD_FIXTURE_PROVIDER_ID],
 		});
 		expect(plugin.getSettings().areCloudProvidersEnabled).toBe(true);
 	});

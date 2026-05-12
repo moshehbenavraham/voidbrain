@@ -1,3 +1,5 @@
+import type { ProviderId } from "./providers";
+
 export const PLUGIN_ID = "voidbrain";
 export const PLUGIN_NAME = "Voidbrain";
 export const PLUGIN_VERSION = "0.1.0";
@@ -18,6 +20,7 @@ export interface VoidbrainPluginSettings {
 	privacyMode: PrivacyMode;
 	vaultScope: VaultScope;
 	areCloudProvidersEnabled: boolean;
+	trustedProviderIds: readonly ProviderId[];
 	areStagedWritesRequired: boolean;
 	shouldShowStatusNotices: boolean;
 }
@@ -33,6 +36,7 @@ export const DEFAULT_PLUGIN_SETTINGS: VoidbrainPluginSettings = {
 	privacyMode: "local-first",
 	vaultScope: "active-vault",
 	areCloudProvidersEnabled: false,
+	trustedProviderIds: [],
 	areStagedWritesRequired: true,
 	shouldShowStatusNotices: true,
 };

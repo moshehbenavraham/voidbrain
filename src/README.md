@@ -27,10 +27,26 @@ The vault data model is contract-first. Later ingestion, indexing, provider, and
 staged-write services should import these contracts rather than redefining
 artifact kinds or support record shapes.
 
+## Provider Privacy Ownership
+
+| Path | Owner | Notes |
+|------|-------|-------|
+| `types/providers.ts` | Provider, model, disclosure, secret reference, and redacted diagnostic contracts | Avoid raw secret-bearing fields in durable provider types. |
+| `providers/provider-registry.ts` | Synthetic provider metadata and deterministic lookup helpers | Keep metadata free of real endpoints, credentials, and personal vault content. |
+| `providers/capability-selection.ts` | Capability preflight before provider invocation | Check chat, embeddings, streaming, tools, and attachments before adapters run. |
+| `providers/privacy-guard.ts` | Local-first disclosure and invocation policy | Run before retrieval synthesis, embedding creation, chat, and agent tool execution. |
+| `providers/secret-store.ts` | Secret references and runtime-only secret storage interfaces | Persist opaque references only; never write raw secrets to markdown or logs. |
+| `providers/redaction.ts` | Recursive diagnostic redaction | Redact diagnostics before logging, test snapshots, or user-facing agent surfaces. |
+
+Provider services must stay testable outside the Obsidian runtime. Runtime
+commands, views, retrieval jobs, and future agent workflows should call the
+privacy guard and capability selector before constructing a provider request.
+
 ## Boundaries
 
 - Use Obsidian vault and adapter APIs for runtime file access.
 - Treat persisted settings and vault content as untrusted input until validated.
 - Stage generated note mutations before applying them to user vault files.
 - Keep fixtures synthetic and separate from real user vault content.
+- Keep provider secrets behind opaque references and redacted diagnostics.
 - Add tests next to the behavior they protect under `test/`.

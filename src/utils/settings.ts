@@ -1,5 +1,6 @@
 import type { Plugin } from "obsidian";
 import { DEFAULT_PLUGIN_SETTINGS, SETTINGS_SCHEMA_VERSION, type VoidbrainPluginSettings } from "../types/plugin";
+import { type ProviderId, makeProviderId } from "../types/providers";
 
 export type SettingsValidationCode =
 	| "invalid-type"
@@ -38,7 +39,10 @@ export class PluginSettingsError extends Error {
 }
 
 export const createDefaultPluginSettings = (): VoidbrainPluginSettings => {
-	return { ...DEFAULT_PLUGIN_SETTINGS };
+	return {
+		...DEFAULT_PLUGIN_SETTINGS,
+		trustedProviderIds: [...DEFAULT_PLUGIN_SETTINGS.trustedProviderIds],
+	};
 };
 
 export const loadPluginSettings = async (plugin: PluginDataLoader): Promise<SettingsLoadResult> => {
@@ -125,11 +129,16 @@ export const parsePluginSettings = (rawSettings: unknown): SettingsLoadResult =>
 	}
 
 	const errors: SettingsValidationError[] = [];
+	const areCloudProvidersEnabled = readBoolean(rawSettings, "areCloudProvidersEnabled", false, errors);
+	const trustedProviderErrorStart = errors.length;
+	const trustedProviderIds = readProviderIdArray(rawSettings, "trustedProviderIds", errors);
+	const hasTrustedProviderErrors = errors.length > trustedProviderErrorStart;
 	const settings: VoidbrainPluginSettings = {
 		schemaVersion: SETTINGS_SCHEMA_VERSION,
 		privacyMode: readLiteral(rawSettings, "privacyMode", "local-first", errors),
 		vaultScope: readLiteral(rawSettings, "vaultScope", "active-vault", errors),
-		areCloudProvidersEnabled: readBoolean(rawSettings, "areCloudProvidersEnabled", false, errors),
+		areCloudProvidersEnabled: hasTrustedProviderErrors ? false : areCloudProvidersEnabled,
+		trustedProviderIds,
 		areStagedWritesRequired: readBoolean(rawSettings, "areStagedWritesRequired", true, errors),
 		shouldShowStatusNotices: readBoolean(rawSettings, "shouldShowStatusNotices", true, errors),
 	};
@@ -207,4 +216,49 @@ const readBoolean = (
 	});
 
 	return defaultValue;
+};
+
+const readProviderIdArray = (
+	source: Record<string, unknown>,
+	field: keyof VoidbrainPluginSettings,
+	errors: SettingsValidationError[],
+): readonly ProviderId[] => {
+	const rawValue = source[field];
+
+	if (rawValue === undefined) {
+		return [];
+	}
+
+	if (!Array.isArray(rawValue)) {
+		errors.push({
+			code: "invalid-type",
+			field,
+			message: `${field} must be an array of provider IDs; cloud trust defaults were applied.`,
+		});
+
+		return [];
+	}
+
+	const providerIds: ProviderId[] = [];
+	const seenProviderIds = new Set<string>();
+
+	for (const [index, value] of rawValue.entries()) {
+		if (typeof value !== "string" || value.trim().length === 0) {
+			errors.push({
+				code: "invalid-type",
+				field: `${field}[${index}]`,
+				message: `${field} entries must be non-empty strings; cloud trust defaults were applied.`,
+			});
+
+			return [];
+		}
+
+		const providerId = value.trim();
+		if (!seenProviderIds.has(providerId)) {
+			seenProviderIds.add(providerId);
+			providerIds.push(makeProviderId(providerId));
+		}
+	}
+
+	return providerIds.sort((left, right) => left.localeCompare(right, "en", { sensitivity: "base" }));
 };

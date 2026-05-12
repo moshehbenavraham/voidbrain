@@ -4,7 +4,7 @@
 **Sessions**: 6 (initial estimate)
 **Estimated Duration**: 3-5 days
 
-**Progress**: 2/6 sessions (33%)
+**Progress**: 3/6 sessions (50%)
 
 ---
 
@@ -24,7 +24,7 @@ write safety, and repeatable validation.
 |---------|------|--------|------------|-----------|
 | 01 | Repository and Tooling Scaffold | Complete | ~12-25 | PASS |
 | 02 | Vault Data Model | Complete | ~12-25 | PASS |
-| 03 | Provider Privacy Boundaries | Not Started | ~12-25 | - |
+| 03 | Provider Privacy Boundaries | Complete | ~12-25 | PASS |
 | 04 | Indexing and Retrieval Foundation | Not Started | ~12-25 | - |
 | 05 | Agent Surfaces and Commands | Not Started | ~12-25 | - |
 | 06 | Staged Changes and Health Foundation | Not Started | ~12-25 | - |
@@ -35,13 +35,12 @@ write safety, and repeatable validation.
 
 - `phase00-session01-repo-tooling-scaffold`
 - `phase00-session02-vault-data-model`
+- `phase00-session03-provider-privacy-boundaries`
 
 ---
 
 ## Upcoming Sessions
 
-- Session 02: Vault Data Model
-- Session 03: Provider Privacy Boundaries
 - Session 04: Indexing and Retrieval Foundation
 - Session 05: Agent Surfaces and Commands
 - Session 06: Staged Changes and Health Foundation
