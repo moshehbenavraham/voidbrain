@@ -35,7 +35,7 @@ behavior, and recovery context.
 | `voidbrain.stage-change` | implemented | Review, confirm, apply, reject, retry, or dismiss staged changes with diffs, backups, audit records, and recovery details. |
 | `voidbrain.recover-session` | implemented | Read hot cache support records, staged recovery state, health reports, operation logs, and validation output with redacted retry or discard diagnostics. |
 | `voidbrain.validate-agent-surfaces` | implemented | Run bounded fail-closed validation for stale IDs, status drift, safety phrases, unsafe examples, and unsupported paths. |
-| `voidbrain.preview-framework-update` | scaffolded | Run dry-run framework update previews while excluding user vault content. |
+| `voidbrain.preview-framework-update` | implemented | Run deterministic dry-run framework update previews with actions, exclusions, conflicts, hashes, and recovery details while excluding user vault content; apply behavior remains deferred. |
 
 ## Safe Examples
 

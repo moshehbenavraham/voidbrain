@@ -31,7 +31,7 @@ is the source of truth; this document is the human-readable companion.
 | `voidbrain.stage-change` | Review and confirmed apply workflow for staged note mutations. | implemented | local-first | staged changes | staged-change ID, before/after diff, target path, backup path intent, validation output |
 | `voidbrain.recover-session` | Reconstruct recoverable command context from hot cache, staged changes, health reports, operation logs, and validation output. | implemented | local-first | read-only | command ID, cache path, target paths, report IDs, staged-change IDs, backup path intent, validation output |
 | `voidbrain.validate-agent-surfaces` | Fail closed on command IDs, status drift, safety phrases, unsafe examples, and unsupported scan paths. | implemented | local-first | read-only | validation result list |
-| `voidbrain.preview-framework-update` | Preview framework file changes while excluding user vault content. | scaffolded | local-first | dry-run | planned framework file actions |
+| `voidbrain.preview-framework-update` | Preview framework file changes while excluding user vault content. | implemented | local-first | dry-run | command ID, target path, planned actions, excluded paths, conflict issue codes, content hashes, validation context |
 
 Status labels are intentionally conservative:
 
@@ -51,7 +51,7 @@ Status labels are intentionally conservative:
 | `voidbrain.stage-change` | staged-change ID and confirmation text when required | per-record apply, reject, retry, dismiss, conflict, or failed outcome with audit and recovery details |
 | `voidbrain.recover-session` | recoverable session, cache, report, or staged-change ID | recovery summary with retry or discard options |
 | `voidbrain.validate-agent-surfaces` | known surface paths from the repository root | deterministic validation issues or pass status |
-| `voidbrain.preview-framework-update` | optional repository-relative framework paths | dry-run action list and excluded user-content paths |
+| `voidbrain.preview-framework-update` | optional repository-relative framework paths or candidate records with proposed content | deterministic dry-run create, update, skip, conflict, and excluded actions with hashes, issues, and recovery details |
 
 ## Source Ingestion Staging
 
@@ -177,14 +177,31 @@ unreadable scan candidates.
 
 ## Framework Update Preview
 
-`voidbrain.preview-framework-update` is a read-only planning surface. It accepts
-repository-relative framework paths, normalizes them, rejects absolute paths or
-parent traversal, and excludes user vault content such as generated knowledge
-notes, staged files, fixture vault notes, and local research inputs.
+`voidbrain.preview-framework-update` is an implemented read-only planning
+surface. It accepts repository-relative framework paths or candidate records
+with proposed content, normalizes them, rejects absolute paths or parent
+traversal, and excludes user vault content such as generated knowledge notes,
+`.voidbrain` support records, provider secret files, private diagnostics,
+fixture vault notes, and local research inputs.
 
-The preview returns only planned framework file actions plus excluded paths. It
-does not apply changes, rewrite notes, update fixture vault content, or create a
-future apply plan automatically.
+The preview returns deterministic create, update, skip, conflict, and excluded
+actions. Create and update actions include proposed content hashes; update and
+skip actions include current file hashes when a current file exists. Conflicts
+cover unsupported file types, unsafe proposed content, duplicate candidates,
+path collisions, unreadable current files, and missing comparison input. Each
+action includes recovery details with command ID, target path, action, issue
+code when applicable, and validation context.
+
+Run the local dry-run planner from the repository root:
+
+```bash
+bun run preview:framework-update
+bun run preview:framework-update AGENTS.md test/fixtures/vault/sources/demo-article.md ../outside.md
+```
+
+The CLI exits nonzero when typed issues or conflict actions require attention.
+It does not apply changes, rewrite notes, update fixture vault content, stage
+note mutations, call providers, or create a future apply plan automatically.
 
 ## Deferred Behavior
 

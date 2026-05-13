@@ -66,10 +66,17 @@ export {
 	validateRepositoryScanPath,
 } from "./repository-scan-boundary";
 export {
+	classifyFrameworkUpdateCandidatePath,
 	createFrameworkUpdatePreviewPlanner,
+	createPreviewContentHash,
+	normalizeFrameworkUpdateCandidatePath,
 	planFrameworkUpdatePreview,
+	sortFrameworkUpdatePreviewActions,
 } from "./framework-update-preview";
 export type {
+	FrameworkUpdatePathClassification,
+	FrameworkUpdatePreviewCurrentFileReader,
+	FrameworkUpdatePreviewCurrentFileReadResult,
 	FrameworkUpdatePreviewPlanner,
 	FrameworkUpdatePreviewPlannerOptions,
 } from "./framework-update-preview";

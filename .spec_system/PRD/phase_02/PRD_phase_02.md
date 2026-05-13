@@ -4,7 +4,7 @@
 **Sessions**: 7
 **Estimated Duration**: 7-10 days
 
-**Progress**: 2/7 sessions (29%)
+**Progress**: 3/7 sessions (43%)
 
 ---
 
@@ -29,7 +29,7 @@ can leave the local machine.
 |---------|------|--------|------------|-----------|
 | 01 | Recover Session Command | Complete | ~12-25 | PASS |
 | 02 | Agent Surface Validation Hardening | Complete | ~12-25 | PASS |
-| 03 | Framework Update Preview Planner | Not Started | ~12-25 | - |
+| 03 | Framework Update Preview Planner | Complete | ~12-25 | PASS |
 | 04 | Maintenance Recommendation Planner | Not Started | ~12-25 | - |
 | 05 | Similar Note and Placement Suggestions | Not Started | ~12-25 | - |
 | 06 | Batch Source Ingestion Queue | Not Started | ~12-25 | - |
@@ -41,12 +41,12 @@ can leave the local machine.
 
 - Session 01: Recover Session Command
 - Session 02: Agent Surface Validation Hardening
+- Session 03: Framework Update Preview Planner
 
 ---
 
 ## Upcoming Sessions
 
-- Session 03: Framework Update Preview Planner
 - Session 04: Maintenance Recommendation Planner
 - Session 05: Similar Note and Placement Suggestions
 - Session 06: Batch Source Ingestion Queue

@@ -70,8 +70,8 @@ Voidbrain keeps agent-readable command guidance synchronized across:
 The canonical command contracts live under `src/agent/` and
 `src/types/agent-commands.ts`. Agent surfaces must preserve local-first privacy,
 staged changes, provider secrets boundaries, synthetic fixtures, citations,
-hot cache support records, dry-run framework update behavior, and recovery
-expectations.
+hot cache support records, implemented dry-run framework update previews, and
+recovery expectations.
 
 ## Repository Policy
 

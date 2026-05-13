@@ -33,7 +33,7 @@ inspectable, provider-aware, and recoverable.
 | `voidbrain.stage-change` | implemented | Review, confirm, apply, reject, retry, or dismiss staged changes with before/after diffs, backup intent, audit records, and recovery details. |
 | `voidbrain.recover-session` | implemented | Read hot cache support records, staged recovery state, health reports, operation logs, and validation output; return redacted retry or discard diagnostics without mutating vault files. |
 | `voidbrain.validate-agent-surfaces` | implemented | Fail closed on stale command IDs, status drift, safety phrases, and fixture-safe examples from bounded repository paths. |
-| `voidbrain.preview-framework-update` | scaffolded | Produce a dry-run plan for framework files and exclude user vault content. |
+| `voidbrain.preview-framework-update` | implemented | Produce deterministic dry-run framework update plans with create, update, skip, conflict, excluded, hash, issue, and recovery details while excluding user vault content; apply behavior remains deferred. |
 
 ## Repository Workflow
 

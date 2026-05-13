@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { formatAgentValidationIssue } from "../src/agent/agent-validation-reporting";
 import {
@@ -10,8 +11,9 @@ import {
 	validateAgentCommandCatalog,
 } from "../src/agent/command-catalog";
 import { scanFixtureSafetyText } from "../src/agent/fixture-safety";
-import { createFrameworkUpdatePreviewPlanner, planFrameworkUpdatePreview } from "../src/agent/framework-update-preview";
 import { validateRepositoryScanPath } from "../src/agent/repository-scan-boundary";
+import { createRuntimeCommandHandlers } from "../src/agent/runtime-command-handlers";
+import { createRuntimeStatusSnapshot } from "../src/agent/runtime-status";
 import {
 	extractAgentCommandIdsFromMarkdown,
 	extractAgentCommandReferencesFromMarkdown,
@@ -19,6 +21,7 @@ import {
 	validateAgentSurfaceMarkdown,
 } from "../src/agent/surface-validation";
 import { AGENT_COMMAND_IDS, agentCommandStatusLabel } from "../src/types/agent-commands";
+import { DEFAULT_PLUGIN_SETTINGS } from "../src/types/plugin";
 import {
 	completeSurfaceMarkdownForCommands,
 	fixtureSurface,
@@ -60,12 +63,16 @@ describe("agent command catalog", () => {
 			"voidbrain.stage-change",
 			"voidbrain.recover-session",
 			"voidbrain.validate-agent-surfaces",
-		]);
-		expect(getAgentCommandsByStatus("scaffolded").map((command) => command.id)).toEqual([
 			"voidbrain.preview-framework-update",
 		]);
+		expect(getAgentCommandsByStatus("scaffolded").map((command) => command.id)).toEqual([]);
 		expect(getAgentCommandById("voidbrain.chat-with-vault")).toMatchObject({
 			privacyLevel: "explicit-provider-review",
+		});
+		expect(getAgentCommandById("voidbrain.preview-framework-update")).toMatchObject({
+			status: "implemented",
+			writePolicy: "dry-run",
+			requiredEvidence: expect.arrayContaining(["conflict issue codes", "content hashes", "validation context"]),
 		});
 		expect(getAgentCommandById("voidbrain.unknown")).toBeUndefined();
 		expect(getSupportedAgentSurfaces("voidbrain.ingest-source").map((surface) => surface.path)).toContain(
@@ -239,67 +246,53 @@ describe("repository scan boundaries", () => {
 	});
 });
 
-describe("framework update preview", () => {
-	it("plans dry-run framework actions and excludes user content", () => {
-		const plan = planFrameworkUpdatePreview({
-			rootDir: ".",
-			candidatePaths: ["AGENTS.md", "test/fixtures/vault/sources/demo-article.md", "../outside.md"],
-			now: new Date("2026-05-12T00:00:00.000Z"),
-		});
-
-		expect(plan).toMatchObject({
-			dryRun: true,
-			generatedAt: "2026-05-12T00:00:00.000Z",
-		});
-		expect(plan.actions).toEqual([
-			{
-				path: "AGENTS.md",
-				action: "update",
-				reason: "Framework-owned path eligible for preview only.",
-			},
-		]);
-		expect(plan.excludedUserContentPaths).toEqual(["test/fixtures/vault/sources/demo-article.md"]);
-		expect(plan.issues).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({ code: "framework.invalid-input" }),
-				expect.objectContaining({ code: "framework.user-content-target" }),
-			]),
-		);
+describe("framework update preview command surface", () => {
+	it("keeps checked agent surfaces compatible with implemented dry-run status", () => {
+		for (const surface of AGENT_SURFACES) {
+			const markdown = readFileSync(surface.path, "utf8");
+			expect(
+				validateAgentSurfaceMarkdown({
+					surface,
+					markdown,
+					commands: AGENT_COMMAND_CATALOG,
+				}).issues,
+			).toEqual([]);
+		}
 	});
 
-	it("rejects duplicate preview requests while one is in flight", async () => {
-		let releaseFirstPreview: (() => void) | undefined;
-		const planner = createFrameworkUpdatePreviewPlanner({
-			now: () => new Date("2026-05-12T00:00:00.000Z"),
-			beforePlan: () =>
-				new Promise<void>((resolve) => {
-					releaseFirstPreview = resolve;
+	it("returns a dry-run runtime outcome and blocks immediate duplicate triggers", async () => {
+		const handlers = createRuntimeCommandHandlers({
+			getSettings: () => DEFAULT_PLUGIN_SETTINGS,
+			getStatusSnapshot: () =>
+				createRuntimeStatusSnapshot({
+					settings: DEFAULT_PLUGIN_SETTINGS,
+					providers: [],
+					now: new Date("2026-05-13T00:00:00.000Z"),
 				}),
 		});
-
-		const firstPreview = planner.plan({
-			rootDir: ".",
-			candidatePaths: ["AGENTS.md"],
-		});
-		const duplicatePreview = await planner.plan({
-			rootDir: ".",
-			candidatePaths: ["README.md"],
-		});
-
-		expect(duplicatePreview.issues).toEqual([
-			expect.objectContaining({
-				code: "framework.duplicate-preview",
-			}),
-		]);
-
-		if (releaseFirstPreview === undefined) {
-			throw new Error("Expected first preview to be waiting");
+		const handler = handlers.find((entry) => entry.command.id === "voidbrain.preview-framework-update");
+		if (handler === undefined) {
+			throw new Error("Expected preview command handler");
 		}
-		releaseFirstPreview();
 
-		await expect(firstPreview).resolves.toMatchObject({
-			dryRun: true,
-			actions: [expect.objectContaining({ path: "AGENTS.md" })],
+		expect(handler.run()).toMatchObject({
+			commandId: "voidbrain.preview-framework-update",
+			kind: "dry-run",
+			severity: "ready",
+		});
+		expect(handler.run()).toMatchObject({
+			commandId: "voidbrain.preview-framework-update",
+			kind: "not-ready",
+			severity: "warning",
+			userMessage: expect.stringContaining("already in flight"),
+		});
+
+		await Promise.resolve();
+
+		expect(handler.run()).toMatchObject({
+			commandId: "voidbrain.preview-framework-update",
+			kind: "dry-run",
+			severity: "ready",
 		});
 	});
 });

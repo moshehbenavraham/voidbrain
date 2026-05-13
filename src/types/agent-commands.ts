@@ -35,6 +35,11 @@ export const AGENT_VALIDATION_ERROR_CODES = [
 	"fixture.invalid-input",
 	"framework.user-content-target",
 	"framework.duplicate-preview",
+	"framework.duplicate-candidate",
+	"framework.path-collision",
+	"framework.unsupported-path",
+	"framework.unsafe-content",
+	"framework.current-file-read-failed",
 	"framework.invalid-input",
 ] as const;
 
@@ -147,20 +152,73 @@ export interface FixtureSafetyReport {
 	readonly issues: readonly AgentValidationIssue[];
 }
 
+export type FrameworkUpdatePreviewActionType = "create" | "update" | "skip" | "conflict" | "excluded";
+
+export type FrameworkUpdatePreviewConflictKind =
+	| "duplicate-candidate"
+	| "path-collision"
+	| "unsupported-path"
+	| "unsafe-content"
+	| "current-file-read-failed"
+	| "missing-comparison-input";
+
+export interface FrameworkUpdatePreviewCandidate {
+	readonly path: string;
+	readonly proposedContent?: string;
+	readonly source?: string;
+}
+
+export interface FrameworkUpdatePreviewCurrentFile {
+	readonly path: string;
+	readonly content: string;
+}
+
+export interface FrameworkUpdatePreviewCurrentFileReadFailure {
+	readonly path: string;
+	readonly message: string;
+}
+
+export interface FrameworkUpdatePreviewContentHash {
+	readonly algorithm: "sha256";
+	readonly value: string;
+}
+
+export interface FrameworkUpdatePreviewConflict {
+	readonly kind: FrameworkUpdatePreviewConflictKind;
+	readonly issueCode: AgentValidationErrorCode;
+	readonly message: string;
+}
+
+export interface FrameworkUpdatePreviewRecoveryDetails {
+	readonly commandId: "voidbrain.preview-framework-update";
+	readonly targetPath: string;
+	readonly action: FrameworkUpdatePreviewActionType;
+	readonly issueCode?: AgentValidationErrorCode;
+	readonly validationContext: string;
+}
+
 export interface FrameworkUpdatePreviewInput {
 	readonly rootDir: string;
-	readonly candidatePaths: readonly string[];
+	readonly candidatePaths?: readonly string[];
+	readonly candidates?: readonly FrameworkUpdatePreviewCandidate[];
+	readonly currentFiles?: readonly FrameworkUpdatePreviewCurrentFile[];
+	readonly currentFileReadFailures?: readonly FrameworkUpdatePreviewCurrentFileReadFailure[];
 	readonly now?: Date;
 }
 
 export interface FrameworkUpdatePreviewAction {
 	readonly path: string;
-	readonly action: "create" | "update" | "skip";
+	readonly action: FrameworkUpdatePreviewActionType;
 	readonly reason: string;
+	readonly proposedHash?: FrameworkUpdatePreviewContentHash;
+	readonly currentHash?: FrameworkUpdatePreviewContentHash;
+	readonly conflict?: FrameworkUpdatePreviewConflict;
+	readonly recovery: FrameworkUpdatePreviewRecoveryDetails;
 }
 
 export interface FrameworkUpdatePreviewPlan {
 	readonly dryRun: true;
+	readonly commandId: "voidbrain.preview-framework-update";
 	readonly generatedAt: string;
 	readonly actions: readonly FrameworkUpdatePreviewAction[];
 	readonly excludedUserContentPaths: readonly string[];

@@ -87,12 +87,12 @@ const recoveryHints: Readonly<Record<AgentCommandId, string>> = {
 };
 
 const commandKind = (command: AgentCommand): RuntimeCommandOutcome["kind"] => {
-	if (command.status === "implemented") {
-		return "opened";
-	}
-
 	if (command.id === "voidbrain.preview-framework-update") {
 		return "dry-run";
+	}
+
+	if (command.status === "implemented") {
+		return "opened";
 	}
 
 	if (command.id === "voidbrain.validate-agent-surfaces") {
@@ -304,6 +304,40 @@ const buildRecoveryCommandOutcome = (
 	};
 };
 
+const buildFrameworkUpdatePreviewCommandOutcome = (
+	context: RuntimeCommandContext,
+	inFlightCommandIds: Set<AgentCommandId>,
+): RuntimeCommandOutcome => {
+	if (context.command.id !== "voidbrain.preview-framework-update") {
+		return buildCommandOutcome(context);
+	}
+
+	if (inFlightCommandIds.has(context.command.id)) {
+		return {
+			commandId: context.command.id,
+			kind: "not-ready",
+			severity: "warning",
+			userMessage: "Framework update preview is already in flight. No duplicate dry-run was started.",
+			recoveryHint: "Wait for the current preview to finish, then inspect command ID and validation output.",
+		};
+	}
+
+	inFlightCommandIds.add(context.command.id);
+	Promise.resolve().finally(() => {
+		inFlightCommandIds.delete(context.command.id);
+	});
+
+	return {
+		commandId: context.command.id,
+		kind: "dry-run",
+		severity: "ready",
+		userMessage:
+			"Framework update preview is available as a repository-local dry-run. No providers were called and no vault files were changed.",
+		recoveryHint:
+			"Run bun run preview:framework-update from the repository root and inspect target paths, actions, issue codes, and validation context before any future apply workflow.",
+	};
+};
+
 export const mapRuntimeCommandError = (command: AgentCommand, error: unknown): RuntimeCommandOutcome => ({
 	commandId: command.id,
 	kind: "error",
@@ -346,6 +380,9 @@ export const createRuntimeCommandHandlers = (
 				}
 				if (command.id === "voidbrain.recover-session") {
 					return buildRecoveryCommandOutcome(context, options.recovery, inFlightCommandIds);
+				}
+				if (command.id === "voidbrain.preview-framework-update") {
+					return buildFrameworkUpdatePreviewCommandOutcome(context, inFlightCommandIds);
 				}
 
 				return buildCommandOutcome(context);

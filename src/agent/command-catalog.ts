@@ -343,34 +343,53 @@ export const AGENT_COMMAND_CATALOG: readonly AgentCommand[] = [
 	{
 		id: "voidbrain.preview-framework-update",
 		name: "Preview framework update",
-		intent: "Preview planned framework-file changes while excluding user vault content and generated knowledge notes.",
-		status: "scaffolded",
+		intent: "Produce deterministic dry-run framework-file update plans with create, update, skip, conflict, excluded, hash, issue, and recovery details while excluding user vault content and generated knowledge notes.",
+		status: "implemented",
 		privacyLevel: "local-first",
 		writePolicy: "dry-run",
 		prerequisites: [
 			"Run from the repository root.",
-			"Candidate paths are repository-relative and normalized before planning.",
-			"User vault content paths are excluded from framework updates.",
+			"Candidate paths are repository-relative and normalized before any repository read.",
+			"User vault content, generated knowledge notes, support records, provider secret files, diagnostics, and unsafe traversal are excluded or conflicted before planning.",
+			"Proposed content is scanned for credential-like values and private path hints before create or update actions are reported.",
 		],
 		inputs: [
 			{
 				name: "candidatePaths",
-				description: "Repository-relative framework paths proposed for preview.",
+				description: "Optional repository-relative framework paths proposed for dry-run preview.",
+				required: false,
+			},
+			{
+				name: "candidates",
+				description: "Optional candidate records with repository-relative paths and proposed content.",
 				required: false,
 			},
 		],
 		outputs: [
 			{
 				name: "previewPlan",
-				description: "Dry-run action list and excluded user-content paths.",
+				description:
+					"Deterministic dry-run action list with create, update, skip, conflict, excluded, hashes, issues, and recovery details.",
 				required: true,
 			},
 		],
-		requiredEvidence: ["planned framework file actions", "excluded user-content paths"],
+		requiredEvidence: [
+			"command ID",
+			"target path",
+			"planned framework file actions",
+			"excluded user-content paths",
+			"conflict issue codes",
+			"content hashes",
+			"validation context",
+		],
 		supportedSurfaces: ["agents-md", "claude-md", "gemini-md", "voidbrain-skill", "human-docs"],
-		requiredSafetyPhrases: ["local-first", "dry-run", "synthetic fixtures", "recovery"],
-		recoveryBehavior: "Reject duplicate in-flight preview requests and return the existing preview status.",
-		notes: ["Apply behavior is intentionally out of scope for this session."],
+		requiredSafetyPhrases: ["local-first", "dry-run", "synthetic fixtures", "provider secrets", "recovery"],
+		recoveryBehavior:
+			"Return command ID, target path, action, issue code, hashes, and validation context for retry or discard decisions; reject duplicate in-flight preview requests.",
+		notes: [
+			"Planner and CLI behavior are implemented as preview-only dry-runs.",
+			"Apply behavior remains intentionally out of scope and must be implemented through a later explicit workflow.",
+		],
 	},
 ];
 

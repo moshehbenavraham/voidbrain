@@ -28,7 +28,7 @@ content is out of scope unless a later reviewed workflow supplies it.
 | `voidbrain.stage-change` | implemented | Review, confirm, apply, reject, retry, or dismiss staged changes with diffs, backups, audit records, and recovery details. |
 | `voidbrain.recover-session` | implemented | Read hot cache support records, staged recovery state, health reports, operation logs, and validation output; redact provider secrets and report retry or discard options without applying note edits. |
 | `voidbrain.validate-agent-surfaces` | implemented | Check known surfaces for command drift, status drift, missing safety phrases, unsafe examples, and unsupported paths. |
-| `voidbrain.preview-framework-update` | scaffolded | Return a dry-run plan and exclude user vault content or generated knowledge notes. |
+| `voidbrain.preview-framework-update` | implemented | Return deterministic dry-run framework update actions, excluded paths, conflicts, hashes, and recovery details while excluding user vault content or generated knowledge notes; apply behavior remains deferred. |
 
 ## Validation Commands
 
