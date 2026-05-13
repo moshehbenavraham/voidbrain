@@ -27,7 +27,7 @@
     "3": {
       "name": "Offline and Provider Hardening",
       "description": "Harden local runtime and OpenAI-compatible provider profiles, provider invocation boundaries, offline embedding/index compatibility, troubleshooting, and integration validation while preserving local-first disclosure and redaction guarantees.",
-      "status": "in_progress",
+      "status": "complete",
       "session_count": 6
     }
   },
@@ -57,7 +57,8 @@
     "phase03-session02-openai-compatible-provider-profiles",
     "phase03-session03-provider-transport-invocation-boundaries",
     "phase03-session04-offline-embeddings-index-compatibility",
-    "phase03-session05-provider-troubleshooting-recovery-ux"
+    "phase03-session05-provider-troubleshooting-recovery-ux",
+    "phase03-session06-offline-provider-integration-validation"
   ],
   "next_session_history": [
     {
@@ -273,6 +274,16 @@
     {
       "date": "2026-05-13",
       "session": "phase03-session05-provider-troubleshooting-recovery-ux",
+      "status": "completed"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase03-session06-offline-provider-integration-validation",
+      "status": "planned"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase03-session06-offline-provider-integration-validation",
       "status": "completed"
     }
   ]

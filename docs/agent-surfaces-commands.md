@@ -233,6 +233,27 @@ paths, cache paths, staged-change IDs, report IDs, validation output, and retry
 or discard guidance without exposing provider secrets or raw private note
 bodies.
 
+## Phase 03 Provider Closeout
+
+Phase 03 closeout treats local runtime profiles, OpenAI-compatible profiles,
+provider invocation boundaries, offline embedding compatibility, lexical
+fallback, provider troubleshooting, agent surface validation, and fixture
+safety as one integrated provider-hardening workflow. Synthetic coverage is
+recorded in `docs/phase03-offline-provider-integration-validation.md` and
+`.spec_system/specs/phase03-session06-offline-provider-integration-validation/`.
+
+Provider disclosure remains explicit. Local runtime paths stay local, and
+cloud or custom remote providers must pass provider review, trust, auth,
+capability, and disclosure gates before private vault content can leave the
+machine. Voidbrain does not silently fall back from local providers to cloud
+providers when local readiness fails.
+
+Provider recovery records are bounded to command ID, provider ID, model ID,
+target path, cache path, staged-change ID, report ID, source counts, readiness
+codes, fallback mode, and validation output. They must omit provider secrets,
+authorization headers, prompt bodies, raw private note bodies, hidden provider
+state, private path hints, and live provider payloads.
+
 ## Deferred Behavior
 
 These surfaces do not implement autonomous web research, destructive framework

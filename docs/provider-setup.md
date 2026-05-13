@@ -60,6 +60,14 @@ In `Settings -> Voidbrain -> Indexing`:
 If the status view says `0/0 indexed`, the active vault has no markdown notes
 visible to Obsidian. Add at least one `.md` note, then reindex.
 
+Phase 03 provider closeout validates semantic compatibility and lexical
+fallback together. Semantic search is eligible only when the selected embedding
+provider, model family, vector dimensions, indexed sources, and current vault
+source fingerprints match. If semantic readiness is stale, missing,
+incompatible, canceled, provider-blocked, or offline, Voidbrain should expose
+reindex guidance and keep lexical retrieval available when the lexical index is
+ready.
+
 ## Local vs OpenAI-Compatible
 
 Use `Local` for local runtime endpoints such as:
@@ -88,6 +96,14 @@ For a remote OpenAI-compatible provider:
 Never put raw API keys, bearer tokens, passwords, or authorization headers into
 tracked docs, fixtures, screenshots, or example files. Runtime credentials
 should only be entered through the settings UI.
+
+Cloud and custom remote provider use remains blocked until provider review,
+trust, auth, capability, and disclosure settings all pass. Voidbrain does not
+automatically switch from a local provider to a cloud provider when local
+runtime readiness fails.
+
+For closeout evidence, see
+[Phase 03 Offline Provider Integration Validation](phase03-offline-provider-integration-validation.md).
 
 ## Troubleshooting
 

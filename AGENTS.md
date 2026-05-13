@@ -22,6 +22,10 @@ inspectable, provider-aware, and recoverable.
 - Recovery: failures should preserve command ID, target path, cache path,
   staged-change ID, report ID, and validation output needed for inspection or
   retry.
+- Provider closeout: local runtime paths stay local; cloud or custom remote
+  providers require provider review, trust, auth, capability, and disclosure
+  gates before private vault content can leave the machine. Offline semantic
+  failures should expose lexical fallback when available.
 
 ## Command Catalog
 
@@ -55,3 +59,9 @@ The first two commands are local read-only checks for agent documentation and
 synthetic fixtures. They must fail closed on stale command references, missing
 safety language, secret-like examples, private path hints, or credential-like
 values.
+
+Phase 03 provider integration evidence lives in
+`docs/phase03-offline-provider-integration-validation.md` and validates local
+providers, OpenAI-compatible providers, invocation boundaries, semantic
+fallback, provider troubleshooting, dry-run language, staged changes, citations,
+provider secrets redaction, synthetic fixtures, and recovery records.

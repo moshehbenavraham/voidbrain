@@ -1,7 +1,7 @@
 # Session 06: Offline Provider Integration Validation
 
 **Session ID**: `phase03-session06-offline-provider-integration-validation`
-**Status**: Not Started
+**Status**: Complete
 **Estimated Tasks**: ~12-25
 **Estimated Duration**: 2-4 hours
 
@@ -40,10 +40,10 @@ residual risk records.
 
 ## Prerequisites
 
-- [ ] Phase 03 sessions 01-05 are complete.
-- [ ] Synthetic fixtures cover local provider, trusted cloud, untrusted cloud,
+- [x] Phase 03 sessions 01-05 are complete.
+- [x] Synthetic fixtures cover local provider, trusted cloud, untrusted cloud,
       missing-secret, timeout, cancellation, and embedding compatibility paths.
-- [ ] Local validation commands are available from the repository root.
+- [x] Local validation commands are available from the repository root.
 
 ---
 
@@ -58,11 +58,22 @@ residual risk records.
 
 ## Success Criteria
 
-- [ ] Phase 03 workflows pass synthetic integration validation.
-- [ ] Provider secrets, authorization headers, prompt bodies, raw private note
+- [x] Phase 03 workflows pass synthetic integration validation.
+- [x] Provider secrets, authorization headers, prompt bodies, raw private note
       bodies, hidden provider state, and private path hints are absent from
       docs, fixtures, reports, logs, screenshots, and generated examples.
-- [ ] Cloud/private-vault paths remain blocked until explicit provider review
+- [x] Cloud/private-vault paths remain blocked until explicit provider review
       and trust settings allow disclosure.
-- [ ] Phase tracking is synchronized across PRD, state, validation, and summary
-      artifacts.
+- [x] Phase tracking is synchronized across PRD, validation, and summary
+      artifacts. `.spec_system/state.json` remains deferred to the later
+      `updateprd` workflow.
+
+---
+
+## Validation Evidence
+
+- Focused provider integration set: 9 test files passed, 67 tests passed.
+- Agent docs bundle: agent surfaces passed, fixture safety passed, 65 files
+  checked.
+- Full repository validation: build passed, Svelte check passed, Biome passed,
+  35 test files passed, 232 tests passed, and agent docs passed.

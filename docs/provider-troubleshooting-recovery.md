@@ -43,6 +43,12 @@ Troubleshooting actions reuse existing setup and indexing paths:
 Only one provider troubleshooting action can run at a time. Duplicate triggers
 are rejected with a visible notice and no vault mutation.
 
+Phase 03 closeout validates retry, reset, disclosure review, semantic fallback,
+timeout, cancellation, and redacted recovery behavior with synthetic fixtures.
+The recovery record remains bounded to command ID, provider ID, model ID,
+readiness code, cache path, report ID, source path count, fallback mode when
+applicable, and validation output.
+
 ## Local Runtime Recovery
 
 For local runtimes such as `http://127.0.0.1:11434/v1`:
@@ -82,6 +88,11 @@ available.
 
 Use `Refresh` after retesting a provider. Rebuild semantic indexes only after
 the embedding provider and model are ready.
+
+If semantic search is blocked but lexical readiness is available, the user
+should see lexical fallback instead of a blank retrieval path. If both semantic
+and lexical retrieval are unavailable, the report should provide retry or
+reindex guidance with recovery fields.
 
 ## Secret Boundaries
 

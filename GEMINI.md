@@ -17,6 +17,10 @@ content is out of scope unless a later reviewed workflow supplies it.
   session.
 - Recovery output should name the command ID, target path, cache path,
   staged-change ID, report ID, or validation issue without exposing secrets.
+- Provider closeout keeps local runtime paths local; cloud provider workflows
+  require provider review, trust, auth, capability, and disclosure gates before
+  private vault content can leave the machine. Offline semantic failures should
+  expose lexical fallback when available.
 
 ## Command Catalog
 
@@ -43,3 +47,9 @@ Failures in the agent validation commands are release blockers for command
 documentation. Fix stale command IDs, missing local-first or staged changes
 language, provider secrets examples, synthetic fixtures violations, missing
 citations requirements, dry-run drift, and recovery gaps before continuing.
+
+Phase 03 provider integration evidence lives in
+`docs/phase03-offline-provider-integration-validation.md` and should stay in
+sync with provider setup, invocation boundaries, semantic fallback,
+troubleshooting, staged changes, dry-run language, citations, synthetic
+fixtures, provider secrets redaction, and recovery records.

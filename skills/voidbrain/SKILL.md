@@ -24,6 +24,10 @@ behavior, and recovery context.
   backup, audit, and recovery checks pass.
 - Treat `.voidbrain/cache/hot-cache.json` as a readable local support record
   for recent context recovery, not as durable user-authored knowledge.
+- Keep Phase 03 provider closeout behavior explicit: local runtime paths stay
+  local, cloud provider workflows require provider review, trust, auth,
+  capability, and disclosure gates, and offline semantic failures should expose
+  lexical fallback when available.
 
 ## Commands
 
@@ -88,6 +92,17 @@ Hot cache recovery support:
   "writePolicy": "read-only",
   "requiredEvidence": ["cache path", "target paths", "report IDs", "validation output", "staged-change IDs"],
   "actions": ["retry command", "review staged change", "inspect report", "discard record"]
+}
+```
+
+Phase 03 provider closeout:
+
+```json
+{
+  "evidence": "docs/phase03-offline-provider-integration-validation.md",
+  "providerPolicy": "explicit provider review before cloud disclosure",
+  "fallback": "lexical retrieval when semantic readiness is blocked and lexical index is ready",
+  "recoveryFields": ["command ID", "provider ID", "model ID", "cache path", "report ID", "validation output"]
 }
 ```
 

@@ -1,10 +1,10 @@
 # PRD Phase 03: Offline and Provider Hardening
 
-**Status**: In Progress
+**Status**: Complete
 **Sessions**: 6
 **Estimated Duration**: 6-9 days
 
-**Progress**: 5/6 sessions (83%)
+**Progress**: 6/6 sessions (100%)
 
 ---
 
@@ -33,7 +33,7 @@ written to markdown, logs, fixtures, screenshots, or generated examples.
 | 03 | Provider Transport Invocation Boundaries | Complete | ~12-25 | 2026-05-13 |
 | 04 | Offline Embeddings and Index Compatibility | Complete | ~12-25 | 2026-05-13 |
 | 05 | Provider Troubleshooting and Recovery UX | Complete | ~12-25 | 2026-05-13 |
-| 06 | Offline Provider Integration Validation | Not Started | ~12-25 | - |
+| 06 | Offline Provider Integration Validation | Complete | ~12-25 | 2026-05-13 |
 
 ---
 
@@ -44,12 +44,14 @@ written to markdown, logs, fixtures, screenshots, or generated examples.
 3. Provider Transport Invocation Boundaries
 4. Offline Embeddings and Index Compatibility
 5. Provider Troubleshooting and Recovery UX
+6. Offline Provider Integration Validation
 
 ---
 
 ## Upcoming Sessions
 
-- Session 06: Offline Provider Integration Validation
+None. Phase 03 implementation and validation are complete. The later
+`updateprd` workflow should synchronize `.spec_system/state.json`.
 
 ---
 
@@ -140,22 +142,22 @@ authorization headers, prompt bodies, note bodies, or hidden transport state.
 ## Success Criteria
 
 Phase complete when:
-- [ ] All 6 sessions completed.
-- [ ] Local runtime provider profiles support offline chat and embedding
+- [x] All 6 sessions completed.
+- [x] Local runtime provider profiles support offline chat and embedding
       readiness without requiring cloud disclosure.
-- [ ] OpenAI-compatible provider profiles handle endpoint classification,
+- [x] OpenAI-compatible provider profiles handle endpoint classification,
       credential references, trust state, auth testing, and model capability
       mapping with redacted diagnostics.
-- [ ] Provider chat and embedding invocation boundaries enforce preflight,
+- [x] Provider chat and embedding invocation boundaries enforce preflight,
       cancellation, timeout, retry, and redaction behavior before any adapter
       can run.
-- [ ] Semantic indexing detects embedding model family compatibility and
+- [x] Semantic indexing detects embedding model family compatibility and
       provides lexical fallback or reindex guidance when local embeddings are
       unavailable or stale.
-- [ ] Provider troubleshooting surfaces actionable retry and recovery details
+- [x] Provider troubleshooting surfaces actionable retry and recovery details
       without writing secrets, prompt bodies, raw private note bodies, or hidden
       provider state.
-- [ ] `bun run validate:agent-surfaces`, `bun run validate:fixture-safety`,
+- [x] `bun run validate:agent-surfaces`, `bun run validate:fixture-safety`,
       `bun run validate:agent-docs`, and `bun run validate` pass or residual
       failures are recorded with recovery details.
 

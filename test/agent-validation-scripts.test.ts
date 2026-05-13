@@ -7,6 +7,10 @@ import { runAgentSurfaceValidationScript } from "../scripts/validate-agent-surfa
 import { formatAgentValidationIssue } from "../src/agent/agent-validation-reporting";
 import { AGENT_SURFACES } from "../src/agent/command-catalog";
 import {
+	createPhase03FixtureSafetyEntries,
+	createPhase03SurfaceFixtureSet,
+} from "./fixtures/providers/phase03-provider-integration-fixtures";
+import {
 	createPhase02FixtureSafetyEntries,
 	createPhase02SurfaceFixtureSet,
 } from "./fixtures/vault/phase02-integration-fixtures";
@@ -69,6 +73,48 @@ describe("agent surface validation script adapter", () => {
 			expect(
 				result.inputs.map((input) => input.surface.path).sort((left, right) => left.localeCompare(right)),
 			).toEqual(AGENT_SURFACES.map((surface) => surface.path).sort((left, right) => left.localeCompare(right)));
+		});
+	});
+
+	it("accepts synchronized Phase 03 provider closeout surfaces with disclosure and recovery language", () => {
+		withTempRepo((repoRoot) => {
+			const { completeMarkdown, requiredSurfacePhrases } = createPhase03SurfaceFixtureSet();
+
+			for (const surface of AGENT_SURFACES) {
+				const surfacePath = join(repoRoot, surface.path);
+				mkdirSync(dirname(surfacePath), { recursive: true });
+				writeFileSync(surfacePath, completeMarkdown);
+			}
+
+			const result = runAgentSurfaceValidationScript(repoRoot);
+
+			expect(result.issues).toEqual([]);
+			for (const phrase of requiredSurfacePhrases) {
+				expect(completeMarkdown.toLowerCase()).toContain(phrase.toLowerCase());
+			}
+		});
+	});
+
+	it("fails closed for Phase 03 closeout command status drift", () => {
+		withTempRepo((repoRoot) => {
+			const { staleStatusMarkdown } = createPhase03SurfaceFixtureSet();
+
+			for (const surface of AGENT_SURFACES) {
+				const surfacePath = join(repoRoot, surface.path);
+				mkdirSync(dirname(surfacePath), { recursive: true });
+				writeFileSync(surfacePath, staleStatusMarkdown);
+			}
+
+			const result = runAgentSurfaceValidationScript(repoRoot);
+
+			expect(result.issues).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						code: "surface.stale-command-status",
+						commandId: "voidbrain.validate-agent-surfaces",
+					}),
+				]),
+			);
 		});
 	});
 });
@@ -140,6 +186,41 @@ describe("fixture safety script adapter", () => {
 					expect.objectContaining({
 						code: "fixture.private-path-hint",
 						path: "docs/phase02-unsafe-closeout.md",
+					}),
+				]),
+			);
+		});
+	});
+
+	it("maps Phase 03 provider closeout fixture safety failures to deterministic issue codes", () => {
+		withTempRepo((repoRoot) => {
+			const entries = createPhase03FixtureSafetyEntries();
+
+			for (const entry of entries) {
+				const entryPath = join(repoRoot, entry.path);
+				mkdirSync(dirname(entryPath), { recursive: true });
+				writeFileSync(entryPath, entry.content);
+			}
+
+			const result = runFixtureSafetyScript(
+				repoRoot,
+				entries.map((entry) => entry.path),
+			);
+
+			expect(result.entries.map((entry) => entry.path)).toEqual(entries.map((entry) => entry.path));
+			expect(result.issues).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						code: "fixture.secret-like-key",
+						path: "docs/phase03-unsafe-provider-closeout.md",
+					}),
+					expect.objectContaining({
+						code: "fixture.credential-like-value",
+						path: "docs/phase03-unsafe-provider-closeout.md",
+					}),
+					expect.objectContaining({
+						code: "fixture.private-path-hint",
+						path: "docs/phase03-unsafe-provider-closeout.md",
 					}),
 				]),
 			);

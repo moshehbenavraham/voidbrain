@@ -20,6 +20,10 @@ mutate notes.
   implements explicit apply controls.
 - Include recovery details in failures: command ID, path, cache path,
   staged-change ID, report ID, validation issue, or retry context.
+- Keep provider closeout behavior explicit: local runtime paths stay local,
+  cloud providers require provider review, trust, auth, capability, and
+  disclosure gates, and offline semantic failures should expose lexical
+  fallback when available.
 
 ## Command Catalog
 
@@ -46,3 +50,8 @@ bun run validate:agent-docs
 Use `bun run validate` for the full local gate. Any missing local-first,
 staged changes, provider secrets, synthetic fixtures, citations, dry-run, or
 recovery language should be treated as documentation drift.
+
+Phase 03 provider integration evidence lives in
+`docs/phase03-offline-provider-integration-validation.md`. Use it when changing
+provider setup, invocation boundaries, semantic fallback, troubleshooting, or
+agent surface language.
