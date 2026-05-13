@@ -18,8 +18,8 @@ mutate notes.
   context.
 - Keep framework update work as dry-run preview behavior unless a later session
   implements explicit apply controls.
-- Include recovery details in failures: command ID, path, staged-change ID,
-  validation issue, or retry context.
+- Include recovery details in failures: command ID, path, cache path,
+  staged-change ID, report ID, validation issue, or retry context.
 
 ## Command Catalog
 
@@ -29,7 +29,7 @@ mutate notes.
 | `voidbrain.chat-with-vault` | implemented | Require citations and explicit provider review before any cloud provider handling of vault content. |
 | `voidbrain.health-check` | implemented | Scan local vault notes and index freshness, export redacted reports, and stage only deterministic safe repairs as staged changes with recovery details. |
 | `voidbrain.stage-change` | implemented | Review, confirm, apply, reject, retry, or dismiss staged changes with diffs, backups, audit records, and recovery details. |
-| `voidbrain.recover-session` | planned | Recover from logs and staged files, redacting provider secrets and private diagnostics. |
+| `voidbrain.recover-session` | planned | Recover from logs, hot cache support records, and staged files, redacting provider secrets and private diagnostics. |
 | `voidbrain.validate-agent-surfaces` | scaffolded | Validate command IDs, stale references, safety phrases, and unsafe examples from bounded paths. |
 | `voidbrain.preview-framework-update` | scaffolded | Produce dry-run framework update plans and exclude user vault content. |
 

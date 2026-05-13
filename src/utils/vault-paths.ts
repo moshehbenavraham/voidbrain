@@ -22,6 +22,7 @@ export const VAULT_FOLDERS = {
 } as const;
 
 export const RUNTIME_STATE_PATH = makeNormalizedVaultPath(".voidbrain/runtime-state.json");
+export const HOT_CACHE_SUPPORT_PATH = makeNormalizedVaultPath(".voidbrain/cache/hot-cache.json");
 
 const success = <TValue>(value: TValue): ValidationResult<TValue> => ({ ok: true, value });
 
@@ -47,6 +48,12 @@ const compactPathSegments = (path: string): string =>
 
 const startsWithFolder = (path: NormalizedVaultPath, folder: NormalizedVaultPath): boolean =>
 	path === folder || path.startsWith(`${folder}/`);
+
+export const isVoidbrainSupportPath = (path: NormalizedVaultPath): boolean =>
+	startsWithFolder(path, VAULT_FOLDERS.voidbrain);
+
+export const isHotCacheSupportPath = (path: NormalizedVaultPath): boolean =>
+	path === HOT_CACHE_SUPPORT_PATH || startsWithFolder(path, VAULT_FOLDERS.cache);
 
 export const normalizeVaultPath = (input: unknown): ValidationResult<NormalizedVaultPath> => {
 	if (typeof input !== "string") {

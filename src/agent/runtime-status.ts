@@ -412,12 +412,123 @@ const healthStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
 	};
 };
 
+const hotCacheStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
+	const hotCache = input.hotCache ?? null;
+	if (hotCache === null) {
+		return {
+			id: "hot-cache-readiness",
+			area: "hot-cache",
+			label: "Hot cache",
+			severity: "missing",
+			summary: "No hot cache support record has been loaded yet.",
+			details: ["Recent context recovery has not created .voidbrain/cache/hot-cache.json yet."],
+			paths: [],
+			count: 0,
+		};
+	}
+
+	const state = hotCache.state;
+	const paths = limitedPaths([
+		hotCache.cachePath,
+		...(state?.entries.flatMap((entry) => [
+			...(entry.path === undefined ? [] : [entry.path]),
+			...entry.sourcePaths,
+			entry.recovery.cachePath,
+			...(entry.recovery.targetPath === undefined ? [] : [entry.recovery.targetPath]),
+		]) ?? []),
+	]);
+	const generatedAt = input.now ?? new Date();
+	const updatedAt = state === null ? null : Date.parse(state.updatedAt);
+	const isStale =
+		updatedAt !== null && Number.isFinite(updatedAt) && generatedAt.getTime() - updatedAt > 24 * 60 * 60 * 1000;
+	const entryCount = state?.entries.length ?? 0;
+	const details = [
+		`Cache path: ${hotCache.cachePath}.`,
+		state === null
+			? "No validated cache state is available."
+			: `Cache ${state.cacheId} has ${entryCount} entry(s).`,
+		...(state === null
+			? []
+			: [
+					`Updated at ${state.updatedAt}.`,
+					`Redaction: ${state.redaction.redacted ? "applied" : "not applied"}; ${state.redaction.omittedBodyCount} body payload(s) omitted.`,
+					...state.entries.slice(0, 5).map((entry) => `${entry.kind}: ${entry.summary}`),
+				]),
+		...(hotCache.lastRestoredAt === undefined ? [] : [`Restored at ${hotCache.lastRestoredAt}.`]),
+		...(hotCache.lastFailureMessage === undefined ? [] : [`Failure: ${hotCache.lastFailureMessage}`]),
+	];
+
+	if (hotCache.lastFailureMessage !== undefined) {
+		return {
+			id: "hot-cache-readiness",
+			area: "hot-cache",
+			label: "Hot cache",
+			severity: "error",
+			summary: "Hot cache persistence or recovery failed.",
+			details,
+			paths,
+			count: entryCount,
+		};
+	}
+
+	if (hotCache.isWriteInFlight) {
+		return {
+			id: "hot-cache-readiness",
+			area: "hot-cache",
+			label: "Hot cache",
+			severity: "warning",
+			summary: "Hot cache is updating recent context.",
+			details,
+			paths,
+			count: entryCount,
+		};
+	}
+
+	if (state === null) {
+		return {
+			id: "hot-cache-readiness",
+			area: "hot-cache",
+			label: "Hot cache",
+			severity: "missing",
+			summary: "Hot cache support record is missing.",
+			details,
+			paths,
+			count: 0,
+		};
+	}
+
+	if (isStale) {
+		return {
+			id: "hot-cache-readiness",
+			area: "hot-cache",
+			label: "Hot cache",
+			severity: "warning",
+			summary: "Hot cache is stale and may not match recent runtime state.",
+			details,
+			paths,
+			count: entryCount,
+		};
+	}
+
+	return {
+		id: "hot-cache-readiness",
+		area: "hot-cache",
+		label: "Hot cache",
+		severity: "ready",
+		summary: "Recent context recovery is persisted locally.",
+		details,
+		paths,
+		count: entryCount,
+	};
+};
+
 export const createRuntimeStatusSnapshot = (input: RuntimeStatusInput): RuntimeStatusSnapshot => {
 	const candidateItems = [
 		input.settings.status.shouldShowProviderStatus ? providerStatusItem(input) : undefined,
 		input.settings.status.shouldShowIndexStatus ? indexStatusItem(input) : undefined,
 		input.settings.status.shouldShowStagedChangeStatus ? stagedChangeStatusItem(input) : undefined,
 		input.settings.status.shouldShowHealthStatus ? healthStatusItem(input) : undefined,
+		input.settings.status.shouldShowHotCacheStatus ? hotCacheStatusItem(input) : undefined,
 	];
 	const items = candidateItems.filter((item): item is RuntimeStatusItem => item !== undefined);
 

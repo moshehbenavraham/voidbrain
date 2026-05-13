@@ -1,5 +1,6 @@
 import type { AgentCommand, AgentCommandId } from "./agent-commands";
 import type { VaultHealthReport } from "./health";
+import type { HotCacheStatusInput } from "./hot-cache";
 import type { IndexingPathDiagnostic, IndexingRuntimeReport, SemanticIndexReadiness } from "./indexing-runtime";
 import type { VoidbrainPluginSettings } from "./plugin";
 import type { ProviderRoleCapabilitySummary, ProviderSetupSummary } from "./provider-setup";
@@ -7,7 +8,7 @@ import type { ProviderDefinition } from "./providers";
 import type { IndexFreshnessSnapshot, IndexProgressSnapshot } from "./retrieval";
 import type { IsoTimestamp, NormalizedVaultPath, StagedChangeRecord } from "./vault";
 
-export const RUNTIME_STATUS_AREAS = ["provider", "index", "staged-change", "health"] as const;
+export const RUNTIME_STATUS_AREAS = ["provider", "index", "staged-change", "health", "hot-cache"] as const;
 export const RUNTIME_STATUS_SEVERITIES = ["ready", "warning", "error", "missing"] as const;
 export const RUNTIME_COMMAND_OUTCOMES = ["opened", "not-ready", "read-only", "dry-run", "error"] as const;
 
@@ -53,6 +54,7 @@ export interface RuntimeStatusInput {
 	readonly recentIndexFailures?: readonly IndexingPathDiagnostic[];
 	readonly stagedChanges?: readonly StagedChangeRecord[];
 	readonly healthReport?: VaultHealthReport | null;
+	readonly hotCache?: HotCacheStatusInput | null;
 	readonly now?: Date;
 }
 

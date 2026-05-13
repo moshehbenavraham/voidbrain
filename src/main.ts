@@ -2,10 +2,12 @@ import { Notice, Plugin, type TFile } from "obsidian";
 import "./styles.css";
 import {
 	GroundedVaultChatService,
+	type HotCacheService,
 	SourceIngestionIntakeService,
 	SourceIngestionStagingService,
 	StagedChangeReviewService,
 	VaultHealthRuntimeService,
+	createHotCacheService,
 	createRuntimeCommandHandlers,
 	createRuntimeStatusSnapshot,
 } from "./agent";
@@ -17,6 +19,7 @@ import {
 } from "./providers";
 import { BASELINE_PROVIDERS } from "./providers/provider-registry";
 import { type ChatThreadStore, createChatThreadStore } from "./stores/chat-thread-store";
+import { type HotCacheStore, createHotCacheStore } from "./stores/hot-cache-store";
 import {
 	type IngestionStagingStore,
 	type PersistedIngestionStagingState,
@@ -25,12 +28,14 @@ import {
 import { type RuntimeStatusStore, createRuntimeStatusStore } from "./stores/runtime-status-store";
 import { type StagedChangeReviewStore, createStagedChangeReviewStore } from "./stores/staged-change-review-store";
 import { type VaultHealthStore, createVaultHealthStore } from "./stores/vault-health-store";
+import type { PersistedChatThreadState } from "./types/chat";
 import type {
 	VaultHealthExportResult,
 	VaultHealthRepairStageResult,
 	VaultHealthReport,
 	VaultHealthRuntimeScanResult,
 } from "./types/health";
+import { HOT_CACHE_SESSION_SUMMARY_COMMAND_ID, type HotCacheSessionSummaryResult } from "./types/hot-cache";
 import type { IndexingRuntimeState } from "./types/indexing-runtime";
 import { DEFAULT_PLUGIN_SETTINGS, SHOW_STATUS_COMMAND_ID, type VoidbrainPluginSettings } from "./types/plugin";
 import type { RuntimeCommandOutcome, RuntimeStatusSnapshot } from "./types/runtime";
@@ -44,14 +49,14 @@ import type {
 	StagedReviewAuditEntry,
 	StagedReviewIndexRefreshResult,
 } from "./types/staged-review";
-import type { NormalizedVaultPath, StagedChangeRecord } from "./types/vault";
+import type { HotCacheState, NormalizedVaultPath, StagedChangeRecord } from "./types/vault";
 import {
 	type SettingsLoadStatus,
 	type SettingsValidationError,
 	loadPluginSettings,
 	savePluginSettings,
 } from "./utils/settings";
-import { normalizeVaultPath } from "./utils/vault-paths";
+import { HOT_CACHE_SUPPORT_PATH, normalizeVaultPath } from "./utils/vault-paths";
 import { IndexingRuntimeService, createObsidianMarkdownIndexSource } from "./vectorstore";
 import { VOIDBRAIN_CHAT_VIEW_TYPE, VoidbrainChatView } from "./views/chat-view";
 import { VoidbrainSettingsTab } from "./views/settings-tab";
@@ -86,6 +91,10 @@ export default class VoidbrainPlugin extends Plugin {
 	private unsubscribeFromIndexingRuntime: CleanupCallback | null = null;
 	private chatService: GroundedVaultChatService | null = null;
 	private chatThreadStore: ChatThreadStore | null = null;
+	private hotCacheService: HotCacheService | null = null;
+	private hotCacheStore: HotCacheStore | null = null;
+	private hotCacheState: HotCacheState | null = null;
+	private restoredChatThreadState: PersistedChatThreadState | null = null;
 	private ingestionIntakeService: SourceIngestionIntakeService | null = null;
 	private ingestionStagingService: SourceIngestionStagingService | null = null;
 	private ingestionStagingStore: IngestionStagingStore | null = null;
@@ -112,6 +121,8 @@ export default class VoidbrainPlugin extends Plugin {
 		this.settingsLoadErrors = settingsLoadResult.errors;
 		this.settingsLoadStatus = settingsLoadResult.status;
 		this.createIndexingRuntime();
+		this.createHotCacheRuntime();
+		await this.restoreHotCacheRuntime();
 		this.createChatRuntime();
 		this.createIngestionRuntime();
 		this.createStagedReviewRuntime();
@@ -136,6 +147,11 @@ export default class VoidbrainPlugin extends Plugin {
 			this.unsubscribeFromIndexingRuntime = null;
 			this.indexingRuntime?.dispose();
 			this.indexingRuntime = null;
+			this.hotCacheStore?.clear();
+			this.hotCacheStore = null;
+			this.hotCacheService = null;
+			this.hotCacheState = null;
+			this.restoredChatThreadState = null;
 			this.chatThreadStore?.clear();
 			this.chatThreadStore = null;
 			this.chatService = null;
@@ -190,6 +206,7 @@ export default class VoidbrainPlugin extends Plugin {
 		this.settings = await savePluginSettings(this, settings);
 		this.indexingRuntime?.refreshReadiness();
 		this.refreshRuntimeStatusSnapshot();
+		this.queueHotCachePersist();
 	}
 
 	private refreshRuntimeStatusSnapshot(): RuntimeStatusSnapshot {
@@ -214,6 +231,7 @@ export default class VoidbrainPlugin extends Plugin {
 				: { recentIndexFailures: lexicalReport.failedPaths }),
 			stagedChanges: this.ingestionStagedChanges,
 			healthReport: this.latestHealthReport,
+			hotCache: this.hotCacheStore?.getStatusInput() ?? null,
 		});
 		this.runtimeStatusStore.setSnapshot(this.runtimeStatusSnapshot);
 
@@ -237,11 +255,54 @@ export default class VoidbrainPlugin extends Plugin {
 		});
 		this.unsubscribeFromIndexingRuntime = this.indexingRuntime.subscribe(() => {
 			this.refreshRuntimeStatusSnapshot();
+			this.queueHotCachePersist();
 		});
 	}
 
+	private createHotCacheRuntime(): void {
+		this.hotCacheService = createHotCacheService();
+		this.hotCacheStore = createHotCacheStore({
+			cachePath: HOT_CACHE_SUPPORT_PATH,
+		});
+	}
+
+	private async restoreHotCacheRuntime(): Promise<void> {
+		const service = this.hotCacheService;
+		const store = this.hotCacheStore;
+		if (service === null || store === null) {
+			return;
+		}
+
+		try {
+			if ((await this.app.vault.adapter.exists(HOT_CACHE_SUPPORT_PATH)) === false) {
+				return;
+			}
+
+			const raw = await this.app.vault.adapter.read(HOT_CACHE_SUPPORT_PATH);
+			const parsed = JSON.parse(raw) as unknown;
+			const result = service.restore({
+				cachePath: HOT_CACHE_SUPPORT_PATH,
+				value: parsed,
+			});
+			store.applyRestoreResult(result);
+			if (result.ok) {
+				this.hotCacheState = result.state;
+				this.restoredChatThreadState = result.chatThread;
+			}
+		} catch (error) {
+			store.setFailure(safeRuntimeErrorMessage(error, "Hot cache could not be restored."));
+		}
+	}
+
 	private createChatRuntime(): void {
-		this.chatThreadStore = createChatThreadStore();
+		this.chatThreadStore = createChatThreadStore({
+			...(this.restoredChatThreadState === null ? {} : { initialPersistedState: this.restoredChatThreadState }),
+			persistence: {
+				save: async () => {
+					await this.persistHotCache({ throwOnFailure: true });
+				},
+			},
+		});
 		this.chatService = new GroundedVaultChatService({
 			getSettings: () => this.settings,
 			getIndexingState: () => this.indexingRuntime?.getState() ?? null,
@@ -384,6 +445,8 @@ export default class VoidbrainPlugin extends Plugin {
 				setDraft: (text, contextChips) => chatThreadStore.setDraft(text, contextChips),
 				retryTurn: (turnId) => chatThreadStore.retryTurn(turnId),
 				branchFromTurn: (turnId) => chatThreadStore.branchFromTurn(turnId),
+				stageSessionSummary: () => this.stageChatSessionSummary(),
+				isSummaryStaging: () => this.hotCacheStore?.getState().isSummaryInFlight ?? false,
 				isOnline: () => this.isRuntimeLoaded,
 				getActivePath: () => this.getActiveVaultPath(),
 				onNotice: (message) => {
@@ -394,6 +457,63 @@ export default class VoidbrainPlugin extends Plugin {
 			});
 		});
 		this.trackViewRegistration(VOIDBRAIN_CHAT_VIEW_TYPE);
+	}
+
+	private async stageChatSessionSummary(): Promise<HotCacheSessionSummaryResult> {
+		const service = this.hotCacheService;
+		const store = this.hotCacheStore;
+		const chatThreadStore = this.chatThreadStore;
+		if (service === null || store === null || chatThreadStore === null) {
+			const errors = [
+				{
+					code: "record.invalid-operation" as const,
+					message: "Hot cache summary staging is unavailable.",
+				},
+			];
+			return {
+				ok: false,
+				errors,
+				recovery: {
+					commandId: HOT_CACHE_SESSION_SUMMARY_COMMAND_ID,
+					cachePath: HOT_CACHE_SUPPORT_PATH,
+					validationOutput: errors,
+				},
+			};
+		}
+
+		if (!store.beginSummaryStaging()) {
+			const errors = [
+				{
+					code: "record.invalid-operation" as const,
+					message: "A session summary is already being staged.",
+				},
+			];
+			const result: HotCacheSessionSummaryResult = {
+				ok: false,
+				errors,
+				recovery: {
+					commandId: HOT_CACHE_SESSION_SUMMARY_COMMAND_ID,
+					cachePath: HOT_CACHE_SUPPORT_PATH,
+					validationOutput: errors,
+				},
+			};
+			store.applySummaryResult(result);
+			return result;
+		}
+
+		const result = await service.stageSessionSummary({
+			chatThread: chatThreadStore.getState(),
+			existingNotes: this.getExistingMarkdownNotePlaceholders(),
+			existingStagedChanges: this.ingestionStagedChanges,
+		});
+		store.applySummaryResult(result);
+		if (result.ok) {
+			this.ingestionStagedChanges.push(result.stagedChange);
+			this.refreshRuntimeStatusSnapshot();
+			this.queueHotCachePersist();
+		}
+
+		return result;
 	}
 
 	private registerRibbonAction(): void {
@@ -510,6 +630,7 @@ export default class VoidbrainPlugin extends Plugin {
 				if (result.ok) {
 					this.ingestionStagedChanges.push(...result.stagedChanges);
 					this.refreshRuntimeStatusSnapshot();
+					this.queueHotCachePersist();
 				}
 
 				return result;
@@ -543,6 +664,7 @@ export default class VoidbrainPlugin extends Plugin {
 				this.replaceStagedChanges(result.records);
 				this.stagedReviewAuditEntries.push(...result.auditEntries);
 				this.refreshRuntimeStatusSnapshot();
+				this.queueHotCachePersist();
 				return result;
 			},
 			applySelectedChanges: (request) => this.applySelectedStagedChanges(request),
@@ -602,6 +724,7 @@ export default class VoidbrainPlugin extends Plugin {
 		if (result.ok) {
 			this.latestHealthReport = result.report;
 			this.refreshRuntimeStatusSnapshot();
+			this.queueHotCachePersist();
 		}
 
 		return result;
@@ -639,6 +762,7 @@ export default class VoidbrainPlugin extends Plugin {
 		if (result.ok) {
 			this.ingestionStagedChanges.push(result.stagedChange);
 			this.refreshRuntimeStatusSnapshot();
+			this.queueHotCachePersist();
 		}
 
 		return result;
@@ -668,6 +792,7 @@ export default class VoidbrainPlugin extends Plugin {
 			this.replaceStagedChanges(planResult.records);
 			this.stagedReviewAuditEntries.push(...planResult.auditEntries);
 			this.refreshRuntimeStatusSnapshot();
+			this.queueHotCachePersist();
 			return this.applyPlanFailureOutcome("preflight-failed", planResult);
 		}
 
@@ -713,6 +838,7 @@ export default class VoidbrainPlugin extends Plugin {
 		this.mergeStagedChangeRecords(outcome.records);
 		this.stagedReviewAuditEntries.push(...outcome.auditEntries);
 		this.refreshRuntimeStatusSnapshot();
+		this.queueHotCachePersist();
 		return outcome;
 	}
 
@@ -942,6 +1068,76 @@ export default class VoidbrainPlugin extends Plugin {
 		}
 
 		return notes;
+	}
+
+	private queueHotCachePersist(): void {
+		void this.persistHotCache().catch((error) => {
+			const message = safeRuntimeErrorMessage(error, "Hot cache persistence failed.");
+			this.hotCacheStore?.setFailure(message);
+			this.refreshRuntimeStatusSnapshot();
+			if (this.settings.shouldShowStatusNotices) {
+				new Notice(`${message} Recent context recovery may be stale.`, 7000);
+			}
+		});
+	}
+
+	private async persistHotCache(options: { readonly throwOnFailure?: boolean } = {}): Promise<void> {
+		const service = this.hotCacheService;
+		const store = this.hotCacheStore;
+		if (service === null || store === null) {
+			return;
+		}
+
+		if (!store.beginCapture()) {
+			return;
+		}
+
+		const indexingState = this.indexingRuntime?.getState() ?? null;
+		const lexicalReport = indexingState?.lexicalReport ?? null;
+		const result = service.capture({
+			chatThread: this.chatThreadStore?.getState() ?? null,
+			...(lexicalReport === null ? {} : { indexReports: [lexicalReport] }),
+			stagedChanges: this.ingestionStagedChanges,
+			healthReport: this.latestHealthReport,
+		});
+		if (!result.ok) {
+			store.applyCaptureResult(result);
+			this.refreshRuntimeStatusSnapshot();
+			if (options.throwOnFailure === true) {
+				throw new Error(result.errors.map((error) => error.message).join(" "));
+			}
+			return;
+		}
+
+		try {
+			await this.ensureHotCacheFolder();
+			await this.app.vault.adapter.write(HOT_CACHE_SUPPORT_PATH, JSON.stringify(result.state, null, "\t"));
+			this.hotCacheState = result.state;
+			store.applyCaptureResult(result);
+			this.refreshRuntimeStatusSnapshot();
+		} catch (error) {
+			const message = safeRuntimeErrorMessage(error, "Hot cache support record could not be written.");
+			store.setFailure(message);
+			this.refreshRuntimeStatusSnapshot();
+			if (options.throwOnFailure === true) {
+				throw error;
+			}
+		}
+	}
+
+	private async ensureHotCacheFolder(): Promise<void> {
+		const adapter = this.app.vault.adapter as typeof this.app.vault.adapter & {
+			readonly mkdir?: (path: string) => Promise<void>;
+		};
+		if (typeof adapter.mkdir !== "function") {
+			return;
+		}
+
+		for (const path of [".voidbrain", ".voidbrain/cache"]) {
+			if ((await adapter.exists(path)) === false) {
+				await adapter.mkdir(path);
+			}
+		}
 	}
 
 	private async ensureHealthReportFolder(): Promise<void> {

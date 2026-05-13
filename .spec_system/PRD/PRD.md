@@ -117,7 +117,7 @@ This system delivers the product via phases. Each phase is implemented via multi
 | Phase | Name | Sessions | Status |
 |-------|------|----------|--------|
 | 00 | Foundation | 6 | Complete |
-| 01 | Vault Intelligence MVP | 8 | In Progress |
+| 01 | Vault Intelligence MVP | 8 | Complete |
 | 02 | Agentic Maintenance | TBD | Not Started |
 | 03 | Offline and Provider Hardening | TBD | Not Started |
 | 04 | Distribution and Ecosystem | TBD | Not Started |
@@ -146,7 +146,7 @@ Phase 00 is complete and archived in `.spec_system/archive/phases/phase_00/`.
 
 ## Phase 01: Vault Intelligence MVP
 
-Phase 01 turns the completed foundations into the first usable local-first Obsidian MVP. It focuses on provider setup, indexing readiness, grounded chat, source ingestion, staged-change review, health reporting, and recoverable recent context.
+Phase 01 turned the completed foundations into the first usable local-first Obsidian MVP. It focused on provider setup, indexing readiness, grounded chat, source ingestion, staged-change review, health reporting, and recoverable recent context. Phase 01 is complete and archived in `.spec_system/archive/phases/phase_01/`.
 
 ### Objectives
 

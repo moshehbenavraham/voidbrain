@@ -23,6 +23,12 @@ export type {
 	GroundedVaultChatAskSuccess,
 	GroundedVaultChatServiceOptions,
 } from "./grounded-vault-chat-service";
+export {
+	HotCacheService,
+	captureHotCacheState,
+	createHotCacheService,
+	restoreHotCacheState,
+} from "./hot-cache-service";
 export { createRuntimeStatusSnapshot } from "./runtime-status";
 export {
 	findMissingRequiredSafetyPhrases,

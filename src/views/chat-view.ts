@@ -11,6 +11,7 @@ import type {
 	ChatTurn,
 } from "../types/chat";
 import { makeChatContextChipId } from "../types/chat";
+import type { HotCacheSessionSummaryResult } from "../types/hot-cache";
 import type { NormalizedVaultPath } from "../types/vault";
 
 export const VOIDBRAIN_CHAT_VIEW_TYPE = "voidbrain-chat";
@@ -37,6 +38,8 @@ export interface VoidbrainChatViewOptions {
 	readonly setDraft: (text: string, contextChips?: readonly ChatContextChip[]) => Promise<ChatActionResult>;
 	readonly retryTurn: (turnId: ChatTurn["id"]) => Promise<ChatActionResult>;
 	readonly branchFromTurn: (turnId: ChatTurn["id"]) => Promise<ChatActionResult>;
+	readonly stageSessionSummary?: () => Promise<HotCacheSessionSummaryResult>;
+	readonly isSummaryStaging?: () => boolean;
 	readonly isOnline?: () => boolean;
 	readonly getActivePath?: () => NormalizedVaultPath | null;
 	readonly onNotice?: (message: string) => void;
@@ -47,6 +50,7 @@ export class VoidbrainChatView extends ItemView {
 	private unsubscribeFromThread: ChatThreadUnsubscribe | null = null;
 	private isClosed = false;
 	private isSubmitting = false;
+	private isStagingSummary = false;
 
 	constructor(
 		leaf: WorkspaceLeaf,
@@ -133,7 +137,26 @@ export class VoidbrainChatView extends ItemView {
 			this.createChip(state.inFlightTurnId === null ? "Ready" : "Working"),
 		);
 
-		header.append(title, chips);
+		const actions = document.createElement("div");
+		actions.className = "voidbrain-chat-view__header-actions";
+		const saveSummary = document.createElement("button");
+		saveSummary.type = "button";
+		saveSummary.textContent =
+			this.isStagingSummary || this.options.isSummaryStaging?.() === true ? "Staging" : "Save summary";
+		saveSummary.dataset.chatAction = "save-session-summary";
+		saveSummary.setAttribute("aria-label", "Stage a Voidbrain chat session summary for review");
+		saveSummary.disabled =
+			this.isSubmitting ||
+			this.isStagingSummary ||
+			this.options.isSummaryStaging?.() === true ||
+			this.options.stageSessionSummary === undefined ||
+			state.turns.length === 0;
+		saveSummary.addEventListener("click", () => {
+			void this.handleStageSessionSummary();
+		});
+		actions.append(saveSummary);
+
+		header.append(title, chips, actions);
 		return header;
 	}
 
@@ -371,6 +394,40 @@ export class VoidbrainChatView extends ItemView {
 		const result = await this.options.branchFromTurn(turnId);
 		if (result.failure !== undefined) {
 			this.options.onNotice?.(result.failure.message);
+		}
+	}
+
+	private async handleStageSessionSummary(): Promise<void> {
+		if (
+			this.isSubmitting ||
+			this.isStagingSummary ||
+			this.isClosed ||
+			this.options.stageSessionSummary === undefined
+		) {
+			return;
+		}
+
+		this.isStagingSummary = true;
+		this.renderState(this.options.getState());
+		try {
+			const result = await this.options.stageSessionSummary();
+			if (this.isClosed) {
+				return;
+			}
+
+			if (result.ok) {
+				this.options.onNotice?.(`Session summary staged for review: ${result.targetPath}`);
+				return;
+			}
+
+			this.options.onNotice?.(result.errors[0]?.message ?? "Session summary could not be staged.");
+		} catch {
+			this.options.onNotice?.("Session summary could not be staged. No vault files were changed.");
+		} finally {
+			this.isStagingSummary = false;
+			if (!this.isClosed) {
+				this.renderState(this.options.getState());
+			}
 		}
 	}
 

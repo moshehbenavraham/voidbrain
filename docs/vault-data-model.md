@@ -26,7 +26,7 @@ MVP contracts unless marked as an example.
 | `conversations/` | Voidbrain generated notes | Recoverable chat transcripts and thread summaries. |
 | `.voidbrain/manifests/` | Voidbrain support data | Source manifests and other durable inventory records. |
 | `.voidbrain/indexes/` | Voidbrain support data | Derived lexical and semantic index metadata and shards. |
-| `.voidbrain/cache/` | Voidbrain support data | Hot cache state for recently used source, note, and retrieval metadata. |
+| `.voidbrain/cache/` | Voidbrain support data | Hot cache state for recent chat, context, index, staged-change, and health recovery metadata. |
 | `.voidbrain/logs/` | Voidbrain support data | Append-only operation logs for recovery and audit. |
 | `.voidbrain/staged-changes/` | Voidbrain support data | Proposed vault mutations awaiting user review or explicit auto-apply policy. |
 
@@ -140,6 +140,30 @@ Durable support file examples:
 |------|----------|
 | `.voidbrain/manifests/sources.json` | Ordered source records with stable IDs, paths, titles, and optional public URLs. |
 | `.voidbrain/runtime-state.json` | Synthetic test aggregate for index metadata, hot cache, staged changes, and operation logs. |
+
+## Hot Cache Support Records
+
+Hot cache records are local readable support artifacts under
+`.voidbrain/cache/`. They are used for recent context recovery after reload and
+can be discarded without deleting user knowledge.
+
+Each hot cache record stores:
+
+- Cache ID, cache path, update timestamp, entry limit, and redaction summary.
+- Sorted entries keyed by kind and stable key.
+- Entry kinds for chat thread metadata, context chips, index readiness, staged
+  changes, health reports, and runtime status.
+- Bounded summaries and primitive metadata only.
+- Source paths, target paths, staged-change IDs, report IDs, cache path, and
+  validation output for recovery.
+
+Hot cache entries intentionally omit raw note bodies, raw retrieval snippets,
+provider attempts, provider secrets, authorization headers, hidden provider
+state, and private diagnostics. Validation rejects secret-like keys and
+unsorted entries.
+
+Session-summary markdown is not a cache record. It is a generated conversation
+note proposal under `conversations/` and must be staged before apply.
 
 ## Staged Change Support Records
 

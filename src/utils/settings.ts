@@ -706,6 +706,12 @@ const readStatusSurfaceSettings = (
 			defaults.shouldShowHealthStatus,
 			errors,
 		),
+		shouldShowHotCacheStatus: readBoolean(
+			rawStatus,
+			"shouldShowHotCacheStatus",
+			defaults.shouldShowHotCacheStatus,
+			errors,
+		),
 	};
 };
 

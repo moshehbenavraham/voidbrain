@@ -4,13 +4,20 @@ import { beforeEach, describe, expect, it } from "vitest";
 import VoidbrainPlugin from "../src/main";
 import { TRUSTED_CLOUD_FIXTURE_PROVIDER_ID } from "../src/providers/provider-registry";
 import { AGENT_COMMAND_IDS } from "../src/types/agent-commands";
+import type { HotCacheSessionSummaryResult } from "../src/types/hot-cache";
 import { DEFAULT_PLUGIN_SETTINGS, SHOW_STATUS_COMMAND_ID } from "../src/types/plugin";
 import type { StagedChangeRecord } from "../src/types/vault";
+import { HOT_CACHE_SUPPORT_PATH } from "../src/utils/vault-paths";
 import { VOIDBRAIN_CHAT_VIEW_TYPE } from "../src/views/chat-view";
 import { VOIDBRAIN_STATUS_VIEW_TYPE } from "../src/views/status-view";
 import type { Command, PluginSettingTab, RibbonAction } from "./__mocks__/obsidian";
 import { App as MockApp, TFile } from "./__mocks__/obsidian";
 import { notices, resetObsidianMockState } from "./__mocks__/obsidian";
+import {
+	HOT_CACHE_FIXTURE_SOURCE_MARKDOWN,
+	HOT_CACHE_FIXTURE_SOURCE_PATH,
+	createHotCacheStateFixture,
+} from "./fixtures/vault/hot-cache-fixtures";
 import {
 	RUNTIME_INDEXING_FIXTURE_FILES,
 	configureRuntimeFixtureVault,
@@ -40,6 +47,11 @@ interface MockedPluginRuntime extends VoidbrainPlugin {
 	loadData: Mock<() => Promise<unknown>>;
 	saveData: Mock<(data: unknown) => Promise<void>>;
 	getRegisteredCleanupCount(): number;
+}
+
+interface HotCacheRuntimeAccess {
+	stageChatSessionSummary: () => Promise<HotCacheSessionSummaryResult>;
+	ingestionStagedChanges: StagedChangeRecord[];
 }
 
 const createPlugin = (): MockedPluginRuntime => {
@@ -109,6 +121,11 @@ const configureVaultHealthFixtures = (app: MockApp): void => {
 	for (const note of loadVaultHealthRuntimeFixtureNotes()) {
 		app.vault.setReadContent(note.path, note.content);
 	}
+};
+
+const configureHotCacheSupportRecord = (app: MockApp): void => {
+	app.vault.setReadContent(HOT_CACHE_FIXTURE_SOURCE_PATH, HOT_CACHE_FIXTURE_SOURCE_MARKDOWN);
+	app.vault.setReadContent(HOT_CACHE_SUPPORT_PATH, JSON.stringify(createHotCacheStateFixture()));
 };
 
 describe("VoidbrainPlugin lifecycle", () => {
@@ -241,7 +258,7 @@ describe("VoidbrainPlugin lifecycle", () => {
 		await Promise.resolve();
 		await Promise.resolve();
 
-		expect(plugin.getRuntimeStatusSnapshot().items).toHaveLength(4);
+		expect(plugin.getRuntimeStatusSnapshot().items).toHaveLength(5);
 		expect(app.workspace.getLeavesOfType(VOIDBRAIN_STATUS_VIEW_TYPE)).toHaveLength(1);
 		expect(plugin.settingTabs[0]?.containerEl.childElementCount).toBe(0);
 
@@ -404,9 +421,74 @@ describe("VoidbrainPlugin lifecycle", () => {
 		await flushPromises();
 
 		expect(notices.at(-1)?.message).toContain("Provider role is not selected.");
-		expect(app.vault.adapter.write).not.toHaveBeenCalled();
+		expect(app.vault.adapter.write.mock.calls.every(([path]) => path === HOT_CACHE_SUPPORT_PATH)).toBe(true);
 		expect(app.workspace.getLeavesOfType(VOIDBRAIN_CHAT_VIEW_TYPE)[0]?.view?.containerEl.textContent).toContain(
 			"Provider role is not selected.",
+		);
+	});
+
+	it("loads hot cache support records and restores chat draft context after reload", async () => {
+		const app = new MockApp();
+		configureHotCacheSupportRecord(app);
+		const plugin = new VoidbrainPlugin(
+			app as unknown as App,
+			{
+				id: "voidbrain",
+				name: "voidbrain",
+				version: "0.1.0",
+			} as PluginManifest,
+		) as MockedPluginRuntime;
+		plugin.loadData.mockResolvedValue(undefined);
+
+		await plugin.onload();
+		const hotCacheItem = plugin.getRuntimeStatusSnapshot().items.find((item) => item.id === "hot-cache-readiness");
+		expect(hotCacheItem).toMatchObject({
+			severity: "ready",
+			count: 5,
+		});
+
+		const chatCommand = plugin.commands.find((command) => command.id === "voidbrain.chat-with-vault");
+		chatCommand?.callback?.();
+		await flushPromises();
+		const textarea = app.workspace
+			.getLeavesOfType(VOIDBRAIN_CHAT_VIEW_TYPE)[0]
+			?.view?.containerEl.querySelector("textarea");
+
+		expect(textarea).toBeInstanceOf(HTMLTextAreaElement);
+		expect((textarea as HTMLTextAreaElement).value).toContain("Summarize the synthetic hot cache");
+	});
+
+	it("stages a restored chat session summary without direct vault writes", async () => {
+		const app = new MockApp();
+		configureHotCacheSupportRecord(app);
+		const plugin = new VoidbrainPlugin(
+			app as unknown as App,
+			{
+				id: "voidbrain",
+				name: "voidbrain",
+				version: "0.1.0",
+			} as PluginManifest,
+		) as MockedPluginRuntime;
+		plugin.loadData.mockResolvedValue(undefined);
+
+		await plugin.onload();
+		const runtime = plugin as unknown as HotCacheRuntimeAccess;
+		const result = await runtime.stageChatSessionSummary();
+		await flushPromises();
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) {
+			throw new Error("Expected restored chat summary staging to succeed.");
+		}
+		expect(result.stagedChange.status).toBe("review-ready");
+		expect(runtime.ingestionStagedChanges.map((record) => record.changeId)).toContain(result.stagedChange.changeId);
+		expect(app.vault.create).not.toHaveBeenCalledWith(
+			expect.stringContaining("conversations/"),
+			expect.any(String),
+		);
+		expect(app.vault.adapter.write).toHaveBeenCalledWith(
+			HOT_CACHE_SUPPORT_PATH,
+			expect.stringContaining("stage-create-note"),
 		);
 	});
 
@@ -448,7 +530,7 @@ describe("VoidbrainPlugin lifecycle", () => {
 
 		expect(notices.some((notice) => notice.message.includes("Source ingestion staged"))).toBe(true);
 		expect(document.body.textContent).toContain("Staged changes:");
-		expect(app.vault.adapter.write).not.toHaveBeenCalled();
+		expect(app.vault.adapter.write.mock.calls.every(([path]) => path === HOT_CACHE_SUPPORT_PATH)).toBe(true);
 		expect(
 			plugin.getRuntimeStatusSnapshot().items.find((item) => item.id === "staged-change-readiness"),
 		).toBeDefined();

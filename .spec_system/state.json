@@ -2,7 +2,7 @@
   "version": "2.0",
   "project_name": "voidbrain",
   "description": "Research-backed project for exploring and developing open-source Obsidian-style AI second-brain tooling, with local examples and requirements to be refined.",
-  "current_phase": 1,
+  "current_phase": 2,
   "current_session": null,
   "monorepo": false,
   "phases": {
@@ -15,7 +15,7 @@
     "1": {
       "name": "Vault Intelligence MVP",
       "description": "Turn the Phase 00 foundations into usable Obsidian MVP workflows for provider setup, vault indexing, grounded chat, source ingestion, staged review, health reporting, and recoverable recent context.",
-      "status": "in_progress",
+      "status": "complete",
       "session_count": 8
     }
   },
@@ -143,6 +143,16 @@
     {
       "date": "2026-05-13",
       "session": "phase01-session07-vault-health-repair-staging",
+      "status": "completed"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase01-session08-hot-cache-mvp-integration-validation",
+      "status": "planned"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase01-session08-hot-cache-mvp-integration-validation",
       "status": "completed"
     }
   ]

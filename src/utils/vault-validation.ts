@@ -2,6 +2,7 @@ import {
 	type DurableJsonRecord,
 	type GeneratedMarkdownNote,
 	type GeneratedNoteFrontmatter,
+	HOT_CACHE_ENTRY_KINDS,
 	type HotCacheState,
 	type IndexMetadata,
 	type IsoTimestamp,
@@ -56,7 +57,11 @@ const OPERATION_KIND_SET: ReadonlySet<string> = new Set([
 	"staged-change-failed",
 	"staged-change-conflicted",
 	"staged-change-backup-written",
+	"hot-cache-captured",
+	"hot-cache-restored",
+	"session-summary-staged",
 ]);
+const HOT_CACHE_ENTRY_KIND_SET: ReadonlySet<string> = new Set(HOT_CACHE_ENTRY_KINDS);
 const STAGED_CHANGE_OPERATION_SET: ReadonlySet<string> = new Set(STAGED_CHANGE_OPERATION_KINDS);
 const STAGED_CHANGE_STATUS_SET: ReadonlySet<string> = new Set(STAGED_CHANGE_STATUSES);
 const STAGED_CHANGE_CONFLICT_SET: ReadonlySet<string> = new Set(STAGED_CHANGE_CONFLICT_KINDS);
@@ -255,6 +260,19 @@ const validatePathArray = (
 			field: `${field}[${index}]`,
 		}));
 	});
+};
+
+const validateOptionalNormalizedPathField = (record: UnknownRecord, field: string): ValidationIssue[] => {
+	if (record[field] === undefined) {
+		return [];
+	}
+
+	const normalized = normalizeVaultPath(record[field]);
+	if (normalized.ok) {
+		return [];
+	}
+
+	return normalized.errors.map((error) => ({ ...error, field }));
 };
 
 const validateArtifactPathField = (
@@ -498,19 +516,114 @@ const validateIndexMetadataRecord = (record: UnknownRecord): ValidationIssue[] =
 	...validateOptionalString(record, "embeddingModelFamily"),
 ];
 
+const isHotCacheMetadataValue = (value: unknown): boolean => {
+	if (value === null || ["string", "number", "boolean"].includes(typeof value)) {
+		return true;
+	}
+
+	return Array.isArray(value) && value.every((item) => isHotCacheMetadataValue(item) && !Array.isArray(item));
+};
+
+const validateHotCacheMetadata = (record: UnknownRecord): ValidationIssue[] => {
+	const metadata = record.metadata;
+	if (!isRecord(metadata)) {
+		return [issue("metadata.not-object", "metadata must be an object.", "metadata")];
+	}
+
+	return Object.entries(metadata).flatMap(([key, value]) => {
+		if (!isHotCacheMetadataValue(value)) {
+			return [
+				issue(
+					"metadata.invalid-type",
+					"Hot cache metadata values must be JSON primitives or flat primitive arrays.",
+					`metadata.${key}`,
+				),
+			];
+		}
+
+		return [];
+	});
+};
+
+const validateStoredValidationIssue = (record: UnknownRecord): ValidationIssue[] => [
+	...validateRequiredString(record, "code"),
+	...validateRequiredString(record, "message"),
+	...validateOptionalString(record, "path"),
+	...validateOptionalString(record, "field"),
+];
+
+const validateHotCacheRecovery = (record: UnknownRecord, field = "recovery"): ValidationIssue[] => {
+	const recovery = record[field];
+	if (!isRecord(recovery)) {
+		return [issue("metadata.not-object", `${field} must be an object.`, field)];
+	}
+
+	return [
+		...validateRequiredString(recovery, "commandId"),
+		...validateArtifactPathField(recovery, "cachePath", "hot-cache"),
+		...validateOptionalNormalizedPathField(recovery, "targetPath"),
+		...validateOptionalString(recovery, "stagedChangeId"),
+		...validateOptionalString(recovery, "reportId"),
+		...validateRecordArray(recovery, "validationOutput", validateStoredValidationIssue),
+	].map((error) => prefixIssueField(error, field));
+};
+
+const validateHotCacheRedaction = (record: UnknownRecord): ValidationIssue[] => {
+	const redaction = record.redaction;
+	if (!isRecord(redaction)) {
+		return [issue("metadata.not-object", "redaction must be an object.", "redaction")];
+	}
+
+	return [
+		...validateRequiredBoolean(redaction, "redacted"),
+		...validateRequiredNumber(redaction, "redactedFieldCount"),
+		...validateRequiredNumber(redaction, "omittedBodyCount"),
+		...validateStringArray(redaction, "notes"),
+	].map((error) => prefixIssueField(error, "redaction"));
+};
+
 const validateHotCacheEntry = (record: UnknownRecord): ValidationIssue[] => [
 	...validateRequiredString(record, "key"),
-	...validateArtifactPathField(record, "path", "source"),
+	...validateEnum(record, "kind", HOT_CACHE_ENTRY_KIND_SET),
+	...validateOptionalNormalizedPathField(record, "path"),
+	...validatePathArray(record, "sourcePaths"),
 	...validateIsoTimestamp(record.lastAccessedAt, "lastAccessedAt"),
 	...validateRequiredString(record, "summary"),
+	...validateHotCacheMetadata(record),
+	...validateHotCacheRecovery(record),
 ];
 
 const validateHotCacheRecord = (record: UnknownRecord): ValidationIssue[] => [
 	...validateSchemaVersion(record),
 	...validateRequiredString(record, "cacheId"),
+	...validateArtifactPathField(record, "cachePath", "hot-cache"),
 	...validateIsoTimestamp(record.updatedAt, "updatedAt"),
+	...validateRequiredNumber(record, "entryLimit"),
+	...(typeof record.entryLimit === "number" && record.entryLimit < 1
+		? [issue("metadata.invalid-type", "entryLimit must be greater than zero.", "entryLimit")]
+		: []),
+	...validateHotCacheRedaction(record),
 	...validateRecordArray(record, "entries", validateHotCacheEntry),
+	...validateHotCacheRecovery(record),
 ];
+
+const validateDeterministicHotCacheOrdering = (record: HotCacheState): ValidationIssue[] => {
+	for (let index = 1; index < record.entries.length; index += 1) {
+		const previous = record.entries[index - 1];
+		const current = record.entries[index];
+		if (previous === undefined || current === undefined) {
+			continue;
+		}
+
+		const previousKey = `${previous.kind}:${previous.key}`;
+		const currentKey = `${current.kind}:${current.key}`;
+		if (previousKey.localeCompare(currentKey, "en", { sensitivity: "base" }) > 0) {
+			return [issue("record.unsorted", "Hot cache entries must be sorted by kind and key.", "entries")];
+		}
+	}
+
+	return [];
+};
 
 const validateOperationLogEntry = (record: UnknownRecord): ValidationIssue[] => [
 	...validateRequiredString(record, "id"),
@@ -573,13 +686,6 @@ const validateStagedChangeReview = (record: UnknownRecord): ValidationIssue[] =>
 		...validateStringArray(review, "reasons", { requireNonEmpty: true }),
 	].map((error) => prefixIssueField(error, "review"));
 };
-
-const validateStoredValidationIssue = (record: UnknownRecord): ValidationIssue[] => [
-	...validateRequiredString(record, "code"),
-	...validateRequiredString(record, "message"),
-	...validateOptionalString(record, "path"),
-	...validateOptionalString(record, "field"),
-];
 
 const validateStagedChangeRecovery = (record: UnknownRecord): ValidationIssue[] => {
 	const recovery = record.recovery;
@@ -749,8 +855,19 @@ const validateSupportRecord = <TValue>(
 export const validateIndexMetadata = (input: unknown): ValidationResult<IndexMetadata> =>
 	validateSupportRecord(input, "index-metadata", validateIndexMetadataRecord);
 
-export const validateHotCacheState = (input: unknown): ValidationResult<HotCacheState> =>
-	validateSupportRecord(input, "hot-cache", validateHotCacheRecord);
+export const validateHotCacheState = (input: unknown): ValidationResult<HotCacheState> => {
+	const result = validateSupportRecord<HotCacheState>(input, "hot-cache", validateHotCacheRecord);
+	if (!result.ok) {
+		return result;
+	}
+
+	const orderingErrors = validateDeterministicHotCacheOrdering(result.value);
+	if (orderingErrors.length > 0) {
+		return failure(orderingErrors);
+	}
+
+	return result;
+};
 
 export const validateOperationLog = (input: unknown): ValidationResult<OperationLog> =>
 	validateSupportRecord(input, "operation-log", validateOperationLogRecord);

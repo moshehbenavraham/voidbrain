@@ -1,19 +1,19 @@
 # PRD Phase 01: Vault Intelligence MVP
 
-**Status**: In Progress
+**Status**: Complete
 **Sessions**: 8
 **Estimated Duration**: 8-12 days
 
-**Progress**: 7/8 sessions (88%)
-**Last Completed Session**: Session 07 - Vault Health Check and Repair Staging (2026-05-13)
+**Progress**: 8/8 sessions (100%)
+**Last Completed Session**: Session 08 - Hot Cache and MVP Integration Validation (2026-05-13)
 
 ---
 
 ## Overview
 
-Phase 01 turns the Phase 00 foundations into the first usable local-first Obsidian MVP. The phase wires the plugin runtime, settings, provider setup, indexing orchestration, grounded chat, source ingestion, staged-change review, health reporting, and recent-context recovery into inspectable workflows.
+Phase 01 turned the Phase 00 foundations into the first usable local-first Obsidian MVP. The phase wired the plugin runtime, settings, provider setup, indexing orchestration, grounded chat, source ingestion, staged-change review, health reporting, and recent-context recovery into inspectable workflows.
 
-The phase preserves the vault as user-owned data. Provider calls require explicit review, generated note mutations remain staged until confirmed, and examples stay limited to synthetic fixtures.
+The phase preserved the vault as user-owned data. Provider calls required explicit review, generated note mutations remained staged until confirmed, and examples stayed limited to synthetic fixtures. Phase 01 is complete and archived in `.spec_system/archive/phases/phase_01/`.
 
 ---
 
@@ -28,7 +28,7 @@ The phase preserves the vault as user-owned data. Provider calls require explici
 | 05 | Source Ingestion Staging | Complete | ~12-25 | PASS |
 | 06 | Staged Change Review and Apply | Complete | ~12-25 | PASS |
 | 07 | Vault Health Check and Repair Staging | Complete | ~12-25 | PASS |
-| 08 | Hot Cache and MVP Integration Validation | Not Started | ~12-25 | - |
+| 08 | Hot Cache and MVP Integration Validation | Complete | ~12-25 | PASS |
 
 ---
 
@@ -46,7 +46,7 @@ The phase preserves the vault as user-owned data. Provider calls require explici
 
 ## Upcoming Sessions
 
-- Session 08: Hot Cache and MVP Integration Validation
+- None. Phase 01 is complete.
 
 ---
 

@@ -39,6 +39,7 @@ export interface StatusSurfaceSettings {
 	readonly shouldShowIndexStatus: boolean;
 	readonly shouldShowStagedChangeStatus: boolean;
 	readonly shouldShowHealthStatus: boolean;
+	readonly shouldShowHotCacheStatus: boolean;
 }
 
 export interface PluginMetadata {
@@ -112,6 +113,7 @@ export const DEFAULT_PLUGIN_SETTINGS: VoidbrainPluginSettings = {
 		shouldShowIndexStatus: true,
 		shouldShowStagedChangeStatus: true,
 		shouldShowHealthStatus: true,
+		shouldShowHotCacheStatus: true,
 	},
 	areStagedWritesRequired: true,
 	shouldShowStatusNotices: true,

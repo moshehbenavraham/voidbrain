@@ -15,8 +15,8 @@ content is out of scope unless a later reviewed workflow supplies it.
 - Citations are required for retrieval-grounded answers.
 - Dry-run previews are the only supported framework update behavior in this
   session.
-- Recovery output should name the command ID, target path, staged-change ID, or
-  validation issue without exposing secrets.
+- Recovery output should name the command ID, target path, cache path,
+  staged-change ID, report ID, or validation issue without exposing secrets.
 
 ## Command Catalog
 
@@ -26,7 +26,7 @@ content is out of scope unless a later reviewed workflow supplies it.
 | `voidbrain.chat-with-vault` | implemented | Cite retrieval paths and require explicit provider review before cloud use. |
 | `voidbrain.health-check` | implemented | Scan local vault notes and index freshness, export redacted reports, and stage only deterministic safe repairs as staged changes with recovery details. |
 | `voidbrain.stage-change` | implemented | Review, confirm, apply, reject, retry, or dismiss staged changes with diffs, backups, audit records, and recovery details. |
-| `voidbrain.recover-session` | planned | Read recovery state, redact provider secrets, and report retry or discard options. |
+| `voidbrain.recover-session` | planned | Read logs, hot cache support records, and staged recovery state; redact provider secrets and report retry or discard options. |
 | `voidbrain.validate-agent-surfaces` | scaffolded | Check known surfaces for command drift, missing safety phrases, and unsafe examples. |
 | `voidbrain.preview-framework-update` | scaffolded | Return a dry-run plan and exclude user vault content or generated knowledge notes. |
 

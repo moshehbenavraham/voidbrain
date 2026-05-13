@@ -1,8 +1,9 @@
 # Voidbrain
 
 Voidbrain is a local-first AI second-brain scaffold for Obsidian-style markdown
-vaults. It is currently in the foundation phase: product requirements, UX
-direction, an Obsidian plugin shell, and a local validation toolchain.
+vaults. It is currently an MVP scaffold with provider privacy gates, local
+indexing, cited chat, source ingestion staging, staged review/apply, vault
+health reporting, hot cache recovery, and a local validation toolchain.
 
 ## What It Is
 
@@ -10,8 +11,8 @@ direction, an Obsidian plugin shell, and a local validation toolchain.
   Vitest.
 - Spec-driven product plan under `.spec_system/`.
 - Local-first design: vault markdown remains the durable source of truth.
-- Safety baseline for provider privacy, staged writes, citations, indexing, and
-  agent-readable command surfaces.
+- Safety baseline for provider privacy, staged writes, citations, indexing,
+  hot cache recovery, and agent-readable command surfaces.
 
 ## Development
 
@@ -53,6 +54,7 @@ bun run preview:framework-update
 - [Agent Surfaces and Commands](docs/agent-surfaces-commands.md)
 - [Provider Privacy Boundaries](docs/provider-privacy-boundaries.md)
 - [Indexing and Retrieval Foundation](docs/indexing-retrieval-foundation.md)
+- [Hot Cache MVP Integration Validation](docs/hot-cache-mvp-integration-validation.md)
 
 ## Agent Surfaces
 
@@ -67,7 +69,8 @@ Voidbrain keeps agent-readable command guidance synchronized across:
 The canonical command contracts live under `src/agent/` and
 `src/types/agent-commands.ts`. Agent surfaces must preserve local-first privacy,
 staged changes, provider secrets boundaries, synthetic fixtures, citations,
-dry-run framework update behavior, and recovery expectations.
+hot cache support records, dry-run framework update behavior, and recovery
+expectations.
 
 ## Repository Policy
 
@@ -75,6 +78,7 @@ dry-run framework update behavior, and recovery expectations.
 
 ## Documentation Status
 
-Phase 00 is complete. The standard documentation set now lives at the repository
-root and in `docs/`, with repository-specific workflow and architecture details
-kept alongside the phase and domain docs.
+Phase 01 MVP implementation is complete through hot cache integration
+validation. The standard documentation set lives at the repository root and in
+`docs/`, with repository-specific workflow and architecture details kept
+alongside the phase and domain docs.

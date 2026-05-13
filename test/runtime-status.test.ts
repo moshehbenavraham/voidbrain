@@ -16,9 +16,15 @@ import type { StagedChangeRecord, StagedChangeStatus } from "../src/types/vault"
 import { makeIsoTimestamp, makeNormalizedVaultPath } from "../src/types/vault";
 import { createProgressSnapshot, evaluateIndexFreshness } from "../src/vectorstore";
 import { SYNTHETIC_CLOUD_PROFILE_INPUT } from "./fixtures/providers/provider-setup-fixtures";
+import { createHotCacheStateFixture } from "./fixtures/vault/hot-cache-fixtures";
 
 const fixedDate = new Date("2026-05-13T00:00:00.000Z");
 const fixedTimestamp = makeIsoTimestamp("2026-05-13T00:00:00.000Z");
+const hotCacheStatus = () => ({
+	state: createHotCacheStateFixture(),
+	cachePath: makeNormalizedVaultPath(".voidbrain/cache/hot-cache.json"),
+	isWriteInFlight: false,
+});
 
 const sourceFingerprint = (path: string, fingerprint: string): IndexSourceFingerprint => ({
 	path: makeNormalizedVaultPath(path),
@@ -158,7 +164,7 @@ describe("runtime status composition", () => {
 
 		expect(snapshot.overallSeverity).toBe("missing");
 		expect(snapshot.counts).toMatchObject({
-			missing: 3,
+			missing: 4,
 			ready: 1,
 		});
 		expect(snapshot.items.map((item) => item.id)).toEqual([
@@ -166,6 +172,7 @@ describe("runtime status composition", () => {
 			"index-readiness",
 			"staged-change-readiness",
 			"health-readiness",
+			"hot-cache-readiness",
 		]);
 		expect(JSON.stringify(snapshot)).not.toContain("Synthetic runtime note body");
 	});
@@ -188,11 +195,12 @@ describe("runtime status composition", () => {
 			indexFreshness: [evaluateIndexFreshness("runtime-index", sources, sources, fixedDate)],
 			stagedChanges: [],
 			healthReport: healthReport(0, 0),
+			hotCache: hotCacheStatus(),
 			now: fixedDate,
 		});
 
 		expect(snapshot.overallSeverity).toBe("ready");
-		expect(snapshot.counts.ready).toBe(4);
+		expect(snapshot.counts.ready).toBe(5);
 	});
 
 	it("reports warnings for cloud trust gaps, stale indexes, staged conflicts, and health warnings", () => {
@@ -208,6 +216,7 @@ describe("runtime status composition", () => {
 			indexFreshness: [evaluateIndexFreshness("runtime-index", sources, staleSources, fixedDate)],
 			stagedChanges: [stagedChange("conflicted")],
 			healthReport: healthReport(0, 1),
+			hotCache: hotCacheStatus(),
 			now: fixedDate,
 		});
 
@@ -392,5 +401,55 @@ describe("runtime status composition", () => {
 			now: fixedDate,
 		});
 		expect(missingSnapshot.items.find((item) => item.id === "index-readiness")?.severity).toBe("missing");
+	});
+
+	it("reports hot cache ready, stale, and failed recovery states", () => {
+		const hotCacheOnlySettings = {
+			...DEFAULT_PLUGIN_SETTINGS,
+			status: {
+				shouldShowProviderStatus: false,
+				shouldShowIndexStatus: false,
+				shouldShowStagedChangeStatus: false,
+				shouldShowHealthStatus: false,
+				shouldShowHotCacheStatus: true,
+			},
+		};
+		const readySnapshot = createRuntimeStatusSnapshot({
+			settings: hotCacheOnlySettings,
+			providers: BASELINE_PROVIDERS,
+			hotCache: hotCacheStatus(),
+			now: fixedDate,
+		});
+		expect(readySnapshot.items[0]).toMatchObject({
+			id: "hot-cache-readiness",
+			severity: "ready",
+			count: 5,
+		});
+
+		const staleSnapshot = createRuntimeStatusSnapshot({
+			settings: hotCacheOnlySettings,
+			providers: BASELINE_PROVIDERS,
+			hotCache: hotCacheStatus(),
+			now: new Date("2026-05-15T01:00:00.000Z"),
+		});
+		expect(staleSnapshot.items[0]).toMatchObject({
+			severity: "warning",
+			summary: "Hot cache is stale and may not match recent runtime state.",
+		});
+
+		const failedSnapshot = createRuntimeStatusSnapshot({
+			settings: hotCacheOnlySettings,
+			providers: BASELINE_PROVIDERS,
+			hotCache: {
+				...hotCacheStatus(),
+				lastFailureMessage: "Synthetic cache write failed.",
+			},
+			now: fixedDate,
+		});
+		expect(failedSnapshot.items[0]).toMatchObject({
+			severity: "error",
+			summary: "Hot cache persistence or recovery failed.",
+		});
+		expect(JSON.stringify(failedSnapshot)).not.toContain("runtimeSecret");
 	});
 });

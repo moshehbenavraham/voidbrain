@@ -19,15 +19,42 @@
 		"artifactKind": "hot-cache",
 		"schemaVersion": 1,
 		"cacheId": "demo-hot-cache",
+		"cachePath": ".voidbrain/cache/hot-cache.json",
 		"updatedAt": "2026-05-12T00:35:00Z",
+		"entryLimit": 24,
+		"redaction": {
+			"redacted": true,
+			"redactedFieldCount": 0,
+			"omittedBodyCount": 1,
+			"notes": ["Raw private note bodies and provider state are omitted."]
+		},
 		"entries": [
 			{
 				"key": "source-demo-article",
-				"path": "sources/demo-article.md",
+				"kind": "chat-thread",
+				"path": "conversations/2026-05-12-demo-chat.md",
+				"sourcePaths": ["sources/demo-article.md"],
 				"lastAccessedAt": "2026-05-12T00:35:00Z",
-				"summary": "Synthetic source about local-first vault contracts."
+				"summary": "Synthetic source conversation has bounded local-first recovery metadata.",
+				"metadata": {
+					"threadId": "demo-chat-thread",
+					"activeBranchId": "branch-main",
+					"turnCount": 1,
+					"lastTurnStatus": "answer-ready"
+				},
+				"recovery": {
+					"commandId": "voidbrain.chat-with-vault",
+					"cachePath": ".voidbrain/cache/hot-cache.json",
+					"targetPath": "conversations/2026-05-12-demo-chat.md",
+					"validationOutput": []
+				}
 			}
-		]
+		],
+		"recovery": {
+			"commandId": "voidbrain.hot-cache",
+			"cachePath": ".voidbrain/cache/hot-cache.json",
+			"validationOutput": []
+		}
 	},
 	"stagedChanges": [
 		{

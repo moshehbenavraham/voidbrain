@@ -47,6 +47,19 @@ const refresh = (): void => {
 						<span>{severityLabels[item.severity]}</span>
 					</div>
 					<p>{item.summary}</p>
+					{#if item.area === "hot-cache"}
+						<div class="voidbrain-status-surface__cache-state" data-hot-cache-status={item.severity}>
+							<span>{item.count ?? 0} cache entr{(item.count ?? 0) === 1 ? "y" : "ies"}</span>
+							<span>{item.paths.length === 0 ? "No recovery paths" : `${item.paths.length} recovery path(s)`}</span>
+						</div>
+						{#if item.paths.length > 0}
+							<ul class="voidbrain-status-surface__paths" aria-label="Hot cache recovery paths">
+								{#each item.paths as path}
+									<li>{path}</li>
+								{/each}
+							</ul>
+						{/if}
+					{/if}
 					{#if item.details.length > 0}
 						<p class="voidbrain-status-surface__details">{item.details.join(" ")}</p>
 					{/if}

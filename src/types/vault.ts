@@ -154,6 +154,36 @@ export interface SourceManifest {
 export type IndexKind = "lexical" | "semantic";
 export type IndexStatus = "ready" | "building" | "stale" | "error";
 
+export const HOT_CACHE_ENTRY_KINDS = [
+	"chat-thread",
+	"context-chip",
+	"index-readiness",
+	"staged-change",
+	"health-report",
+	"runtime-status",
+] as const;
+
+export type HotCacheEntryKind = (typeof HOT_CACHE_ENTRY_KINDS)[number];
+export type HotCacheMetadataPrimitive = string | number | boolean | null;
+export type HotCacheMetadataValue = HotCacheMetadataPrimitive | readonly HotCacheMetadataPrimitive[];
+export type HotCacheMetadata = Readonly<Record<string, HotCacheMetadataValue>>;
+
+export interface HotCacheRecoveryReference {
+	readonly commandId: string;
+	readonly cachePath: NormalizedVaultPath;
+	readonly targetPath?: NormalizedVaultPath;
+	readonly stagedChangeId?: string;
+	readonly reportId?: string;
+	readonly validationOutput: readonly ValidationIssue[];
+}
+
+export interface HotCacheRedactionSummary {
+	readonly redacted: boolean;
+	readonly redactedFieldCount: number;
+	readonly omittedBodyCount: number;
+	readonly notes: readonly string[];
+}
+
 export interface IndexMetadata {
 	readonly artifactKind: "index-metadata";
 	readonly schemaVersion: 1;
@@ -167,17 +197,25 @@ export interface IndexMetadata {
 
 export interface HotCacheEntry {
 	readonly key: string;
-	readonly path: NormalizedVaultPath;
+	readonly kind: HotCacheEntryKind;
+	readonly path?: NormalizedVaultPath;
+	readonly sourcePaths: readonly NormalizedVaultPath[];
 	readonly lastAccessedAt: IsoTimestamp;
 	readonly summary: string;
+	readonly metadata: HotCacheMetadata;
+	readonly recovery: HotCacheRecoveryReference;
 }
 
 export interface HotCacheState {
 	readonly artifactKind: "hot-cache";
 	readonly schemaVersion: 1;
 	readonly cacheId: string;
+	readonly cachePath: NormalizedVaultPath;
 	readonly updatedAt: IsoTimestamp;
+	readonly entryLimit: number;
+	readonly redaction: HotCacheRedactionSummary;
 	readonly entries: readonly HotCacheEntry[];
+	readonly recovery: HotCacheRecoveryReference;
 }
 
 export type OperationKind =
@@ -191,7 +229,10 @@ export type OperationKind =
 	| "staged-change-dismissed"
 	| "staged-change-failed"
 	| "staged-change-conflicted"
-	| "staged-change-backup-written";
+	| "staged-change-backup-written"
+	| "hot-cache-captured"
+	| "hot-cache-restored"
+	| "session-summary-staged";
 
 export interface OperationLogEntry {
 	readonly id: string;

@@ -17,8 +17,9 @@ is the source of truth; this document is the human-readable companion.
   paths, headings, and source records.
 - Dry-run: framework update workflows preview planned changes before any later
   apply behavior exists.
-- Recovery: command failures must leave enough path, command, and staged-change
-  context for the user to inspect or retry.
+- Recovery: command failures must leave enough path, command, cache,
+  staged-change, report, and validation context for the user to inspect or
+  retry.
 
 ## Command Table
 
@@ -28,7 +29,7 @@ is the source of truth; this document is the human-readable companion.
 | `voidbrain.chat-with-vault` | Answer from indexed vault evidence with citations. | implemented | explicit provider review | no direct writes | cited retrieval paths and headings |
 | `voidbrain.health-check` | Scan local vault notes and index freshness, export redacted reports, and stage safe repairs. | implemented | local-first | staged changes | report ID, affected paths, finding evidence, validation output, staged-change IDs |
 | `voidbrain.stage-change` | Review and confirmed apply workflow for staged note mutations. | implemented | local-first | staged changes | staged-change ID, before/after diff, target path, backup path intent, validation output |
-| `voidbrain.recover-session` | Reconstruct recoverable command context from logs and staged files. | planned | local-first | read-only by default | recovery log path and staged-change IDs |
+| `voidbrain.recover-session` | Reconstruct recoverable command context from logs, hot cache support records, and staged files. | planned | local-first | read-only by default | recovery log path, cache path, report IDs, and staged-change IDs |
 | `voidbrain.validate-agent-surfaces` | Validate command IDs, safety phrases, and fixture-safe examples. | scaffolded | local-first | read-only | validation result list |
 | `voidbrain.preview-framework-update` | Preview framework file changes while excluding user vault content. | scaffolded | local-first | dry-run | planned framework file actions |
 
@@ -48,7 +49,7 @@ Status labels are intentionally conservative:
 | `voidbrain.chat-with-vault` | user question and fresh retrieval evidence | cited answer with retrieval paths, headings, and source records |
 | `voidbrain.health-check` | local markdown notes and index freshness from the active Obsidian vault | grouped health report, redacted markdown export, report-only findings, optional staged repair IDs, and recovery details |
 | `voidbrain.stage-change` | staged-change ID and confirmation text when required | per-record apply, reject, retry, dismiss, conflict, or failed outcome with audit and recovery details |
-| `voidbrain.recover-session` | recoverable session or staged-change ID | recovery summary with retry or discard options |
+| `voidbrain.recover-session` | recoverable session, cache, report, or staged-change ID | recovery summary with retry or discard options |
 | `voidbrain.validate-agent-surfaces` | known surface paths from the repository root | deterministic validation issues or pass status |
 | `voidbrain.preview-framework-update` | optional repository-relative framework paths | dry-run action list and excluded user-content paths |
 
@@ -112,6 +113,24 @@ are visible and retryable without hiding completed vault mutations.
 Vault health findings use the same staged-change safety boundary as source
 ingestion. Report export is a support artifact, while note repairs are staged
 for review and preserve recovery metadata before any user vault mutation.
+
+## Hot Cache And Recent Context Recovery
+
+Voidbrain persists recent context to `.voidbrain/cache/hot-cache.json` as a
+local support record. The cache stores bounded summaries for chat draft/thread
+metadata, selected context chips, index readiness, active staged changes, and
+the latest health report. It preserves cache path, target paths, report IDs,
+staged-change IDs, and validation output needed for inspection or retry.
+
+Hot cache records must not contain raw private note bodies, provider secrets,
+authorization headers, raw hidden provider state, raw provider diagnostics, or
+unbounded retrieval payloads. Runtime status exposes cache readiness, stale and
+failed states, entry counts, redaction status, and recovery paths.
+
+Readable session summaries from chat are generated only as staged conversation
+note proposals. They include source paths and cited turns, but they do not write
+directly to user-visible markdown until the staged-change workflow confirms an
+apply.
 
 ## Validation Workflow
 
