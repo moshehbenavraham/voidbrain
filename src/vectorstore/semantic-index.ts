@@ -3,6 +3,8 @@ import type { ProviderDefinition, ProviderPrivacyPolicy } from "../types/provide
 import {
 	type EmbeddingModelFamily,
 	type SemanticCompatibilityDecision,
+	type SemanticEmbeddingInvocationDecision,
+	type SemanticEmbeddingInvocationInput,
 	type SemanticIndexConfig,
 	type SemanticIndexSnapshot,
 	type SemanticProviderPreflightRequest,
@@ -44,6 +46,12 @@ export interface SemanticIndexAdapter {
 		policy: ProviderPrivacyPolicy,
 		request: SemanticProviderPreflightRequest,
 	) => SemanticEmbeddingPreparationDecision;
+	prepareEmbeddingInvocation: (
+		providers: readonly ProviderDefinition[],
+		policy: ProviderPrivacyPolicy,
+		request: SemanticProviderPreflightRequest,
+		invocation: SemanticEmbeddingInvocationInput,
+	) => SemanticEmbeddingInvocationDecision;
 	validateEntry: (entry: SemanticVectorEntry) => SemanticCompatibilityDecision;
 	createSnapshot: (
 		entries: readonly SemanticVectorEntry[],
@@ -143,6 +151,65 @@ export const preflightSemanticIndexProvider = (
 	};
 };
 
+export const prepareSemanticEmbeddingInvocation = (
+	config: SemanticIndexConfig,
+	providers: readonly ProviderDefinition[],
+	policy: ProviderPrivacyPolicy,
+	request: SemanticProviderPreflightRequest,
+	invocation: SemanticEmbeddingInvocationInput,
+): SemanticEmbeddingInvocationDecision => {
+	const preflight = preflightSemanticIndexProvider(providers, policy, request);
+	if (!preflight.preflight.allowed) {
+		return {
+			ok: false,
+			message: preflight.preflight.userMessage,
+			preflight,
+		};
+	}
+
+	const compatibility = checkSemanticCompatibility({
+		expectedFamily: config.embeddingModelFamily,
+		actualFamily: preflight.embeddingModelFamily,
+		expectedDimensions: config.dimensions,
+		actualDimensions: config.dimensions,
+	});
+
+	if (!compatibility.ok) {
+		return {
+			ok: false,
+			message: compatibility.message,
+			preflight,
+			compatibility,
+		};
+	}
+
+	return {
+		ok: true,
+		preflight,
+		request: {
+			commandId: request.workflowId,
+			providerId: preflight.preflight.provider.id,
+			modelId: preflight.preflight.model.id,
+			contentSensitivity: request.contentSensitivity,
+			chunks: invocation.chunks,
+			sourcePaths: request.sourcePaths,
+			timeoutMs: invocation.timeoutMs,
+			embeddingModelFamily: compatibility.embeddingModelFamily,
+			expectedDimensions: compatibility.dimensions,
+			...(invocation.invocationKey === undefined ? {} : { invocationKey: invocation.invocationKey }),
+			recovery: {
+				commandId: request.workflowId,
+				providerId: preflight.preflight.provider.id,
+				modelId: preflight.preflight.model.id,
+				sourcePathCount: request.sourcePaths.length,
+				readinessCode: "ready",
+				validationOutput: ["semantic embedding provider preflight allowed"],
+				...invocation.recovery,
+			},
+		},
+	};
+};
+
 const createSemanticSnapshot = (
 	config: SemanticIndexConfig,
 	entries: readonly SemanticVectorEntry[],
@@ -194,6 +261,8 @@ export const createSemanticIndexAdapter = (config: SemanticIndexConfig): Semanti
 			embeddingModelFamily: compatibility.embeddingModelFamily,
 		};
 	},
+	prepareEmbeddingInvocation: (providers, policy, request, invocation) =>
+		prepareSemanticEmbeddingInvocation(config, providers, policy, request, invocation),
 	validateEntry: (entry) =>
 		checkSemanticCompatibility({
 			expectedFamily: config.embeddingModelFamily,

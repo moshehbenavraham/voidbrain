@@ -1,5 +1,10 @@
 import type { AgentCommandId } from "./agent-commands";
 import type { IndexingRuntimeReport } from "./indexing-runtime";
+import type {
+	ProviderInvocationAttempt,
+	ProviderInvocationDuplicateKey,
+	ProviderInvocationRecoveryMetadata,
+} from "./provider-invocation";
 import type { ContentSensitivity, ProviderId, ProviderModelId, RedactedDiagnosticObject } from "./providers";
 import type { RetrievalQuery, RetrievalReadinessState, RetrievalResult } from "./retrieval";
 import type { IsoTimestamp, NormalizedVaultPath } from "./vault";
@@ -42,6 +47,7 @@ export const CHAT_FAILURE_CODES = [
 	"chat.provider-denied",
 	"chat.provider-unavailable",
 	"chat.provider-timeout",
+	"chat.provider-canceled",
 	"chat.provider-failed",
 	"chat.persistence-failed",
 	"chat.view-closed",
@@ -82,6 +88,7 @@ export interface ChatQuestionInput {
 	readonly retrievalLimit?: number;
 	readonly threadId?: ChatThreadId;
 	readonly branchId?: ChatBranchId;
+	readonly signal?: AbortSignal;
 }
 
 export interface ValidatedChatQuestion {
@@ -90,6 +97,7 @@ export interface ValidatedChatQuestion {
 	readonly retrievalLimit: number;
 	readonly threadId: ChatThreadId;
 	readonly branchId: ChatBranchId;
+	readonly signal?: AbortSignal;
 }
 
 export interface ChatRetrievalReadinessFailure {
@@ -156,15 +164,12 @@ export interface ChatProviderRequest {
 	readonly citations: readonly ChatCitation[];
 	readonly sourcePaths: readonly NormalizedVaultPath[];
 	readonly timeoutMs: number;
+	readonly invocationKey?: ProviderInvocationDuplicateKey;
+	readonly recovery?: ProviderInvocationRecoveryMetadata;
+	readonly signal?: AbortSignal;
 }
 
-export interface ChatProviderAttempt {
-	readonly attempt: number;
-	readonly startedAt: IsoTimestamp;
-	readonly completedAt?: IsoTimestamp;
-	readonly status: "started" | "succeeded" | "failed" | "timed-out";
-	readonly diagnostic?: RedactedDiagnosticObject;
-}
+export interface ChatProviderAttempt extends ProviderInvocationAttempt {}
 
 export interface ChatProviderResponse {
 	readonly answer: string;

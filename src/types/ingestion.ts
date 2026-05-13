@@ -1,5 +1,5 @@
 import type { AgentCommandId } from "./agent-commands";
-import type { ChatProviderAttempt } from "./chat";
+import type { ProviderInvocationAttempt } from "./provider-invocation";
 import type { ProviderSetupPreflightDecision } from "./provider-setup";
 import type { ContentSensitivity, ProviderId, ProviderModelId, RedactedDiagnosticObject } from "./providers";
 import type {
@@ -156,7 +156,7 @@ export interface SourceIngestionProviderDecisionRecord {
 	readonly modelId: ProviderModelId | null;
 	readonly code: string | null;
 	readonly userMessage: string;
-	readonly attempts: readonly ChatProviderAttempt[];
+	readonly attempts: readonly ProviderInvocationAttempt[];
 	readonly diagnostic: RedactedDiagnosticObject;
 }
 

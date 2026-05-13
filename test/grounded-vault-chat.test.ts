@@ -9,6 +9,13 @@ import type { LexicalIndexSnapshot } from "../src/types/retrieval";
 import { makeIsoTimestamp } from "../src/types/vault";
 import { FixtureIndexingService } from "../src/vectorstore";
 import {
+	SYNTHETIC_INVOCATION_SOURCE_PATH,
+	SYNTHETIC_PRIVATE_CONTENT_PROBE,
+	cancellationAwareChatTransport,
+	retryThenSuccessChatTransport,
+	secretLikeFailureChatTransport,
+} from "./fixtures/providers/provider-invocation-fixtures";
+import {
 	CHAT_FIXTURE_FILES,
 	CHAT_FIXTURE_MESSAGE,
 	CHAT_FIXTURE_QUESTION,
@@ -297,6 +304,90 @@ describe("GroundedVaultChatService", () => {
 			},
 		});
 		expect(JSON.stringify(result)).not.toContain(CHAT_FIXTURE_FILES[0]?.content ?? "missing");
+	});
+
+	it("propagates cancellation and retries through grounded chat provider invocation", async () => {
+		const index = await buildFixtureIndex();
+		const controller = new AbortController();
+		const canceledService = new GroundedVaultChatService({
+			getSettings: localChatSettings,
+			getIndexingState: () => readyState(index),
+			chatInvoker: createProviderChatInvoker({
+				transport: cancellationAwareChatTransport(),
+				now: () => fixedDate,
+			}),
+			now: () => fixedDate,
+		});
+
+		const canceled = canceledService.ask({
+			text: CHAT_FIXTURE_QUESTION,
+			signal: controller.signal,
+		});
+		await Promise.resolve();
+		controller.abort();
+		await expect(canceled).resolves.toMatchObject({
+			ok: false,
+			result: {
+				turn: {
+					status: "canceled",
+				},
+				failure: {
+					code: "chat.provider-canceled",
+				},
+			},
+		});
+
+		const retryService = new GroundedVaultChatService({
+			getSettings: localChatSettings,
+			getIndexingState: () => readyState(index),
+			chatInvoker: createProviderChatInvoker({
+				maxAttempts: 2,
+				retryBackoffMs: 1,
+				transport: retryThenSuccessChatTransport(),
+				now: () => fixedDate,
+			}),
+			now: () => fixedDate,
+		});
+		const retried = retryService.ask({ text: CHAT_FIXTURE_QUESTION });
+		await vi.advanceTimersByTimeAsync(1);
+		await expect(retried).resolves.toMatchObject({
+			ok: true,
+			result: {
+				turn: {
+					providerAttempts: [{ status: "failed" }, { status: "succeeded" }],
+				},
+			},
+		});
+	});
+
+	it("redacts unsafe provider diagnostics from grounded chat failures", async () => {
+		const index = await buildFixtureIndex();
+		const service = new GroundedVaultChatService({
+			getSettings: localChatSettings,
+			getIndexingState: () => readyState(index),
+			chatInvoker: createProviderChatInvoker({
+				maxAttempts: 1,
+				transport: secretLikeFailureChatTransport(),
+				now: () => fixedDate,
+			}),
+			now: () => fixedDate,
+		});
+
+		const result = await service.ask({ text: CHAT_FIXTURE_QUESTION });
+		expect(result).toMatchObject({
+			ok: false,
+			result: {
+				failure: {
+					code: "chat.provider-failed",
+					stage: "provider-invocation",
+				},
+			},
+		});
+		const serialized = JSON.stringify(result);
+		expect(serialized).not.toContain(SYNTHETIC_PRIVATE_CONTENT_PROBE);
+		expect(serialized).not.toContain(SYNTHETIC_INVOCATION_SOURCE_PATH);
+		expect(serialized).not.toContain("Bearer fixture");
+		expect(serialized).not.toContain("fixture-credential-probe");
 	});
 });
 

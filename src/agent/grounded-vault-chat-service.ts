@@ -1,4 +1,5 @@
 import { type ProviderChatInvoker, defaultProviderChatInvoker } from "../providers/chat-provider";
+import { createProviderInvocationKey } from "../providers/provider-invocation";
 import { buildProviderDefinitionsForSettings, preflightProviderSetup } from "../providers/provider-preflight";
 import { redactDiagnostic } from "../providers/redaction";
 import type {
@@ -130,6 +131,13 @@ const defaultBranchId = makeChatBranchId("branch-main");
 
 const isRecord = (value: unknown): value is UnknownRecord =>
 	typeof value === "object" && value !== null && !Array.isArray(value);
+
+const isAbortSignal = (value: unknown): value is AbortSignal =>
+	typeof value === "object" &&
+	value !== null &&
+	"aborted" in value &&
+	"addEventListener" in value &&
+	typeof (value as { readonly addEventListener?: unknown }).addEventListener === "function";
 
 const toIsoTimestamp = (date: Date): IsoTimestamp => makeIsoTimestamp(date.toISOString());
 
@@ -275,6 +283,7 @@ export class GroundedVaultChatService {
 			};
 		}
 
+		const signal = isAbortSignal(input.signal) ? input.signal : undefined;
 		return {
 			ok: true,
 			question: {
@@ -283,6 +292,7 @@ export class GroundedVaultChatService {
 				retrievalLimit,
 				threadId,
 				branchId,
+				...(signal === undefined ? {} : { signal }),
 			},
 		};
 	}
@@ -350,6 +360,7 @@ export class GroundedVaultChatService {
 			return this.failureResult(failure, turn);
 		}
 
+		const sourcePaths = sourcePathsFromCitations(retrieval.citations);
 		const providerRequest: ChatProviderRequest = {
 			commandId: CHAT_COMMAND_ID,
 			threadId: question.threadId,
@@ -368,8 +379,25 @@ export class GroundedVaultChatService {
 				score: item.score,
 			})),
 			citations: retrieval.citations,
-			sourcePaths: sourcePathsFromCitations(retrieval.citations),
+			sourcePaths,
 			timeoutMs: this.providerTimeoutMs,
+			invocationKey: createProviderInvocationKey([
+				"chat",
+				CHAT_COMMAND_ID,
+				question.threadId,
+				retrieval.turn.id,
+				preflight.providerId,
+				preflight.modelId,
+			]),
+			recovery: {
+				commandId: CHAT_COMMAND_ID,
+				providerId: preflight.providerId,
+				modelId: preflight.modelId,
+				sourcePathCount: sourcePaths.length,
+				reportId: "grounded-vault-chat-provider-invocation",
+				validationOutput: ["provider preflight allowed"],
+			},
+			...(question.signal === undefined ? {} : { signal: question.signal }),
 		};
 		const invocation = await this.chatInvoker(providerRequest);
 		if (!invocation.ok) {
@@ -385,7 +413,7 @@ export class GroundedVaultChatService {
 			});
 			const failedTurn: ChatTurn = {
 				...retrieval.turn,
-				status: "failed",
+				status: invocation.code === "chat.provider-canceled" ? "canceled" : "failed",
 				failure,
 				retry: {
 					...retrieval.turn.retry,

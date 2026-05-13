@@ -1,3 +1,4 @@
+import type { ProviderInvocationAttempt } from "./provider-invocation";
 import type { ContentSensitivity, ProviderId, ProviderModelId } from "./providers";
 import type {
 	IndexFreshnessSnapshot,
@@ -87,6 +88,18 @@ export interface IndexingRuntimeReport {
 	readonly message: string;
 }
 
+export interface SemanticIndexRecoveryRecord {
+	readonly commandId: string;
+	readonly providerId: ProviderId | null;
+	readonly modelId: ProviderModelId | null;
+	readonly sourcePathCount: number;
+	readonly readinessCode: string | null;
+	readonly validationOutput: readonly string[];
+	readonly attempts?: readonly ProviderInvocationAttempt[];
+	readonly retryGuidance: string;
+	readonly updatedAt: IsoTimestamp;
+}
+
 export interface SemanticIndexReadiness {
 	readonly state: SemanticIndexReadinessState;
 	readonly readinessState: RetrievalReadinessState;
@@ -97,6 +110,7 @@ export interface SemanticIndexReadiness {
 	readonly sourcePathCount: number;
 	readonly message: string;
 	readonly diagnosticCode: string | null;
+	readonly recovery?: SemanticIndexRecoveryRecord;
 }
 
 export interface IndexingRuntimeState {

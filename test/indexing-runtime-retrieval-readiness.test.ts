@@ -1,9 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { LOCAL_FIXTURE_PROVIDER_ID, TRUSTED_CLOUD_FIXTURE_PROVIDER_ID, makeProviderModelId } from "../src/providers";
+import {
+	LOCAL_FIXTURE_PROVIDER_ID,
+	TRUSTED_CLOUD_FIXTURE_PROVIDER_ID,
+	createProviderEmbeddingInvoker,
+	makeProviderModelId,
+} from "../src/providers";
 import { DEFAULT_PLUGIN_SETTINGS, type VoidbrainPluginSettings } from "../src/types/plugin";
 import { makeNormalizedVaultPath } from "../src/types/vault";
 import { FixtureIndexingService, IndexingRuntimeService, createObsidianMarkdownIndexSource } from "../src/vectorstore";
 import { App as MockApp } from "./__mocks__/obsidian";
+import {
+	SYNTHETIC_INVOCATION_SOURCE_PATH,
+	SYNTHETIC_PRIVATE_CONTENT_PROBE,
+	cancellationAwareEmbeddingTransport,
+	syntheticEmbeddingProviderRequest,
+	timeoutEmbeddingTransport,
+} from "./fixtures/providers/provider-invocation-fixtures";
 import {
 	RUNTIME_INDEXING_FIXTURE_FILES,
 	RUNTIME_INDEXING_FIXTURE_MESSAGE,
@@ -216,6 +228,38 @@ describe("IndexingRuntimeService semantic readiness gates", () => {
 		expect(capabilityMismatch.getState().semanticReadiness).toMatchObject({
 			state: "capability-mismatch",
 			readinessState: "blocked",
+			recovery: {
+				commandId: "voidbrain.semantic-index-readiness",
+				validationOutput: ["capability-denied"],
+			},
+		});
+
+		const authNotReady = createRuntimeService({
+			settings: {
+				...DEFAULT_PLUGIN_SETTINGS,
+				areCloudProvidersEnabled: true,
+				trustedProviderIds: [TRUSTED_CLOUD_FIXTURE_PROVIDER_ID],
+				indexing: {
+					...basePreferences,
+					isSemanticIndexEnabled: true,
+				},
+				providerRoles: {
+					...DEFAULT_PLUGIN_SETTINGS.providerRoles,
+					embedding: {
+						providerId: TRUSTED_CLOUD_FIXTURE_PROVIDER_ID,
+						modelId: makeProviderModelId("trusted-cloud-embedding-fixture"),
+					},
+				},
+			},
+		}).service;
+		expect(authNotReady.getState().semanticReadiness).toMatchObject({
+			state: "auth-not-ready",
+			diagnosticCode: "auth-not-ready",
+			recovery: {
+				providerId: TRUSTED_CLOUD_FIXTURE_PROVIDER_ID,
+				modelId: makeProviderModelId("trusted-cloud-embedding-fixture"),
+				validationOutput: ["auth-not-ready"],
+			},
 		});
 
 		const cloudDisabled = createRuntimeService({
@@ -248,6 +292,10 @@ describe("IndexingRuntimeService semantic readiness gates", () => {
 		expect(cloudDisabled.getState().semanticReadiness).toMatchObject({
 			state: "privacy-denied",
 			diagnosticCode: "privacy-denied",
+			recovery: {
+				readinessCode: "privacy-denied",
+				validationOutput: ["privacy-denied"],
+			},
 		});
 
 		const localReady = createRuntimeService({
@@ -269,6 +317,49 @@ describe("IndexingRuntimeService semantic readiness gates", () => {
 		expect(localReady.getState().semanticReadiness).toMatchObject({
 			state: "ready",
 			readinessState: "ready",
+			recovery: {
+				readinessCode: null,
+				validationOutput: ["semantic provider preflight ready"],
+			},
 		});
+		expect(JSON.stringify(localReady.getState().semanticReadiness)).not.toContain("Synthetic runtime source");
+	});
+
+	it("keeps embedding timeout and cancellation recovery metadata safe", async () => {
+		const timeout = createProviderEmbeddingInvoker({
+			maxAttempts: 1,
+			transport: timeoutEmbeddingTransport(),
+			now: () => fixedDate,
+		});
+		const timeoutPromise = timeout(syntheticEmbeddingProviderRequest({ timeoutMs: 5 }));
+		await vi.advanceTimersByTimeAsync(5);
+		const timeoutResult = await timeoutPromise;
+		expect(timeoutResult).toMatchObject({
+			ok: false,
+			code: "embedding.provider-timeout",
+			diagnostic: {
+				sourcePathCount: 1,
+			},
+		});
+
+		const controller = new AbortController();
+		const canceled = createProviderEmbeddingInvoker({
+			transport: cancellationAwareEmbeddingTransport(),
+			now: () => fixedDate,
+		});
+		const canceledPromise = canceled(syntheticEmbeddingProviderRequest({ signal: controller.signal }));
+		controller.abort();
+		const canceledResult = await canceledPromise;
+		expect(canceledResult).toMatchObject({
+			ok: false,
+			code: "embedding.provider-canceled",
+			diagnostic: {
+				sourcePathCount: 1,
+			},
+		});
+
+		const serialized = JSON.stringify([timeoutResult, canceledResult]);
+		expect(serialized).not.toContain(SYNTHETIC_PRIVATE_CONTENT_PROBE);
+		expect(serialized).not.toContain(SYNTHETIC_INVOCATION_SOURCE_PATH);
 	});
 });

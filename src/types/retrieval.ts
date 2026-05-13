@@ -1,3 +1,9 @@
+import type {
+	ProviderEmbeddingRequest,
+	ProviderEmbeddingTextChunk,
+	ProviderInvocationDuplicateKey,
+	ProviderInvocationRecoveryMetadata,
+} from "./provider-invocation";
 import type { ContentSensitivity, ProviderId, ProviderInvocationPreflightDecision, ProviderModelId } from "./providers";
 import type { IsoTimestamp, NormalizedVaultPath, Wikilink } from "./vault";
 
@@ -309,6 +315,30 @@ export interface SemanticProviderPreflightResult {
 	readonly preflight: ProviderInvocationPreflightDecision;
 	readonly embeddingModelFamily?: EmbeddingModelFamily;
 }
+
+export interface SemanticEmbeddingInvocationInput {
+	readonly chunks: readonly ProviderEmbeddingTextChunk[];
+	readonly timeoutMs: number;
+	readonly invocationKey?: ProviderInvocationDuplicateKey;
+	readonly recovery?: ProviderInvocationRecoveryMetadata;
+}
+
+export interface SemanticEmbeddingInvocationAllowed {
+	readonly ok: true;
+	readonly preflight: SemanticProviderPreflightResult;
+	readonly request: ProviderEmbeddingRequest;
+}
+
+export interface SemanticEmbeddingInvocationDenied {
+	readonly ok: false;
+	readonly message: string;
+	readonly preflight: SemanticProviderPreflightResult;
+	readonly compatibility?: SemanticCompatibilityDecision;
+}
+
+export type SemanticEmbeddingInvocationDecision =
+	| SemanticEmbeddingInvocationAllowed
+	| SemanticEmbeddingInvocationDenied;
 
 export const makeEmbeddingModelFamily = (family: string): EmbeddingModelFamily => family as EmbeddingModelFamily;
 

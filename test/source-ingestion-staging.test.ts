@@ -15,6 +15,7 @@ import { DEFAULT_PLUGIN_SETTINGS, type VoidbrainPluginSettings } from "../src/ty
 import type { ProviderSetupPreflightDecision } from "../src/types/provider-setup";
 import { makeProviderModelId } from "../src/types/providers";
 import { type SourceManifest, makeIsoTimestamp, makeNormalizedVaultPath } from "../src/types/vault";
+import { SYNTHETIC_PRIVATE_CONTENT_PROBE } from "./fixtures/providers/provider-invocation-fixtures";
 import {
 	APPROVED_URL_SOURCE_INPUT,
 	DENIED_URL_SOURCE_INPUT,
@@ -307,12 +308,17 @@ describe("source ingestion staging", () => {
 
 	it("falls back deterministically after provider timeout and rejects duplicate in-flight staging", async () => {
 		let releaseProvider: (() => void) | undefined;
+		let markProviderStarted: (() => void) | undefined;
+		const providerStarted = new Promise<void>((resolve) => {
+			markProviderStarted = resolve;
+		});
 		const service = new SourceIngestionStagingService({
 			providerPreflight: allowedPreflight,
 			providerTimeoutMs: 5,
 			maxProviderAttempts: 1,
 			providerExtractor: () =>
 				new Promise((resolve) => {
+					markProviderStarted?.();
 					releaseProvider = () =>
 						resolve({
 							entities: ["Late Entity"],
@@ -330,7 +336,7 @@ describe("source ingestion staging", () => {
 				providerMode: "optional-summary",
 			},
 		});
-		await Promise.resolve();
+		await providerStarted;
 		const duplicate = await service.stageSource({
 			input: {
 				...APPROVED_URL_SOURCE_INPUT,
@@ -353,5 +359,74 @@ describe("source ingestion staging", () => {
 				code: "provider-extraction-failed",
 			},
 		});
+	});
+
+	it("records provider cancellation and unsafe failures without leaking diagnostics", async () => {
+		const controller = new AbortController();
+		let markProviderStarted: (() => void) | undefined;
+		const providerStarted = new Promise<void>((resolve) => {
+			markProviderStarted = resolve;
+		});
+		const canceledService = new SourceIngestionStagingService({
+			providerPreflight: allowedPreflight,
+			providerExtractor: () => {
+				markProviderStarted?.();
+				return new Promise(() => undefined);
+			},
+			providerTimeoutMs: 1000,
+			maxProviderAttempts: 1,
+			now: fixedNow,
+		});
+		const canceled = canceledService.stageSource({
+			input: {
+				...SAFE_MARKDOWN_SOURCE_INPUT,
+				providerMode: "optional-summary",
+			},
+			signal: controller.signal,
+		});
+		await providerStarted;
+		controller.abort();
+		const canceledResult = await canceled;
+		expect(canceledResult).toMatchObject({
+			ok: false,
+			code: "ingestion.canceled",
+			providerDecision: {
+				attempts: [
+					{
+						status: "canceled",
+					},
+				],
+			},
+		});
+
+		const unsafeFailure = await new SourceIngestionStagingService({
+			providerPreflight: allowedPreflight,
+			providerExtractor: async () => {
+				throw new Error(`provider failed with ${SYNTHETIC_PRIVATE_CONTENT_PROBE} and fixture-provider-secret`);
+			},
+			providerTimeoutMs: 1000,
+			maxProviderAttempts: 1,
+			now: fixedNow,
+		}).stageSource({
+			input: {
+				...SAFE_MARKDOWN_SOURCE_INPUT,
+				providerMode: "optional-summary",
+			},
+		});
+		expect(unsafeFailure).toMatchObject({
+			ok: true,
+			providerDecision: {
+				kind: "failed",
+				code: "provider-extraction-failed",
+				attempts: [
+					{
+						status: "failed",
+					},
+				],
+			},
+		});
+		const serialized = JSON.stringify(unsafeFailure);
+		expect(serialized).not.toContain(SYNTHETIC_PRIVATE_CONTENT_PROBE);
+		expect(serialized).not.toContain("fixture-provider-secret");
 	});
 });

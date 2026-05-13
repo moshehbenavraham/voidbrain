@@ -1,5 +1,8 @@
+import {
+	createProviderInvocationAttempt,
+	normalizeProviderInvocationDiagnostic,
+} from "../providers/provider-invocation";
 import { preflightProviderSetup } from "../providers/provider-preflight";
-import type { ChatProviderAttempt } from "../types/chat";
 import {
 	INGEST_SOURCE_COMMAND_ID,
 	type SourceIngestionIntakeRequest,
@@ -10,6 +13,7 @@ import {
 	type SourceIngestionStageResult,
 } from "../types/ingestion";
 import type { VoidbrainPluginSettings } from "../types/plugin";
+import type { ProviderInvocationAttempt } from "../types/provider-invocation";
 import type { ProviderSetupPreflightDecision } from "../types/provider-setup";
 import type { ProviderDefinition } from "../types/providers";
 import type { IsoTimestamp, NormalizedVaultPath, StagedChangeRecord, ValidationIssue } from "../types/vault";
@@ -147,14 +151,17 @@ const createDeterministicExtraction = (
 const createAttempt = (
 	now: () => Date,
 	attempt: number,
-	status: ChatProviderAttempt["status"],
+	status: ProviderInvocationAttempt["status"],
 	diagnostic: Record<string, string | number | boolean | null>,
-): ChatProviderAttempt => ({
-	attempt,
-	startedAt: makeIsoTimestamp(now().toISOString()),
-	completedAt: makeIsoTimestamp(now().toISOString()),
-	status,
-	diagnostic,
+): ProviderInvocationAttempt => ({
+	...createProviderInvocationAttempt({
+		attempt,
+		startedAt: now(),
+		completedAt: now(),
+		status,
+		retryable: status !== "succeeded",
+		diagnostic: normalizeProviderInvocationDiagnostic(diagnostic),
+	}),
 });
 
 const notRequestedDecision = (): SourceIngestionProviderDecisionRecord => ({
@@ -533,7 +540,7 @@ export class SourceIngestionStagingService {
 			};
 		}
 
-		const attempts: ChatProviderAttempt[] = [];
+		const attempts: ProviderInvocationAttempt[] = [];
 		for (let attempt = 1; attempt <= this.maxProviderAttempts; attempt += 1) {
 			const timed = await runProviderExtractorWithTimeout(
 				extractor,
@@ -548,7 +555,7 @@ export class SourceIngestionStagingService {
 
 			if (timed.aborted === true) {
 				attempts.push(
-					createAttempt(this.now, attempt, "failed", {
+					createAttempt(this.now, attempt, "canceled", {
 						reason: "provider-aborted",
 					}),
 				);

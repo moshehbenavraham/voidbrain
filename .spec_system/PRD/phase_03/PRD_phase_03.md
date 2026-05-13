@@ -4,7 +4,7 @@
 **Sessions**: 6
 **Estimated Duration**: 6-9 days
 
-**Progress**: 2/6 sessions (33%)
+**Progress**: 3/6 sessions (50%)
 
 ---
 
@@ -30,7 +30,7 @@ written to markdown, logs, fixtures, screenshots, or generated examples.
 |---------|------|--------|------------|-----------|
 | 01 | Local Runtime Provider Profiles | Complete | ~12-25 | 2026-05-13 |
 | 02 | OpenAI-Compatible Provider Profiles | Complete | ~12-25 | 2026-05-13 |
-| 03 | Provider Transport Invocation Boundaries | Not Started | ~12-25 | - |
+| 03 | Provider Transport Invocation Boundaries | Complete | ~12-25 | 2026-05-13 |
 | 04 | Offline Embeddings and Index Compatibility | Not Started | ~12-25 | - |
 | 05 | Provider Troubleshooting and Recovery UX | Not Started | ~12-25 | - |
 | 06 | Offline Provider Integration Validation | Not Started | ~12-25 | - |
@@ -41,12 +41,12 @@ written to markdown, logs, fixtures, screenshots, or generated examples.
 
 1. Local Runtime Provider Profiles
 2. OpenAI-Compatible Provider Profiles
+3. Provider Transport Invocation Boundaries
 
 ---
 
 ## Upcoming Sessions
 
-- Session 03: Provider Transport Invocation Boundaries
 - Session 04: Offline Embeddings and Index Compatibility
 - Session 05: Provider Troubleshooting and Recovery UX
 - Session 06: Offline Provider Integration Validation

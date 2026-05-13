@@ -172,6 +172,7 @@ const semanticReadiness = (input: {
 	readonly sourcePaths: readonly NormalizedVaultPath[];
 	readonly message: string;
 	readonly diagnosticCode?: string;
+	readonly validationOutput?: readonly string[];
 }): SemanticIndexReadiness => ({
 	state: input.state,
 	readinessState: readinessStateForSemantic(input.state),
@@ -182,6 +183,17 @@ const semanticReadiness = (input: {
 	sourcePathCount: input.sourcePaths.length,
 	message: input.message,
 	diagnosticCode: input.diagnosticCode ?? null,
+	recovery: {
+		commandId: SEMANTIC_INDEX_READINESS_WORKFLOW_ID,
+		providerId: input.settings.providerRoles.embedding.providerId,
+		modelId: input.settings.providerRoles.embedding.modelId,
+		sourcePathCount: input.sourcePaths.length,
+		readinessCode: input.diagnosticCode ?? null,
+		validationOutput: input.validationOutput ?? [input.diagnosticCode ?? input.state],
+		retryGuidance:
+			"Inspect semantic readiness recovery fields and rerun indexing readiness after provider setup changes.",
+		updatedAt: toIsoTimestamp(input.checkedAt),
+	},
 });
 
 export class IndexingRuntimeService {
@@ -500,6 +512,7 @@ export class IndexingRuntimeService {
 				settings,
 				sourcePaths,
 				message: "Semantic indexing is disabled in settings.",
+				validationOutput: ["semantic indexing disabled"],
 			});
 		}
 
@@ -526,6 +539,7 @@ export class IndexingRuntimeService {
 				sourcePaths,
 				message: setupDecision.userMessage,
 				diagnosticCode: setupDecision.code,
+				validationOutput: [setupDecision.code],
 			});
 		}
 
@@ -546,6 +560,7 @@ export class IndexingRuntimeService {
 				sourcePaths,
 				message: semanticDecision.preflight.userMessage,
 				diagnosticCode: semanticDecision.preflight.code,
+				validationOutput: [semanticDecision.preflight.code],
 			});
 		}
 
@@ -557,6 +572,7 @@ export class IndexingRuntimeService {
 				sourcePaths,
 				message: "Selected embedding model does not declare an embedding family.",
 				diagnosticCode: "missing-embedding-family",
+				validationOutput: ["missing-embedding-family"],
 			});
 		}
 
@@ -566,6 +582,7 @@ export class IndexingRuntimeService {
 			settings,
 			sourcePaths,
 			message: "Semantic indexing preflight is ready for the selected embedding provider.",
+			validationOutput: ["semantic provider preflight ready"],
 		});
 	}
 
