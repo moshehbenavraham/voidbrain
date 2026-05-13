@@ -40,7 +40,7 @@ This is a UX and diagnostics hardening session. It should improve settings and s
 - Obsidian settings tab, status view, Svelte status surface, and plugin lifecycle wiring.
 
 ### Environment Requirements
-- Repository root is `/home/aiwithapex/projects/newproject`.
+- Repository root is `/home/aiwithapex/projects/voidbrain`.
 - Validation runs from the repository root with Bun available.
 - Tests use synthetic provider and fixture vault data only.
 - No live provider calls, cloud credentials, private vault files, raw note bodies, or network access are required.

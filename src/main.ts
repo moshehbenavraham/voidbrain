@@ -63,6 +63,7 @@ import type {
 	StagedReviewIndexRefreshResult,
 } from "./types/staged-review";
 import type { HotCacheState, NormalizedVaultPath, OperationLog, StagedChangeRecord } from "./types/vault";
+import { captureLastError, createVoidbrainLogger } from "./utils/logger";
 import {
 	type SettingsLoadStatus,
 	type SettingsValidationError,
@@ -93,6 +94,7 @@ interface PluginRuntimeStatus {
 
 export default class VoidbrainPlugin extends Plugin {
 	private readonly cleanupCallbacks: CleanupCallback[] = [];
+	private readonly logger = createVoidbrainLogger("voidbrain.plugin");
 	private readonly registeredCommandIds: string[] = [];
 	private readonly registeredViewTypes: string[] = [];
 	private isRuntimeLoaded = false;
@@ -135,70 +137,80 @@ export default class VoidbrainPlugin extends Plugin {
 	private runtimeStatusStore: RuntimeStatusStore = createRuntimeStatusStore(this.runtimeStatusSnapshot);
 
 	override async onload(): Promise<void> {
-		const settingsLoadResult = await loadPluginSettings(this);
-		this.settings = settingsLoadResult.settings;
-		this.settingsLoadErrors = settingsLoadResult.errors;
-		this.settingsLoadStatus = settingsLoadResult.status;
-		this.createIndexingRuntime();
-		this.createHotCacheRuntime();
-		await this.restoreHotCacheRuntime();
-		this.createChatRuntime();
-		this.createIngestionRuntime();
-		this.createStagedReviewRuntime();
-		this.createHealthRuntime();
-		this.createRecoveryRuntime();
-		this.refreshRuntimeStatusSnapshot();
-		this.isRuntimeLoaded = true;
+		try {
+			const settingsLoadResult = await loadPluginSettings(this);
+			this.settings = settingsLoadResult.settings;
+			this.settingsLoadErrors = settingsLoadResult.errors;
+			this.settingsLoadStatus = settingsLoadResult.status;
+			this.createIndexingRuntime();
+			this.createHotCacheRuntime();
+			await this.restoreHotCacheRuntime();
+			this.createChatRuntime();
+			this.createIngestionRuntime();
+			this.createStagedReviewRuntime();
+			this.createHealthRuntime();
+			this.createRecoveryRuntime();
+			this.refreshRuntimeStatusSnapshot();
+			this.isRuntimeLoaded = true;
 
-		if (this.settings.shouldShowStatusNotices && settingsLoadResult.status === "recovered") {
-			new Notice("voidbrain settings were reset to local-first defaults.", 5000);
+			if (this.settings.shouldShowStatusNotices && settingsLoadResult.status === "recovered") {
+				new Notice("voidbrain settings were reset to local-first defaults.", 5000);
+			}
+
+			this.registerStatusCommand();
+			this.registerCatalogCommands();
+			this.registerStatusView();
+			this.registerChatView();
+			this.registerRibbonAction();
+			this.registerSettingsTab();
+			this.startIndexingOnStartup();
+
+			this.registerOwnedCleanup(() => {
+				this.unsubscribeFromIndexingRuntime?.();
+				this.unsubscribeFromIndexingRuntime = null;
+				this.indexingRuntime?.dispose();
+				this.indexingRuntime = null;
+				this.hotCacheStore?.clear();
+				this.hotCacheStore = null;
+				this.hotCacheService = null;
+				this.hotCacheState = null;
+				this.restoredChatThreadState = null;
+				this.chatThreadStore?.clear();
+				this.chatThreadStore = null;
+				this.chatService = null;
+				this.ingestionStagingStore?.clear();
+				this.ingestionStagingStore = null;
+				this.ingestionQueueService?.dispose();
+				this.ingestionQueueService = null;
+				this.ingestionQueueStore?.clear();
+				this.ingestionQueueStore = null;
+				this.ingestionQueuePersistenceState = null;
+				this.latestIngestionQueueSummary = null;
+				this.ingestionStagingService = null;
+				this.ingestionIntakeService = null;
+				this.stagedChangeReviewStore?.clear();
+				this.stagedChangeReviewStore = null;
+				this.stagedChangeReviewService = null;
+				this.healthStore?.clear();
+				this.healthStore = null;
+				this.healthService = null;
+				this.latestHealthReport = null;
+				this.recoveryService = null;
+				this.latestRecoverySummary = null;
+				this.stagedReviewAuditEntries.splice(0, this.stagedReviewAuditEntries.length);
+				this.ingestionStagedChanges.splice(0, this.ingestionStagedChanges.length);
+				this.isRuntimeLoaded = false;
+				this.runtimeStatusStore.clear();
+			});
+		} catch (error) {
+			captureLastError(error, {
+				context: {
+					command: "plugin.onload",
+				},
+				logger: this.logger,
+			});
+			throw error;
 		}
-
-		this.registerStatusCommand();
-		this.registerCatalogCommands();
-		this.registerStatusView();
-		this.registerChatView();
-		this.registerRibbonAction();
-		this.registerSettingsTab();
-		this.startIndexingOnStartup();
-
-		this.registerOwnedCleanup(() => {
-			this.unsubscribeFromIndexingRuntime?.();
-			this.unsubscribeFromIndexingRuntime = null;
-			this.indexingRuntime?.dispose();
-			this.indexingRuntime = null;
-			this.hotCacheStore?.clear();
-			this.hotCacheStore = null;
-			this.hotCacheService = null;
-			this.hotCacheState = null;
-			this.restoredChatThreadState = null;
-			this.chatThreadStore?.clear();
-			this.chatThreadStore = null;
-			this.chatService = null;
-			this.ingestionStagingStore?.clear();
-			this.ingestionStagingStore = null;
-			this.ingestionQueueService?.dispose();
-			this.ingestionQueueService = null;
-			this.ingestionQueueStore?.clear();
-			this.ingestionQueueStore = null;
-			this.ingestionQueuePersistenceState = null;
-			this.latestIngestionQueueSummary = null;
-			this.ingestionStagingService = null;
-			this.ingestionIntakeService = null;
-			this.stagedChangeReviewStore?.clear();
-			this.stagedChangeReviewStore = null;
-			this.stagedChangeReviewService = null;
-			this.healthStore?.clear();
-			this.healthStore = null;
-			this.healthService = null;
-			this.latestHealthReport = null;
-			this.recoveryService = null;
-			this.latestRecoverySummary = null;
-			this.stagedReviewAuditEntries.splice(0, this.stagedReviewAuditEntries.length);
-			this.ingestionStagedChanges.splice(0, this.ingestionStagedChanges.length);
-			this.isRuntimeLoaded = false;
-			this.runtimeStatusStore.clear();
-		});
 	}
 
 	override onunload(): void {
@@ -1425,7 +1437,13 @@ export default class VoidbrainPlugin extends Plugin {
 		try {
 			callback();
 		} catch (error) {
-			console.error("voidbrain cleanup failed", error);
+			captureLastError(error, {
+				context: {
+					command: "plugin.onunload.cleanup",
+				},
+				fallbackMessage: "voidbrain cleanup failed.",
+				logger: this.logger,
+			});
 		}
 	}
 }

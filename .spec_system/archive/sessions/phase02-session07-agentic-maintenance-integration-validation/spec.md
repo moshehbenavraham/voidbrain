@@ -44,7 +44,7 @@ This is an integration and closeout session, not a new feature session. It shoul
 - Obsidian plugin lifecycle and service wiring in `src/main.ts`.
 
 ### Environment Requirements
-- Repository root is `/home/aiwithapex/projects/newproject`.
+- Repository root is `/home/aiwithapex/projects/voidbrain`.
 - Validation runs from the repository root with Bun available.
 - Tests use only `test/fixtures/vault/` or clearly fake fixture paths.
 - No cloud provider calls and no live URL fetches are required for this session.

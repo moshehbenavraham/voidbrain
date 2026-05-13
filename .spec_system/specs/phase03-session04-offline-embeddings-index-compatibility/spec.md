@@ -42,7 +42,7 @@ This is an index compatibility and fallback session. It should introduce typed s
 - Strict TypeScript contracts under `src/types/retrieval.ts`, `src/types/indexing-runtime.ts`, `src/types/runtime.ts`, and `src/types/provider-invocation.ts`.
 
 ### Environment Requirements
-- Repository root is `/home/aiwithapex/projects/newproject`.
+- Repository root is `/home/aiwithapex/projects/voidbrain`.
 - Validation runs from the repository root with Bun available.
 - Tests use synthetic vault and provider fixtures only.
 - No live local runtime, cloud provider call, private vault file, credential, authorization header, remote account, or network access is required.

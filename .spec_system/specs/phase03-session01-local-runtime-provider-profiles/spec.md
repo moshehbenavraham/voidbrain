@@ -40,7 +40,7 @@ This is a contract and readiness session. It should strengthen provider profile 
 - Strict TypeScript provider contracts under `src/types/providers.ts` and `src/types/provider-setup.ts`.
 
 ### Environment Requirements
-- Repository root is `/home/aiwithapex/projects/newproject`.
+- Repository root is `/home/aiwithapex/projects/voidbrain`.
 - Validation runs from the repository root with Bun available.
 - Tests use synthetic provider fixtures only.
 - No live local runtime, cloud provider call, private vault content, credential, or authorization header is required.

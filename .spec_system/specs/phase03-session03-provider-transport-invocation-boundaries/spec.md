@@ -42,7 +42,7 @@ This is a transport boundary session. It should create reusable invocation contr
 - Strict TypeScript provider contracts under `src/types/providers.ts`, `src/types/provider-setup.ts`, `src/types/chat.ts`, and `src/types/retrieval.ts`.
 
 ### Environment Requirements
-- Repository root is `/home/aiwithapex/projects/newproject`.
+- Repository root is `/home/aiwithapex/projects/voidbrain`.
 - Validation runs from the repository root with Bun available.
 - Tests use synthetic provider and vault fixtures only.
 - No live local runtime, cloud provider call, private vault file, credential, authorization header, or remote account is required.

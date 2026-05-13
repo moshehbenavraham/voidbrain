@@ -119,5 +119,6 @@ Obsidian vault -> src/main.ts -> domain services -> local indexes / staged recor
 - Stage AI-proposed note mutations before applying them.
 - Favor local-first, testable services over hidden runtime side effects.
 
-See `.spec_system/CONVENTIONS.md` and `.spec_system/PRD/PRD.md` for the
+See [Architecture Decision Records](adr/README_adr.md),
+`.spec_system/CONVENTIONS.md`, and `.spec_system/PRD/PRD.md` for the
 project-level contract and roadmap.

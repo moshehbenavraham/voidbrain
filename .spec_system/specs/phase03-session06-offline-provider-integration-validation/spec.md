@@ -43,7 +43,7 @@ This is an integration and closeout session, not a provider feature expansion. I
 - Agent surface validation and fixture safety scripts under `scripts/`.
 
 ### Environment Requirements
-- Repository root is `/home/aiwithapex/projects/newproject`.
+- Repository root is `/home/aiwithapex/projects/voidbrain`.
 - Validation runs from the repository root with Bun available.
 - Tests use only synthetic provider data and fixture vault paths.
 - No live provider calls, cloud credentials, network calls, private vault files, raw note bodies, prompt bodies, authorization headers, or hidden provider state are required.

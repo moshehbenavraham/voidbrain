@@ -1,7 +1,7 @@
 # Considerations
 
 > Institutional memory for AI assistants. Updated between phases via carryforward.
-> **Line budget**: 600 max | **Last updated**: Phase 03 (2026-05-13)
+> **Line budget**: 600 max | **Last updated**: Phase 04 (2026-05-13)
 
 ---
 
@@ -11,8 +11,8 @@ Items requiring attention in upcoming phases. Review before each session.
 
 ### Technical Debt
 
-- [P02] **Workflow drift risk**: phase tracking, command docs, and archived session stubs still need synchronized updates whenever session or phase state changes; phase 02 closeout exposed stale PRD session text in archived notes.
-- [P02] **Spec script parity**: project-local `.spec_system/scripts/` has `analyze-project.sh` but still lacks `check-prereqs.sh`; bundled fallback worked, but local script parity should be restored in a workflow update.
+- [P02] **Workflow drift risk**: phase tracking, command docs, and archived session stubs still need synchronized updates whenever session or phase state changes; phase 04 closeout reinforced that PRD, validation, summary, and support docs can drift if they are not updated together.
+- [P04] **Spec script parity**: project-local `.spec_system/scripts/` still has `analyze-project.sh` but lacks `check-prereqs.sh`; the bundled fallback worked, but local script parity should be restored in a workflow update.
 
 ### External Dependencies
 
@@ -61,6 +61,8 @@ Proven patterns and anti-patterns. Reference during implementation.
 - [P03] **Semantic fallback evidence**: Phase 03 showed that stale, missing, incompatible, canceled, provider-blocked, and offline semantic states are easier to recover when lexical fallback and reindex guidance are asserted together.
 - [P03] **Closeout integration coverage**: End-to-end phase closeout tests are most useful when they span profile readiness, invocation, fallback, troubleshooting, fixture safety, and docs sync together.
 - [P04] **Distribution closeout fixture orchestration**: One synthetic distribution fixture module can validate release artifacts, install/update, agent packages, provider readiness, selected-output handoff, fixture safety, and recovery evidence without live provider calls.
+- [P04] **Selected-output boundaries**: Centralize export and ecosystem handoff rules so docs can cross-link a single planner instead of repeating direct-publish and full-vault caveats.
+- [P04] **Closeout validation coverage**: Run release, install/update, package, onboarding, provider readiness, handoff, and agent-doc checks together to catch drift across surfaces.
 - [P04] **Distribution evidence cross-links**: Release, install, package, onboarding, provider, handoff, agent surfaces, README, PRD, security, and summary records should point to one closeout evidence page to reduce drift.
 
 ### What to Avoid
@@ -78,6 +80,7 @@ Proven patterns and anti-patterns. Reference during implementation.
 - [P03] **Cloud safety by shape**: Do not infer disclosure safety from an OpenAI-compatible URL or API shape; trust must stay explicit.
 - [P03] **Runtime-only diagnostics**: Do not persist semantic compatibility or troubleshooting diagnostics into plugin settings when they are only needed for live support flows.
 - [P04] **Package and handoff scope creep**: Do not let package reuse or ecosystem handoff language imply hosted publishing, direct sync, full-vault export defaults, or copying `.voidbrain` support records into downstream packages.
+- [P04] **Subtle publishing language**: Fixture-safe docs must reject wording that suggests hosted sync, public publishing, or default full-vault export even when the implementation is local-only.
 
 ### Tool/Library Notes
 
@@ -87,6 +90,7 @@ Proven patterns and anti-patterns. Reference during implementation.
 - [P01] **Svelte/Obsidian UI**: Modal and status surfaces need explicit cleanup and re-entry handling because stale UI state can outlive the underlying service.
 - [P01] **Repo-local scripts**: Keeping `scripts/analyze-project.sh` in-repo removed a workflow dependency on skill-bundled helpers.
 - [P04] **Spec prereq checker fallback**: `.spec_system/scripts/` still lacks `check-prereqs.sh`; bundled apex-spec prereq fallback works, but local script parity remains a workflow maintenance item.
+- [P04] **Validation harness ordering**: Phase 04 closeout surfaced one deterministic path-order assertion fix, so integration harnesses should pin expected ordering explicitly when sorting mixed docs and reports.
 
 ---
 

@@ -81,6 +81,8 @@ team knowledge-base pushes, and full-vault export defaults stay blocked.
 - [Development Guide](docs/development.md)
 - [Environment Guide](docs/environments.md)
 - [Deployment Guide](docs/deployment.md)
+- [Architecture Decision Records](docs/adr/README_adr.md)
+- [Runbooks](docs/runbooks/README_runbooks.md)
 - [Release Artifact Validation](docs/release-artifacts.md)
 - [Obsidian Install And Update Workflow](docs/obsidian-install-update.md)
 - [Agent Surface Packaging](docs/agent-surface-packaging.md)
