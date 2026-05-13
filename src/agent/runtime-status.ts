@@ -522,6 +522,59 @@ const hotCacheStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
 	};
 };
 
+const maintenanceStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
+	const plan = input.maintenanceRecommendations?.plan ?? null;
+	if (plan === null) {
+		return {
+			id: "maintenance-recommendations",
+			area: "maintenance",
+			label: "Maintenance recommendations",
+			severity: "missing",
+			summary: "No maintenance recommendation plan has been generated yet.",
+			details: ["Maintenance planning has not received health, retrieval, index, and staged-change evidence."],
+			paths: [],
+			count: 0,
+		};
+	}
+
+	const paths = limitedPaths(plan.summary.affectedPaths);
+	const details = [
+		`Plan generated at ${plan.generatedAt}.`,
+		`${plan.summary.totalRecommendations} recommendation(s).`,
+		`${plan.summary.errorCount} error, ${plan.summary.warningCount} warning, ${plan.summary.infoCount} info.`,
+		`${plan.summary.stageableCount} stageable, ${plan.summary.reportOnlyCount} report-only, ${plan.summary.blockedCount} blocked.`,
+		`${plan.summary.highConfidenceCount} high-confidence, ${plan.summary.mediumConfidenceCount} medium-confidence, ${plan.summary.lowConfidenceCount} low-confidence.`,
+		...paths.map((path) => `Affected path sample: ${path}.`),
+		"Recommendation records do not include raw note bodies or provider state.",
+	];
+
+	const severity =
+		plan.summary.errorCount > 0
+			? "error"
+			: plan.summary.warningCount > 0 || plan.summary.stageableCount > 0 || plan.summary.blockedCount > 0
+				? "warning"
+				: "ready";
+	const summary =
+		severity === "error"
+			? "Maintenance recommendations include error-severity findings."
+			: severity === "warning"
+				? "Maintenance recommendations need review or staged-change action."
+				: plan.summary.totalRecommendations === 0
+					? "No maintenance recommendations are currently queued."
+					: "Maintenance recommendations are informational.";
+
+	return {
+		id: "maintenance-recommendations",
+		area: "maintenance",
+		label: "Maintenance recommendations",
+		severity,
+		summary,
+		details,
+		paths,
+		count: plan.summary.totalRecommendations,
+	};
+};
+
 export const createRuntimeStatusSnapshot = (input: RuntimeStatusInput): RuntimeStatusSnapshot => {
 	const candidateItems = [
 		input.settings.status.shouldShowProviderStatus ? providerStatusItem(input) : undefined,
@@ -529,6 +582,7 @@ export const createRuntimeStatusSnapshot = (input: RuntimeStatusInput): RuntimeS
 		input.settings.status.shouldShowStagedChangeStatus ? stagedChangeStatusItem(input) : undefined,
 		input.settings.status.shouldShowHealthStatus ? healthStatusItem(input) : undefined,
 		input.settings.status.shouldShowHotCacheStatus ? hotCacheStatusItem(input) : undefined,
+		input.maintenanceRecommendations === undefined ? undefined : maintenanceStatusItem(input),
 	];
 	const items = candidateItems.filter((item): item is RuntimeStatusItem => item !== undefined);
 

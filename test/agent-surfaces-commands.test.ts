@@ -1,5 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
+import { planMaintenanceRecommendations } from "../src/agent";
 import { formatAgentValidationIssue } from "../src/agent/agent-validation-reporting";
 import {
 	AGENT_COMMAND_CATALOG,
@@ -28,6 +29,10 @@ import {
 	surfaceMarkdownWithStaleStatus,
 	unsafeFixtureExampleText,
 } from "./fixtures/vault/agent-surface-validation-fixtures";
+import {
+	MAINTENANCE_FIXED_DATE,
+	createMaintenanceHealthReport,
+} from "./fixtures/vault/maintenance-recommendation-fixtures";
 
 const firstSurface = () => {
 	const surface = AGENT_SURFACES[0];
@@ -78,6 +83,24 @@ describe("agent command catalog", () => {
 		expect(getSupportedAgentSurfaces("voidbrain.ingest-source").map((surface) => surface.path)).toContain(
 			"AGENTS.md",
 		);
+	});
+
+	it("keeps maintenance recommendations on existing health-check command surfaces", () => {
+		const commandIds = new Set<string>(AGENT_COMMAND_CATALOG.map((command) => command.id));
+		const plan = planMaintenanceRecommendations({
+			healthReport: createMaintenanceHealthReport(),
+			now: MAINTENANCE_FIXED_DATE,
+		});
+
+		expect(AGENT_COMMAND_IDS).not.toContain("voidbrain.maintenance-recommendations");
+		expect(plan.recommendations.length).toBeGreaterThan(0);
+		expect([...new Set(plan.recommendations.map((recommendation) => recommendation.recovery.commandId))]).toEqual([
+			"voidbrain.health-check",
+		]);
+		expect(plan.recommendations.every((recommendation) => commandIds.has(recommendation.recovery.commandId))).toBe(
+			true,
+		);
+		expect(getAgentCommandById("voidbrain.health-check")?.writePolicy).toBe("staged-changes");
 	});
 });
 

@@ -30,6 +30,35 @@ export {
 	createHotCacheService,
 	restoreHotCacheState,
 } from "./hot-cache-service";
+export {
+	MaintenanceRecommendationPlanner,
+	createMaintenanceRecommendationPlanner,
+	planMaintenanceRecommendations,
+} from "./maintenance-recommendation-planner";
+export type {
+	MaintenanceRecommendationPlannerInput,
+	MaintenanceRecommendationPlannerOptions,
+	MaintenanceRecommendationRepairService,
+	MaintenanceRecommendationStageInput,
+} from "./maintenance-recommendation-planner";
+export type {
+	MaintenanceRecommendation,
+	MaintenanceRecommendationCategory,
+	MaintenanceRecommendationConfidence,
+	MaintenanceRecommendationEvidence,
+	MaintenanceRecommendationEvidenceKind,
+	MaintenanceRecommendationPlan,
+	MaintenanceRecommendationRecovery,
+	MaintenanceRecommendationSeverity,
+	MaintenanceRecommendationSourceRecord,
+	MaintenanceRecommendationStageFailure,
+	MaintenanceRecommendationStageFailureReason,
+	MaintenanceRecommendationStageResult,
+	MaintenanceRecommendationStageSuccess,
+	MaintenanceRecommendationStageability,
+	MaintenanceRecommendationStageabilityKind,
+	MaintenanceRecommendationSummary,
+} from "../types/maintenance";
 export { RecoverSessionService, createRecoverSessionService } from "./recover-session-service";
 export type {
 	RecoverSessionInput,

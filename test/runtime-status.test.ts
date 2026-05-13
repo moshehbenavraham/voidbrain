@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createRuntimeStatusSnapshot } from "../src/agent";
+import { createRuntimeStatusSnapshot, planMaintenanceRecommendations } from "../src/agent";
 import {
 	BASELINE_PROVIDERS,
 	LOCAL_FIXTURE_PROVIDER_ID,
@@ -17,6 +17,12 @@ import { makeIsoTimestamp, makeNormalizedVaultPath } from "../src/types/vault";
 import { createProgressSnapshot, evaluateIndexFreshness } from "../src/vectorstore";
 import { SYNTHETIC_CLOUD_PROFILE_INPUT } from "./fixtures/providers/provider-setup-fixtures";
 import { createHotCacheStateFixture } from "./fixtures/vault/hot-cache-fixtures";
+import {
+	createMaintenanceActiveStagedChange,
+	createMaintenanceHealthReport,
+	createMaintenanceIndexFreshnessSnapshots,
+	createMaintenanceRetrievalResults,
+} from "./fixtures/vault/maintenance-recommendation-fixtures";
 
 const fixedDate = new Date("2026-05-13T00:00:00.000Z");
 const fixedTimestamp = makeIsoTimestamp("2026-05-13T00:00:00.000Z");
@@ -451,5 +457,43 @@ describe("runtime status composition", () => {
 			summary: "Hot cache persistence or recovery failed.",
 		});
 		expect(JSON.stringify(failedSnapshot)).not.toContain("runtimeSecret");
+	});
+
+	it("reports maintenance recommendation summaries with synchronized health, index, and staged-change state", () => {
+		const maintenanceHealthReport = createMaintenanceHealthReport();
+		const maintenanceIndexFreshness = createMaintenanceIndexFreshnessSnapshots();
+		const maintenanceStagedChange = createMaintenanceActiveStagedChange("review-ready");
+		const maintenancePlan = planMaintenanceRecommendations({
+			healthReport: maintenanceHealthReport,
+			indexFreshness: maintenanceIndexFreshness,
+			retrievalResults: createMaintenanceRetrievalResults(),
+			stagedChanges: [maintenanceStagedChange],
+			now: fixedDate,
+		});
+		const snapshot = createRuntimeStatusSnapshot({
+			settings: readySettings,
+			providers: BASELINE_PROVIDERS,
+			indexFreshness: maintenanceIndexFreshness,
+			stagedChanges: [maintenanceStagedChange],
+			healthReport: maintenanceHealthReport,
+			maintenanceRecommendations: {
+				plan: maintenancePlan,
+			},
+			now: fixedDate,
+		});
+		const maintenanceItem = snapshot.items.find((item) => item.id === "maintenance-recommendations");
+
+		expect(maintenanceItem).toMatchObject({
+			area: "maintenance",
+			severity: "error",
+			count: maintenancePlan.summary.totalRecommendations,
+		});
+		expect(maintenanceItem?.details.join(" ")).toContain(`${maintenancePlan.summary.stageableCount} stageable`);
+		expect(maintenanceItem?.details.join(" ")).toContain(`${maintenancePlan.summary.blockedCount} blocked`);
+		expect(maintenanceItem?.paths).toContain(
+			makeNormalizedVaultPath("summaries/health-summary-missing-citation.md"),
+		);
+		expect(JSON.stringify(maintenanceItem)).not.toContain("Synthetic retrieval body text");
+		expect(JSON.stringify(maintenanceItem)).not.toContain("runtimeSecret");
 	});
 });

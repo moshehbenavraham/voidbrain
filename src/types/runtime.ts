@@ -2,13 +2,21 @@ import type { AgentCommand, AgentCommandId } from "./agent-commands";
 import type { VaultHealthReport } from "./health";
 import type { HotCacheStatusInput } from "./hot-cache";
 import type { IndexingPathDiagnostic, IndexingRuntimeReport, SemanticIndexReadiness } from "./indexing-runtime";
+import type { MaintenanceRecommendationPlan } from "./maintenance";
 import type { VoidbrainPluginSettings } from "./plugin";
 import type { ProviderRoleCapabilitySummary, ProviderSetupSummary } from "./provider-setup";
 import type { ProviderDefinition } from "./providers";
 import type { IndexFreshnessSnapshot, IndexProgressSnapshot } from "./retrieval";
 import type { IsoTimestamp, NormalizedVaultPath, StagedChangeRecord } from "./vault";
 
-export const RUNTIME_STATUS_AREAS = ["provider", "index", "staged-change", "health", "hot-cache"] as const;
+export const RUNTIME_STATUS_AREAS = [
+	"provider",
+	"index",
+	"staged-change",
+	"health",
+	"hot-cache",
+	"maintenance",
+] as const;
 export const RUNTIME_STATUS_SEVERITIES = ["ready", "warning", "error", "missing"] as const;
 export const RUNTIME_COMMAND_OUTCOMES = ["opened", "not-ready", "read-only", "dry-run", "error"] as const;
 
@@ -42,6 +50,10 @@ export interface RuntimeStatusSnapshot {
 	readonly items: readonly RuntimeStatusItem[];
 }
 
+export interface MaintenanceRecommendationStatusInput {
+	readonly plan: MaintenanceRecommendationPlan | null;
+}
+
 export interface RuntimeStatusInput {
 	readonly settings: VoidbrainPluginSettings;
 	readonly providers: readonly ProviderDefinition[];
@@ -55,6 +67,7 @@ export interface RuntimeStatusInput {
 	readonly stagedChanges?: readonly StagedChangeRecord[];
 	readonly healthReport?: VaultHealthReport | null;
 	readonly hotCache?: HotCacheStatusInput | null;
+	readonly maintenanceRecommendations?: MaintenanceRecommendationStatusInput | null;
 	readonly now?: Date;
 }
 

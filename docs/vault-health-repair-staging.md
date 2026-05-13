@@ -35,12 +35,34 @@ Broken wikilinks, broad orphans, stale indexes, and content gaps remain
 report-only. Those findings need user review because the correct target,
 relationship, rebuild decision, or missing content cannot be inferred safely.
 
+## Maintenance Recommendations
+
+The maintenance recommendation planner converts health reports, index
+freshness, retrieval evidence, and staged-change state into a ranked local
+queue. Recommendation records include severity, confidence, affected paths,
+bounded evidence, source records, stageability, and recovery fields. Retrieval
+evidence keeps result IDs, headings, scores, and source paths, but does not
+copy raw snippets or note bodies into durable recommendation output.
+
+Missing-citation findings are the only current recommendation category that
+can become a staged repair. The planner requires a target path, health finding
+ID, source-path citation evidence, current note content, and no active staged
+change for the same target before delegating to the health repair service.
+Report-only, missing-evidence, unsupported-path, active-staged-change, and
+in-flight duplicate requests fail closed with validation output.
+
+Runtime status can include a maintenance summary when a recommendation plan is
+supplied. The summary reports total, error, warning, info, stageable,
+report-only, blocked, confidence counts, and sample affected paths without
+exposing note bodies, provider secrets, hidden provider state, or private
+diagnostics.
+
 ## Recovery
 
 Failures preserve the command ID, report ID, export path, target path,
 staged-change ID when available, and validation output. Users can retry the
-health command, inspect exported reports, or open `voidbrain.stage-change` to
-review any staged repair before apply.
+health command, inspect exported reports, review recommendation records, or
+open `voidbrain.stage-change` to review any staged repair before apply.
 
 ## Limitations
 
