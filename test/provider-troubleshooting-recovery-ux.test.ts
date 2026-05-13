@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 import {
 	UNTRUSTED_CLOUD_FIXTURE_PROVIDER_ID,
+	buildProviderReadinessGuidance,
 	composeProviderTroubleshootingReport,
 	createProviderTroubleshootingRecovery,
 	makeProviderModelId,
 } from "../src/providers";
 import { DEFAULT_PLUGIN_SETTINGS } from "../src/types/plugin";
+import { makeNormalizedVaultPath } from "../src/types/vault";
 import {
 	PROVIDER_TROUBLESHOOTING_CACHE_PATH,
 	PROVIDER_TROUBLESHOOTING_FIXED_DATE,
@@ -159,5 +161,31 @@ describe("provider troubleshooting recovery UX", () => {
 			cachePath: PROVIDER_TROUBLESHOOTING_CACHE_PATH,
 			reportId: PROVIDER_TROUBLESHOOTING_REPORT_ID,
 		});
+	});
+
+	it("keeps provider readiness guidance bounded in troubleshooting scenarios", () => {
+		const scenario = semanticFallbackTroubleshootingScenario();
+		const report = reportFor(scenario);
+		const guidance = buildProviderReadinessGuidance({
+			settings: scenario.settings,
+			providers: scenario.providers,
+			providerTroubleshooting: report,
+			semanticCompatibility: scenario.semanticCompatibility,
+			cachePath: makeNormalizedVaultPath(".voidbrain/cache/provider-readiness.json"),
+			reportId: PROVIDER_TROUBLESHOOTING_REPORT_ID,
+			validationOutput: report.recovery.validationOutput,
+		});
+		const serializedGuidance = JSON.stringify(guidance);
+
+		expect(guidance.paths[0]?.fallback).toMatchObject({
+			mode: "lexical",
+			status: "warning",
+			readinessCode: "provider-offline",
+		});
+		expect(guidance.paths[0]?.fallback.summary).toContain("lexical fallback remains available");
+		expect(guidance.actions.map((action) => action.kind)).toContain("refresh-index");
+		expect(serializedGuidance).not.toContain("runtimeSecret");
+		expect(serializedGuidance).not.toContain("authorization");
+		expect(serializedGuidance).not.toContain("raw note");
 	});
 });

@@ -67,7 +67,8 @@
     "phase03-session06-offline-provider-integration-validation",
     "phase04-session01-release-metadata-build-artifacts",
     "phase04-session02-obsidian-install-update-workflow",
-    "phase04-session03-agent-skill-surface-packaging"
+    "phase04-session03-agent-skill-surface-packaging",
+    "phase04-session04-onboarding-provider-readiness-guides"
   ],
   "next_session_history": [
     {
@@ -328,6 +329,16 @@
     {
       "date": "2026-05-13",
       "session": "phase04-session03-agent-skill-surface-packaging",
+      "status": "completed"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase04-session04-onboarding-provider-readiness-guides",
+      "status": "planned"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase04-session04-onboarding-provider-readiness-guides",
       "status": "completed"
     }
   ]

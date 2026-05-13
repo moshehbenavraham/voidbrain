@@ -5,6 +5,9 @@ Voidbrain provider setup is configured inside Obsidian at
 local development defaults, but the plugin does not currently auto-import
 provider profiles from `.env`; enter the values in the settings UI.
 
+For the first-run gate order and path taxonomy, see
+[Provider Readiness Guide](provider-readiness-guide.md).
+
 ## Quick Start: Ollama
 
 Use this path when Ollama is running on the same machine as Obsidian or is
@@ -68,37 +71,53 @@ incompatible, canceled, provider-blocked, or offline, Voidbrain should expose
 reindex guidance and keep lexical retrieval available when the lexical index is
 ready.
 
-## Local vs OpenAI-Compatible
+## Provider Path Classes
+
+Voidbrain evaluates provider paths in this order:
+
+1. `Local` runtime providers.
+2. `OpenAI-compatible` local endpoints.
+3. `OpenAI-compatible` custom remote endpoints.
+4. Trusted cloud providers.
+5. Untrusted cloud providers, which remain blocked for private vault content.
 
 Use `Local` for local runtime endpoints such as:
 
 - `http://127.0.0.1:11434/v1`
 - `http://localhost:11434/v1`
 
-Use `OpenAI-compatible` for remote or cloud-compatible endpoints that use an
-OpenAI-style API and require an explicit credential, provider review, and cloud
-trust settings. Do not use `OpenAI-compatible` for the local Ollama endpoint in
-the current UI.
+Use `OpenAI-compatible` local when the endpoint uses an OpenAI-style API but
+still resolves to the local machine, such as a local test server at
+`http://localhost:12345/v1`. This path stays local, but auth and capability
+readiness still need to pass before semantic or chat workflows use it.
+
+Use `OpenAI-compatible` custom remote when a non-local endpoint uses an
+OpenAI-style API but is not a built-in cloud provider. Custom remote providers
+must pass provider review, trust, auth, capability, and disclosure gates before
+private vault content can leave the machine.
 
 ## Cloud And Remote Providers
 
-For a remote OpenAI-compatible provider:
+For a custom remote or trusted cloud OpenAI-compatible provider:
 
 1. Set `Profile kind` to `OpenAI-compatible`.
 2. Use a non-local endpoint URL.
 3. Enter a runtime credential in the password field.
 4. Save the provider profile.
-5. Enable `Cloud provider workflows`.
-6. Trust the provider under `Cloud trust`.
-7. Click `Test`.
-8. Select the provider and model for the desired roles.
+5. Review the provider endpoint, trust level, auth boundary, capability needs,
+   and disclosure impact.
+6. Enable `Cloud provider workflows`.
+7. Trust the provider under `Cloud trust` only after review.
+8. Click `Test`.
+9. Select the provider and model for the desired roles.
 
 Never put raw API keys, bearer tokens, passwords, or authorization headers into
 tracked docs, fixtures, screenshots, or example files. Runtime credentials
 should only be entered through the settings UI.
 
 Cloud and custom remote provider use remains blocked until provider review,
-trust, auth, capability, and disclosure settings all pass. Voidbrain does not
+trust, auth, capability, and disclosure settings all pass. Untrusted cloud
+providers are blocked for private vault content. Voidbrain does not
 automatically switch from a local provider to a cloud provider when local
 runtime readiness fails.
 

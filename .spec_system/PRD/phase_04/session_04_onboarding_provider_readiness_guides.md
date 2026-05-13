@@ -1,7 +1,7 @@
 # Session 04: Onboarding and Provider Readiness Guides
 
 **Session ID**: `phase04-session04-onboarding-provider-readiness-guides`
-**Status**: Not Started
+**Status**: In Progress
 **Estimated Tasks**: ~12-25
 **Estimated Duration**: 2-4 hours
 
@@ -37,10 +37,10 @@ explicit local, custom remote, and cloud disclosure gates.
 
 ## Prerequisites
 
-- [ ] Phase 03 provider profile, invocation, semantic fallback, and
+- [x] Phase 03 provider profile, invocation, semantic fallback, and
       troubleshooting workflows are available.
-- [ ] Existing onboarding and provider setup docs are available.
-- [ ] Synthetic provider fixtures can cover setup and failure examples.
+- [x] Existing onboarding and provider setup docs are available.
+- [x] Synthetic provider fixtures can cover setup and failure examples.
 
 ---
 

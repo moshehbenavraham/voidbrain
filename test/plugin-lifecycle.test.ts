@@ -374,13 +374,20 @@ describe("VoidbrainPlugin lifecycle", () => {
 		await flushPromises(1);
 
 		expect(notices.some((notice) => notice.message.includes("already in progress"))).toBe(true);
+		expect(settingsTab?.containerEl.textContent).toContain("loading:");
 
 		releaseSave?.();
 		await flushPromises(10);
 
 		expect(plugin.getSettings().providerAuthStatuses).toEqual([]);
 		expect(notices.some((notice) => notice.message.includes("secret references were preserved"))).toBe(true);
-		expect(plugin.getRuntimeStatusSnapshot().items.find((item) => item.id === "provider-readiness")).toBeDefined();
+		expect(plugin.getRuntimeStatusSnapshot().items.find((item) => item.id === "provider-readiness")).toMatchObject({
+			providerReadiness: expect.objectContaining({
+				recovery: expect.objectContaining({
+					commandId: "voidbrain.provider-readiness-guidance",
+				}),
+			}),
+		});
 	});
 
 	it("keeps cloud disclosure review explicit from provider troubleshooting controls", async () => {
@@ -697,6 +704,7 @@ describe("VoidbrainPlugin lifecycle", () => {
 		);
 		stageButton?.click();
 		await waitForCondition(() => document.body.textContent?.includes("Staged changes:") === true);
+		await waitForCondition(() => notices.some((notice) => notice.message.includes("Source ingestion staged")));
 
 		expect(notices.some((notice) => notice.message.includes("Source ingestion staged"))).toBe(true);
 		expect(document.body.textContent).toContain("Staged changes:");

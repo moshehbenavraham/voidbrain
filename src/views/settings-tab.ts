@@ -1,6 +1,7 @@
 import { type App, Notice, type Plugin, PluginSettingTab, Setting } from "obsidian";
 import {
 	buildProviderDefinitionsForSettings,
+	buildProviderReadinessGuidance,
 	composeProviderTroubleshootingReport,
 	parseProviderProfile,
 	runProviderAuthTest,
@@ -14,6 +15,7 @@ import type {
 	IndexingRuntimeUnsubscribe,
 } from "../types/indexing-runtime";
 import { DEFAULT_PLUGIN_SETTINGS, type VoidbrainPluginSettings } from "../types/plugin";
+import type { ProviderReadinessGuidance } from "../types/provider-readiness-guidance";
 import type {
 	ProviderAuthTestRecord,
 	ProviderTroubleshootingActionKind,
@@ -180,29 +182,50 @@ export class VoidbrainSettingsTab extends PluginSettingTab {
 		const providers = buildProviderDefinitionsForSettings(settings);
 		const setupSummary = summarizeProviderSetup(settings, providers);
 		const roleSummaries = summarizeProviderRoleCapabilities(settings, providers);
+		const semanticCompatibility = this.options.indexingRuntime?.getState().semanticCompatibility ?? null;
 		const troubleshooting = composeProviderTroubleshootingReport({
 			settings,
 			providers,
 			providerSetup: setupSummary,
 			providerRoleCapabilities: roleSummaries,
-			semanticCompatibility: this.options.indexingRuntime?.getState().semanticCompatibility ?? null,
+			semanticCompatibility,
 			reportId: "settings-provider-troubleshooting",
+		});
+		const providerReadiness = buildProviderReadinessGuidance({
+			settings,
+			providers,
+			providerSetup: setupSummary,
+			providerRoleCapabilities: roleSummaries,
+			providerTroubleshooting: troubleshooting,
+			semanticCompatibility,
+			reportId: "settings-provider-readiness",
+			validationOutput: troubleshooting.recovery.validationOutput,
 		});
 		new Setting(this.containerEl).setName("Providers").setHeading();
 		new Setting(this.containerEl)
 			.setName("Provider setup readiness")
-			.setDesc(`${setupSummary.severity}: ${setupSummary.details.join(" ")}`);
-		this.addProviderTroubleshootingControls(settings, troubleshooting);
+			.setDesc(`${providerReadiness.severity}: ${providerReadiness.summary} ${providerReadiness.copy.detail}`);
+		this.addProviderTroubleshootingControls(settings, troubleshooting, providerReadiness);
 
-		this.addProviderProfileControls(settings);
-		this.addCloudTrustControls(settings, providers);
+		this.addProviderProfileControls(settings, providerReadiness);
+		this.addCloudTrustControls(settings, providers, providerReadiness);
 
 		for (const role of providerRoles) {
 			const selection = settings.providerRoles[role];
 			const roleSummary = roleSummaries.find((summary) => summary.role === role);
+			const selectedReadiness =
+				selection.providerId === null
+					? undefined
+					: providerReadiness.paths.find((path) => path.providerId === selection.providerId);
+			const roleDescription = [
+				roleSummary?.message ?? "Provider role status is unavailable.",
+				selectedReadiness === undefined
+					? "Select a provider to revalidate readiness for this role."
+					: `${selectedReadiness.pathLabel}: ${selectedReadiness.copy.summary}`,
+			].join(" ");
 			new Setting(this.containerEl)
 				.setName(`${role} provider`)
-				.setDesc(roleSummary?.message ?? "Provider role status is unavailable.")
+				.setDesc(roleDescription)
 				.addDropdown((dropdown) =>
 					dropdown
 						.addOptions(providerOptions(providers))
@@ -245,17 +268,21 @@ export class VoidbrainSettingsTab extends PluginSettingTab {
 	private addProviderTroubleshootingControls(
 		settings: VoidbrainPluginSettings,
 		report: ProviderTroubleshootingReport,
+		providerReadiness: ProviderReadinessGuidance,
 	): void {
 		const isProviderActionInFlight = this.inFlightProviderActions.size > 0;
 		const isIndexingActionInFlight = this.inFlightIndexingActions.size > 0;
 		const hasProfiles = settings.providerProfiles.length > 0;
 		const stateText = isProviderActionInFlight
 			? "loading"
-			: report.diagnostics.length === 0 && !hasProfiles
+			: providerReadiness.providerCount === 0 && !hasProfiles
 				? "empty"
 				: report.diagnostics.some((diagnostic) => diagnostic.readinessCode === "offline")
 					? "offline"
-					: report.severity;
+					: providerReadiness.severity;
+		const fallbackText =
+			providerReadiness.paths.find((path) => path.fallback.mode === "lexical")?.fallback.summary ??
+			"Lexical retrieval remains the first-run baseline until semantic readiness is explicitly enabled.";
 		const diagnosticText =
 			report.diagnostics.length === 0
 				? hasProfiles
@@ -269,7 +296,7 @@ export class VoidbrainSettingsTab extends PluginSettingTab {
 
 		new Setting(this.containerEl)
 			.setName("Provider troubleshooting")
-			.setDesc(`${stateText}: ${report.summary} ${diagnosticText}.`);
+			.setDesc(`${stateText}: ${providerReadiness.summary} ${diagnosticText}. ${fallbackText}`);
 		new Setting(this.containerEl)
 			.setName("Recovery fields")
 			.setDesc(
@@ -403,7 +430,10 @@ export class VoidbrainSettingsTab extends PluginSettingTab {
 			);
 	}
 
-	private addProviderProfileControls(settings: VoidbrainPluginSettings): void {
+	private addProviderProfileControls(
+		settings: VoidbrainPluginSettings,
+		providerReadiness: ProviderReadinessGuidance,
+	): void {
 		let profileKind: UserProviderProfileKind = "local";
 		let providerId = "";
 		let displayName = "";
@@ -495,14 +525,22 @@ export class VoidbrainSettingsTab extends PluginSettingTab {
 		);
 
 		for (const profile of settings.providerProfiles) {
-			this.addPersistedProviderProfileControl(settings, profile);
+			this.addPersistedProviderProfileControl(settings, profile, providerReadiness);
 		}
 	}
 
-	private addPersistedProviderProfileControl(settings: VoidbrainPluginSettings, profile: UserProviderProfile): void {
+	private addPersistedProviderProfileControl(
+		settings: VoidbrainPluginSettings,
+		profile: UserProviderProfile,
+		providerReadiness: ProviderReadinessGuidance,
+	): void {
 		const authStatus = settings.providerAuthStatuses.find((status) => status.providerId === profile.id);
 		const statusText = authStatus?.status ?? "untested";
-		const profileSummary = `${profile.profileKind}; ${profile.endpoint.hostname ?? "local runtime"}; auth ${statusText}.`;
+		const pathGuidance = providerReadiness.paths.find((path) => path.providerId === profile.id);
+		const profileSummary =
+			pathGuidance === undefined
+				? `${profile.profileKind}; ${profile.endpoint.hostname ?? "local runtime"}; auth ${statusText}. Revalidated after save, test, reset, or refresh.`
+				: `${pathGuidance.pathLabel}; ${pathGuidance.copy.summary} Auth ${statusText}. Revalidated after save, test, reset, or refresh.`;
 		new Setting(this.containerEl)
 			.setName(profile.displayName)
 			.setDesc(profileSummary)
@@ -573,7 +611,11 @@ export class VoidbrainSettingsTab extends PluginSettingTab {
 			);
 	}
 
-	private addCloudTrustControls(settings: VoidbrainPluginSettings, providers: readonly ProviderDefinition[]): void {
+	private addCloudTrustControls(
+		settings: VoidbrainPluginSettings,
+		providers: readonly ProviderDefinition[],
+		providerReadiness: ProviderReadinessGuidance,
+	): void {
 		const cloudProviders = providers.filter((provider) => provider.kind === "cloud");
 
 		if (cloudProviders.length === 0) {
@@ -583,12 +625,17 @@ export class VoidbrainSettingsTab extends PluginSettingTab {
 		new Setting(this.containerEl).setName("Cloud trust").setHeading();
 		for (const provider of cloudProviders) {
 			const canTrust = provider.trustLevel === "trusted-cloud";
+			const pathGuidance = providerReadiness.paths.find((path) => path.providerId === provider.id);
+			const trustGate = pathGuidance?.gates.find((gate) => gate.kind === "trust");
+			const disclosureGate = pathGuidance?.gates.find((gate) => gate.kind === "disclosure");
 			new Setting(this.containerEl)
 				.setName(provider.displayName)
 				.setDesc(
-					canTrust
-						? "Approved per provider for cloud workflows."
-						: "This provider cannot be trusted for private vault content.",
+					trustGate === undefined || disclosureGate === undefined
+						? canTrust
+							? "Approve only after provider review, auth, capability, and disclosure gates are understood."
+							: "This provider cannot be trusted for private vault content."
+						: `${trustGate.description} ${disclosureGate.description}`,
 				)
 				.addToggle((toggle) =>
 					toggle

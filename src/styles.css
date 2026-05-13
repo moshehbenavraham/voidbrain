@@ -184,6 +184,7 @@
 
 .voidbrain-status-card__provider-troubleshooting ul,
 .voidbrain-status-surface__actions,
+.voidbrain-status-surface__provider-paths,
 .voidbrain-status-surface__paths {
 	font-size: var(--font-ui-small);
 	margin: var(--size-2-2) 0 0;
@@ -191,6 +192,7 @@
 	padding-inline-start: var(--size-4-5);
 }
 
+.voidbrain-status-surface__provider-readiness,
 .voidbrain-status-surface__provider-report {
 	color: var(--text-muted);
 	display: flex;

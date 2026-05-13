@@ -1,4 +1,4 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -225,5 +225,26 @@ describe("fixture safety script adapter", () => {
 				]),
 			);
 		});
+	});
+
+	it("accepts provider readiness docs with fixture-safe disclosure language", () => {
+		const providerReadinessDocs = [
+			"README.md",
+			"docs/onboarding.md",
+			"docs/provider-readiness-guide.md",
+			"docs/provider-setup.md",
+			"docs/provider-troubleshooting-recovery.md",
+		];
+		const result = runFixtureSafetyScript(process.cwd(), providerReadinessDocs);
+		const combinedMarkdown = providerReadinessDocs
+			.map((path) => readFileSync(path, "utf8"))
+			.join("\n")
+			.toLowerCase();
+
+		expect(result.issues).toEqual([]);
+		expect(combinedMarkdown).toContain("provider review, trust, auth, capability, and disclosure");
+		expect(combinedMarkdown).toContain("untrusted cloud providers are blocked for private vault content");
+		expect(combinedMarkdown).toContain("does not silently fall back from local providers to cloud providers");
+		expect(combinedMarkdown).toContain("fixtures/demo-vault");
 	});
 });

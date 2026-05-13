@@ -384,7 +384,14 @@ describe("runtime status composition", () => {
 		const providerItem = snapshot.items.find((item) => item.id === "provider-readiness");
 
 		expect(providerItem?.providerTroubleshooting).toBeDefined();
+		expect(providerItem?.providerReadiness).toMatchObject({
+			recovery: {
+				commandId: "voidbrain.provider-readiness-guidance",
+				reportId: PROVIDER_TROUBLESHOOTING_REPORT_ID,
+			},
+		});
 		expect(providerItem?.details.join(" ")).toContain("Troubleshooting report");
+		expect(providerItem?.details.join(" ")).toContain("Readiness guidance");
 		expect(providerItem?.details.join(" ")).toContain("missing-secret");
 		expect(JSON.stringify(providerItem)).not.toContain("runtimeSecret");
 		expect(JSON.stringify(providerItem)).not.toContain("authorization");

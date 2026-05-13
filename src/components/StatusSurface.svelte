@@ -74,6 +74,30 @@ const refresh = (): void => {
 							</ul>
 						{/if}
 					{/if}
+					{#if item.area === "provider" && item.providerReadiness !== undefined}
+						<div
+							class="voidbrain-status-surface__provider-readiness"
+							aria-label="Provider readiness guidance"
+						>
+							<span>{item.providerReadiness.severity}</span>
+							<span>{item.providerReadiness.cloudDisclosureRequired ? "Disclosure review required" : "Local-first path"}</span>
+							<span>{item.providerReadiness.recovery.commandId}</span>
+						</div>
+						{#if item.providerReadiness.paths.length > 0}
+							<ul class="voidbrain-status-surface__provider-paths" aria-label="Provider readiness paths">
+								{#each item.providerReadiness.paths.slice(0, 3) as path}
+									<li>{path.pathLabel}: {path.copy.summary} Fallback {path.fallback.mode}.</li>
+								{/each}
+							</ul>
+						{/if}
+						{#if item.providerReadiness.actions.length > 0}
+							<ul class="voidbrain-status-surface__actions" aria-label="Provider readiness actions">
+								{#each item.providerReadiness.actions.slice(0, 4) as action}
+									<li>{action.label}</li>
+								{/each}
+							</ul>
+						{/if}
+					{/if}
 					{#if item.details.length > 0}
 						<p class="voidbrain-status-surface__details">{item.details.join(" ")}</p>
 					{/if}

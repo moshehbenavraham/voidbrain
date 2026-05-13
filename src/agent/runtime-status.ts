@@ -1,4 +1,5 @@
 import { summarizeProviderRoleCapabilities, summarizeProviderSetup } from "../providers/provider-preflight";
+import { buildProviderReadinessGuidance } from "../providers/provider-readiness-guidance";
 import { composeProviderTroubleshootingReport } from "../providers/provider-troubleshooting";
 import type { IndexingPathDiagnostic, IndexingRuntimeReport, SemanticIndexReadiness } from "../types/indexing-runtime";
 import type { IndexFreshnessState, IndexJobStatus, SemanticIndexCompatibility } from "../types/retrieval";
@@ -69,6 +70,16 @@ const providerStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
 			semanticCompatibility: input.semanticIndexCompatibility ?? null,
 			...(input.now === undefined ? {} : { now: input.now }),
 		});
+	const providerReadiness = buildProviderReadinessGuidance({
+		settings: input.settings,
+		providers: input.providers,
+		providerSetup: setupSummary,
+		providerRoleCapabilities: roleSummaries,
+		providerTroubleshooting: troubleshooting,
+		semanticCompatibility: input.semanticIndexCompatibility ?? null,
+		reportId: troubleshooting.reportId,
+		validationOutput: troubleshooting.recovery.validationOutput,
+	});
 	const failedAuthStatuses = input.settings.providerAuthStatuses.filter(
 		(status) => status.status === "failed" || status.status === "timeout" || status.status === "missing-secret",
 	);
@@ -88,6 +99,10 @@ const providerStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
 			.slice(0, 5)
 			.map((diagnostic) => `${diagnostic.kind}: ${diagnostic.readinessCode ?? "ready"}; ${diagnostic.message}`),
 		...troubleshooting.actions.slice(0, 6).map((action) => `Action: ${action.label}; ${action.description}`),
+		`Readiness guidance: ${providerReadiness.summary}`,
+		...providerReadiness.paths
+			.slice(0, 5)
+			.map((path) => `${path.pathLabel}: ${path.copy.summary} Fallback: ${path.fallback.mode}.`),
 		`Recovery: ${troubleshooting.recovery.commandId}; report ${troubleshooting.recovery.reportId ?? "none"}; source count ${troubleshooting.recovery.sourcePathCount}.`,
 	];
 	const preflightSeverity =
@@ -112,6 +127,7 @@ const providerStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
 		details,
 		paths: [],
 		count: setupSummary.providerCount,
+		providerReadiness,
 		providerTroubleshooting: troubleshooting,
 	};
 };

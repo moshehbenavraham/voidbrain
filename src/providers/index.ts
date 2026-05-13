@@ -1,6 +1,7 @@
 export * from "../types/providers";
 export * from "../types/provider-setup";
 export * from "../types/provider-invocation";
+export * from "../types/provider-readiness-guidance";
 export * from "./capability-selection";
 export * from "./chat-provider";
 export * from "./embedding-provider";
@@ -12,6 +13,7 @@ export * from "./provider-auth-test";
 export * from "./provider-preflight";
 export * from "./provider-profile-service";
 export * from "./provider-registry";
+export * from "./provider-readiness-guidance";
 export * from "./provider-troubleshooting";
 export * from "./redaction";
 export * from "./secret-store";

@@ -54,6 +54,13 @@ The deploy workflow builds and validates the plugin bundle, then copies only
 building, copying, cleaning, backing up, or mutating vault files. See
 [Obsidian Install And Update Workflow](docs/obsidian-install-update.md).
 
+Provider setup starts local-first. Review
+[Provider Readiness Guide](docs/provider-readiness-guide.md), configure a
+local runtime or OpenAI-compatible local endpoint first, and move to custom
+remote or trusted cloud providers only after provider review, trust, auth,
+capability, and disclosure gates pass. Untrusted cloud providers remain
+blocked for private vault content.
+
 ## Project Docs
 
 - [Contributing](CONTRIBUTING.md)
@@ -70,6 +77,7 @@ building, copying, cleaning, backing up, or mutating vault files. See
 - [Release Artifact Validation](docs/release-artifacts.md)
 - [Obsidian Install And Update Workflow](docs/obsidian-install-update.md)
 - [Agent Surface Packaging](docs/agent-surface-packaging.md)
+- [Provider Readiness Guide](docs/provider-readiness-guide.md)
 - [Provider Setup](docs/provider-setup.md)
 - [Provider Troubleshooting and Recovery](docs/provider-troubleshooting-recovery.md)
 - [Phase 03 Offline Provider Integration Validation](docs/phase03-offline-provider-integration-validation.md)

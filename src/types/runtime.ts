@@ -5,6 +5,7 @@ import type { IndexingPathDiagnostic, IndexingRuntimeReport, SemanticIndexReadin
 import type { SourceIngestionQueueStatusInput } from "./ingestion-queue";
 import type { MaintenanceRecommendationPlan } from "./maintenance";
 import type { VoidbrainPluginSettings } from "./plugin";
+import type { ProviderReadinessGuidance } from "./provider-readiness-guidance";
 import type {
 	ProviderRoleCapabilitySummary,
 	ProviderSetupSummary,
@@ -47,6 +48,7 @@ export interface RuntimeStatusItem {
 	readonly details: readonly string[];
 	readonly paths: readonly NormalizedVaultPath[];
 	readonly count?: number;
+	readonly providerReadiness?: ProviderReadinessGuidance;
 	readonly providerTroubleshooting?: ProviderTroubleshootingReport;
 }
 
