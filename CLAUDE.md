@@ -29,8 +29,8 @@ mutate notes.
 | `voidbrain.chat-with-vault` | implemented | Require citations and explicit provider review before any cloud provider handling of vault content. |
 | `voidbrain.health-check` | implemented | Scan local vault notes and index freshness, export redacted reports, and stage only deterministic safe repairs as staged changes with recovery details. |
 | `voidbrain.stage-change` | implemented | Review, confirm, apply, reject, retry, or dismiss staged changes with diffs, backups, audit records, and recovery details. |
-| `voidbrain.recover-session` | planned | Recover from logs, hot cache support records, and staged files, redacting provider secrets and private diagnostics. |
-| `voidbrain.validate-agent-surfaces` | scaffolded | Validate command IDs, stale references, safety phrases, and unsafe examples from bounded paths. |
+| `voidbrain.recover-session` | implemented | Recover from hot cache support records, staged recovery state, health reports, operation logs, and validation output, redacting provider secrets and private diagnostics without applying note edits. |
+| `voidbrain.validate-agent-surfaces` | implemented | Fail closed on command IDs, stale status labels, safety phrases, unsafe examples, and unsupported bounded paths. |
 | `voidbrain.preview-framework-update` | scaffolded | Produce dry-run framework update plans and exclude user vault content. |
 
 ## Local Validation

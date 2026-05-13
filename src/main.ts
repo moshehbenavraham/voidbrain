@@ -3,11 +3,14 @@ import "./styles.css";
 import {
 	GroundedVaultChatService,
 	type HotCacheService,
+	type RecoverSessionService,
+	type RecoverySummary,
 	SourceIngestionIntakeService,
 	SourceIngestionStagingService,
 	StagedChangeReviewService,
 	VaultHealthRuntimeService,
 	createHotCacheService,
+	createRecoverSessionService,
 	createRuntimeCommandHandlers,
 	createRuntimeStatusSnapshot,
 } from "./agent";
@@ -38,6 +41,7 @@ import type {
 import { HOT_CACHE_SESSION_SUMMARY_COMMAND_ID, type HotCacheSessionSummaryResult } from "./types/hot-cache";
 import type { IndexingRuntimeState } from "./types/indexing-runtime";
 import { DEFAULT_PLUGIN_SETTINGS, SHOW_STATUS_COMMAND_ID, type VoidbrainPluginSettings } from "./types/plugin";
+import type { RecoverySupportReadFailure } from "./types/recovery";
 import type { RuntimeCommandOutcome, RuntimeStatusSnapshot } from "./types/runtime";
 import type {
 	StagedReviewActionRequest,
@@ -49,7 +53,7 @@ import type {
 	StagedReviewAuditEntry,
 	StagedReviewIndexRefreshResult,
 } from "./types/staged-review";
-import type { HotCacheState, NormalizedVaultPath, StagedChangeRecord } from "./types/vault";
+import type { HotCacheState, NormalizedVaultPath, OperationLog, StagedChangeRecord } from "./types/vault";
 import {
 	type SettingsLoadStatus,
 	type SettingsValidationError,
@@ -106,6 +110,8 @@ export default class VoidbrainPlugin extends Plugin {
 	private healthService: VaultHealthRuntimeService | null = null;
 	private healthStore: VaultHealthStore | null = null;
 	private latestHealthReport: VaultHealthReport | null = null;
+	private recoveryService: RecoverSessionService | null = null;
+	private latestRecoverySummary: RecoverySummary | null = null;
 	private ribbonActionCount = 0;
 	private settingsTabCount = 0;
 	private runtimeStatusSnapshot: RuntimeStatusSnapshot = createRuntimeStatusSnapshot({
@@ -127,6 +133,7 @@ export default class VoidbrainPlugin extends Plugin {
 		this.createIngestionRuntime();
 		this.createStagedReviewRuntime();
 		this.createHealthRuntime();
+		this.createRecoveryRuntime();
 		this.refreshRuntimeStatusSnapshot();
 		this.isRuntimeLoaded = true;
 
@@ -166,6 +173,8 @@ export default class VoidbrainPlugin extends Plugin {
 			this.healthStore = null;
 			this.healthService = null;
 			this.latestHealthReport = null;
+			this.recoveryService = null;
+			this.latestRecoverySummary = null;
 			this.stagedReviewAuditEntries.splice(0, this.stagedReviewAuditEntries.length);
 			this.ingestionStagedChanges.splice(0, this.ingestionStagedChanges.length);
 			this.isRuntimeLoaded = false;
@@ -341,6 +350,10 @@ export default class VoidbrainPlugin extends Plugin {
 		this.healthStore = createVaultHealthStore();
 	}
 
+	private createRecoveryRuntime(): void {
+		this.recoveryService = createRecoverSessionService();
+	}
+
 	private startIndexingOnStartup(): void {
 		if (!this.settings.indexing.shouldIndexOnStartup || this.indexingRuntime === null) {
 			return;
@@ -398,6 +411,10 @@ export default class VoidbrainPlugin extends Plugin {
 			health: {
 				openHealthCheck: () => this.openVaultHealthModal(),
 				canOpenHealthCheck: () => this.healthService !== null && this.healthStore !== null,
+			},
+			recovery: {
+				recoverSession: () => this.runRecoverSession(),
+				canRecoverSession: () => this.recoveryService !== null,
 			},
 		});
 
@@ -699,6 +716,87 @@ export default class VoidbrainPlugin extends Plugin {
 				}
 			},
 		}).open();
+	}
+
+	private async runRecoverSession(): Promise<RecoverySummary> {
+		const service = this.recoveryService;
+		if (service === null) {
+			throw new Error("Session recovery runtime is unavailable.");
+		}
+
+		const hotCacheRead = await this.readRecoveryHotCacheSupportRecord();
+		const operationLog = this.createRecoveryOperationLog();
+		const hotCache = hotCacheRead.hotCache ?? this.hotCacheState;
+		const summary = service.buildSummary({
+			...(hotCache === null ? {} : { hotCache }),
+			hotCachePath: HOT_CACHE_SUPPORT_PATH,
+			stagedChanges: this.ingestionStagedChanges,
+			healthReport: this.latestHealthReport,
+			...(operationLog === undefined ? {} : { operationLog }),
+			readFailures: hotCacheRead.readFailures,
+			now: new Date(),
+		});
+		this.latestRecoverySummary = summary;
+		this.showRecoverySummary(summary);
+		return summary;
+	}
+
+	private async readRecoveryHotCacheSupportRecord(): Promise<{
+		readonly hotCache: unknown | null;
+		readonly readFailures: readonly RecoverySupportReadFailure[];
+	}> {
+		try {
+			if ((await this.app.vault.adapter.exists(HOT_CACHE_SUPPORT_PATH)) === false) {
+				return {
+					hotCache: null,
+					readFailures: [],
+				};
+			}
+
+			const raw = await this.app.vault.adapter.read(HOT_CACHE_SUPPORT_PATH);
+			return {
+				hotCache: JSON.parse(raw) as unknown,
+				readFailures: [],
+			};
+		} catch (error) {
+			return {
+				hotCache: null,
+				readFailures: [
+					{
+						sourceKind: "hot-cache",
+						sourcePath: HOT_CACHE_SUPPORT_PATH,
+						error,
+					},
+				],
+			};
+		}
+	}
+
+	private createRecoveryOperationLog(): OperationLog | undefined {
+		const entries = this.stagedReviewAuditEntries.flatMap((entry) =>
+			entry.operationLogEntry === undefined ? [] : [entry.operationLogEntry],
+		);
+		if (entries.length === 0) {
+			return undefined;
+		}
+
+		return {
+			artifactKind: "operation-log",
+			schemaVersion: 1,
+			logId: "runtime-staged-review-audit",
+			entries,
+		};
+	}
+
+	private showRecoverySummary(summary: RecoverySummary): void {
+		if (!this.settings.shouldShowStatusNotices) {
+			return;
+		}
+
+		new Notice(
+			`Session recovery ${summary.status}: ${summary.counts.itemCount} item(s), ${summary.counts.diagnosticCount} diagnostic(s), ${summary.counts.actionCount} action(s). No vault files were changed.`,
+			7000,
+		);
 	}
 
 	private async runVaultHealthScan(service: VaultHealthRuntimeService): Promise<VaultHealthRuntimeScanResult> {

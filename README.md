@@ -44,7 +44,8 @@ bun run preview:framework-update
 - [Contributing](CONTRIBUTING.md)
 - [Product Requirements](.spec_system/PRD/PRD.md)
 - [UX Requirements](.spec_system/PRD/PRD_UX.md)
-- [Phase 00 Plan](.spec_system/PRD/phase_00/PRD_phase_00.md)
+- [Phase 00 Archive](.spec_system/archive/phases/phase_00/PRD_phase_00.md)
+- [Phase 01 Archive](.spec_system/archive/phases/phase_01/PRD_phase_01.md)
 - [Engineering Conventions](.spec_system/CONVENTIONS.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Onboarding](docs/onboarding.md)
@@ -82,3 +83,5 @@ Phase 01 MVP implementation is complete through hot cache integration
 validation. The standard documentation set lives at the repository root and in
 `docs/`, with repository-specific workflow and architecture details kept
 alongside the phase and domain docs.
+
+Phase 02 is the next unfinished phase in the PRD.

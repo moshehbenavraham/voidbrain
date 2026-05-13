@@ -96,6 +96,12 @@ const clickStageChangeCommand = async (plugin: MockedPluginRuntime): Promise<voi
 	await flushPromises();
 };
 
+const clickRecoverSessionCommand = async (plugin: MockedPluginRuntime): Promise<void> => {
+	const recoveryCommand = plugin.commands.find((command) => command.id === "voidbrain.recover-session");
+	recoveryCommand?.callback?.();
+	await flushPromises();
+};
+
 const selectReviewGroup = (targetPath: string): void => {
 	const button = [...document.body.querySelectorAll<HTMLButtonElement>("[data-group-id]")].find((candidate) =>
 		candidate.textContent?.includes(targetPath),
@@ -490,6 +496,93 @@ describe("VoidbrainPlugin lifecycle", () => {
 			HOT_CACHE_SUPPORT_PATH,
 			expect.stringContaining("stage-create-note"),
 		);
+	});
+
+	it("runs recovery command as a read-only support-record summary", async () => {
+		const app = new MockApp();
+		configureHotCacheSupportRecord(app);
+		const plugin = new VoidbrainPlugin(
+			app as unknown as App,
+			{
+				id: "voidbrain",
+				name: "voidbrain",
+				version: "0.1.0",
+			} as PluginManifest,
+		) as MockedPluginRuntime;
+		plugin.loadData.mockResolvedValue(undefined);
+
+		await plugin.onload();
+		await clickRecoverSessionCommand(plugin);
+		await waitForCondition(() => notices.some((notice) => notice.message.includes("Session recovery ready")));
+
+		expect(notices.some((notice) => notice.message.includes("No providers were called"))).toBe(true);
+		expect(notices.some((notice) => notice.message.includes("No vault files were changed"))).toBe(true);
+		expect(app.vault.adapter.write).not.toHaveBeenCalled();
+		expect(app.vault.create).not.toHaveBeenCalled();
+		expect(app.vault.modify).not.toHaveBeenCalled();
+	});
+
+	it("reports malformed recovery support records without direct vault writes", async () => {
+		const app = new MockApp();
+		app.vault.setReadContent(HOT_CACHE_SUPPORT_PATH, "{malformed");
+		const plugin = new VoidbrainPlugin(
+			app as unknown as App,
+			{
+				id: "voidbrain",
+				name: "voidbrain",
+				version: "0.1.0",
+			} as PluginManifest,
+		) as MockedPluginRuntime;
+		plugin.loadData.mockResolvedValue(undefined);
+
+		await plugin.onload();
+		await clickRecoverSessionCommand(plugin);
+		await waitForCondition(() => notices.some((notice) => notice.message.includes("Session recovery invalid")));
+
+		expect(notices.some((notice) => notice.message.includes("No vault files were changed"))).toBe(true);
+		expect(app.vault.adapter.write).not.toHaveBeenCalled();
+		expect(app.vault.create).not.toHaveBeenCalled();
+		expect(app.vault.modify).not.toHaveBeenCalled();
+	});
+
+	it("prevents duplicate recovery command execution while adapter reads are in flight", async () => {
+		const app = new MockApp();
+		configureHotCacheSupportRecord(app);
+		const plugin = new VoidbrainPlugin(
+			app as unknown as App,
+			{
+				id: "voidbrain",
+				name: "voidbrain",
+				version: "0.1.0",
+			} as PluginManifest,
+		) as MockedPluginRuntime;
+		plugin.loadData.mockResolvedValue(undefined);
+		await plugin.onload();
+
+		let releaseRead: (() => void) | undefined;
+		app.vault.adapter.read.mockImplementation(
+			async (path: string) =>
+				new Promise<string>((resolve) => {
+					if (path === HOT_CACHE_SUPPORT_PATH) {
+						releaseRead = () => resolve(JSON.stringify(createHotCacheStateFixture()));
+						return;
+					}
+					resolve("");
+				}),
+		);
+
+		const recoveryCommand = plugin.commands.find((command) => command.id === "voidbrain.recover-session");
+		recoveryCommand?.callback?.();
+		await flushPromises(1);
+		recoveryCommand?.callback?.();
+		await flushPromises(1);
+
+		expect(notices.some((notice) => notice.message.includes("already running"))).toBe(true);
+
+		releaseRead?.();
+		await flushPromises(10);
+		await waitForCondition(() => notices.some((notice) => notice.message.includes("Session recovery ready")));
+		expect(app.vault.adapter.write).not.toHaveBeenCalled();
 	});
 
 	it("opens source ingestion command, stages generated changes, and avoids direct vault writes", async () => {

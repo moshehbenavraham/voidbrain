@@ -33,8 +33,8 @@ behavior, and recovery context.
 | `voidbrain.chat-with-vault` | implemented | Run cited vault chat with explicit provider review before cloud use. |
 | `voidbrain.health-check` | implemented | Scan local vault notes and index freshness, export redacted markdown reports, and stage only deterministic safe repairs as staged changes with recovery details. |
 | `voidbrain.stage-change` | implemented | Review, confirm, apply, reject, retry, or dismiss staged changes with diffs, backups, audit records, and recovery details. |
-| `voidbrain.recover-session` | planned | Plan recovery from logs, hot cache support records, and staged files with redacted diagnostics. |
-| `voidbrain.validate-agent-surfaces` | scaffolded | Run bounded command surface validation for stale IDs and safety phrases. |
+| `voidbrain.recover-session` | implemented | Read hot cache support records, staged recovery state, health reports, operation logs, and validation output with redacted retry or discard diagnostics. |
+| `voidbrain.validate-agent-surfaces` | implemented | Run bounded fail-closed validation for stale IDs, status drift, safety phrases, unsafe examples, and unsupported paths. |
 | `voidbrain.preview-framework-update` | scaffolded | Run dry-run framework update previews while excluding user vault content. |
 
 ## Safe Examples
@@ -85,8 +85,9 @@ Hot cache recovery support:
 {
   "command": "voidbrain.recover-session",
   "cachePath": ".voidbrain/cache/hot-cache.json",
-  "writePolicy": "read-only by default",
-  "requiredEvidence": ["cache path", "target paths", "validation output", "staged-change IDs"]
+  "writePolicy": "read-only",
+  "requiredEvidence": ["cache path", "target paths", "report IDs", "validation output", "staged-change IDs"],
+  "actions": ["retry command", "review staged change", "inspect report", "discard record"]
 }
 ```
 

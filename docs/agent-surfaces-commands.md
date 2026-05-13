@@ -29,15 +29,15 @@ is the source of truth; this document is the human-readable companion.
 | `voidbrain.chat-with-vault` | Answer from indexed vault evidence with citations. | implemented | explicit provider review | no direct writes | cited retrieval paths and headings |
 | `voidbrain.health-check` | Scan local vault notes and index freshness, export redacted reports, and stage safe repairs. | implemented | local-first | staged changes | report ID, affected paths, finding evidence, validation output, staged-change IDs |
 | `voidbrain.stage-change` | Review and confirmed apply workflow for staged note mutations. | implemented | local-first | staged changes | staged-change ID, before/after diff, target path, backup path intent, validation output |
-| `voidbrain.recover-session` | Reconstruct recoverable command context from logs, hot cache support records, and staged files. | planned | local-first | read-only by default | recovery log path, cache path, report IDs, and staged-change IDs |
-| `voidbrain.validate-agent-surfaces` | Validate command IDs, safety phrases, and fixture-safe examples. | scaffolded | local-first | read-only | validation result list |
+| `voidbrain.recover-session` | Reconstruct recoverable command context from hot cache, staged changes, health reports, operation logs, and validation output. | implemented | local-first | read-only | command ID, cache path, target paths, report IDs, staged-change IDs, backup path intent, validation output |
+| `voidbrain.validate-agent-surfaces` | Fail closed on command IDs, status drift, safety phrases, unsafe examples, and unsupported scan paths. | implemented | local-first | read-only | validation result list |
 | `voidbrain.preview-framework-update` | Preview framework file changes while excluding user vault content. | scaffolded | local-first | dry-run | planned framework file actions |
 
 Status labels are intentionally conservative:
 
 - `implemented` means runtime behavior exists and is covered by local tests.
-- `scaffolded` means this session provides local validation or preview helpers,
-  but no destructive or autonomous behavior.
+- `scaffolded` means a later session still needs to implement and test the
+  documented behavior.
 - `planned` means the surface documents the contract for later sessions and
   must not be presented as working execution.
 
@@ -132,7 +132,29 @@ note proposals. They include source paths and cited turns, but they do not write
 directly to user-visible markdown until the staged-change workflow confirms an
 apply.
 
+## Recover Session Runtime
+
+`voidbrain.recover-session` runs an implemented read-only local support-record
+scan. It summarizes hot cache records, active staged-change recovery metadata,
+latest health report state, staged-review operation logs, validation output,
+and adapter read failures. Duplicate command execution while recovery is in
+flight returns a warning and starts no duplicate read.
+
+Recovery summaries include command IDs, cache paths, target paths, report IDs,
+staged-change IDs, backup path intent, validation output, and retry, review,
+inspect, refresh, or discard actions. They omit raw note bodies, raw
+before/after staged-change content, provider attempts, authorization headers,
+hidden provider state, and unbounded private diagnostics. Missing, malformed,
+stale, unsupported, and read-failed support records return diagnostics instead
+of throwing.
+
 ## Validation Workflow
+
+`voidbrain.validate-agent-surfaces` is an implemented read-only local
+validation workflow. It uses the command catalog as the source of truth for
+command IDs and statuses, then checks AGENTS, CLAUDE, GEMINI, the Voidbrain
+skill, and human docs for missing IDs, unknown IDs, stale status labels, and
+required safety language.
 
 Run the local checks from the repository root:
 
@@ -146,6 +168,12 @@ The checks are bounded to repository files, markdown surfaces, scripts, source
 contracts, and synthetic fixtures. They must fail closed when a surface omits a
 known command ID, adds an unknown command ID, drops required safety language, or
 contains secret-like example content.
+
+Issue output is deterministic and includes the repository path, heading when
+available, line when available, command ID when relevant, issue code, redacted
+excerpt when useful, and remediation hint. Fixture safety checks also reject
+private path hints, credential-like values, unsupported candidate paths, and
+unreadable scan candidates.
 
 ## Framework Update Preview
 

@@ -20,6 +20,15 @@ bun run validate:fixture-safety
 bun run validate:agent-docs
 ```
 
+`validate:agent-surfaces` is fail-closed and read-only. It checks catalog
+command IDs, command status labels, required safety language, missing required
+surfaces, and unreadable surfaces.
+
+`validate:fixture-safety` scans only bounded framework docs, skills, scripts,
+source contracts, and synthetic fixtures. It fails on secret-like examples,
+credential-like values, private path hints, unsupported scan paths, and
+unreadable candidates.
+
 ## Source Layout
 
 - `src/main.ts` owns plugin lifecycle wiring.

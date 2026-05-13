@@ -26,8 +26,8 @@ content is out of scope unless a later reviewed workflow supplies it.
 | `voidbrain.chat-with-vault` | implemented | Cite retrieval paths and require explicit provider review before cloud use. |
 | `voidbrain.health-check` | implemented | Scan local vault notes and index freshness, export redacted reports, and stage only deterministic safe repairs as staged changes with recovery details. |
 | `voidbrain.stage-change` | implemented | Review, confirm, apply, reject, retry, or dismiss staged changes with diffs, backups, audit records, and recovery details. |
-| `voidbrain.recover-session` | planned | Read logs, hot cache support records, and staged recovery state; redact provider secrets and report retry or discard options. |
-| `voidbrain.validate-agent-surfaces` | scaffolded | Check known surfaces for command drift, missing safety phrases, and unsafe examples. |
+| `voidbrain.recover-session` | implemented | Read hot cache support records, staged recovery state, health reports, operation logs, and validation output; redact provider secrets and report retry or discard options without applying note edits. |
+| `voidbrain.validate-agent-surfaces` | implemented | Check known surfaces for command drift, status drift, missing safety phrases, unsafe examples, and unsupported paths. |
 | `voidbrain.preview-framework-update` | scaffolded | Return a dry-run plan and exclude user vault content or generated knowledge notes. |
 
 ## Validation Commands

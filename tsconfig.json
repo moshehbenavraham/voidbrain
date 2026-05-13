@@ -17,7 +17,7 @@
 		"exactOptionalPropertyTypes": true,
 		"noImplicitOverride": true,
 		"noUncheckedIndexedAccess": true,
-		"types": ["svelte", "vite/client", "vitest/globals"]
+		"types": ["svelte", "vite/client", "vitest/globals", "node"]
 	},
 	"watchOptions": {
 		"watchFile": "useFsEvents",

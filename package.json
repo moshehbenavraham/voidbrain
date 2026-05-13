@@ -1,6 +1,6 @@
 {
 	"name": "voidbrain",
-	"version": "0.1.14",
+	"version": "0.1.16",
 	"description": "Local-first AI second-brain scaffold for Obsidian-style markdown vaults.",
 	"type": "module",
 	"license": "MIT",
@@ -40,6 +40,7 @@
 		"@biomejs/biome": "^1.9.4",
 		"@sveltejs/vite-plugin-svelte": "^5.1.1",
 		"@tsconfig/svelte": "^5.0.8",
+		"@types/node": "^25.7.0",
 		"@vitest/coverage-v8": "^4.0.18",
 		"builtin-modules": "^5.0.0",
 		"jsdom": "^27.4.0",

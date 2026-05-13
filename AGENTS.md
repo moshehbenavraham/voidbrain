@@ -31,8 +31,8 @@ inspectable, provider-aware, and recoverable.
 | `voidbrain.chat-with-vault` | implemented | Require retrieval citations and explicit provider review before any cloud call. |
 | `voidbrain.health-check` | implemented | Scan local vault notes and index freshness, export redacted reports, and stage only deterministic safe repairs through staged changes with recovery details. |
 | `voidbrain.stage-change` | implemented | Review, confirm, apply, reject, retry, or dismiss staged changes with before/after diffs, backup intent, audit records, and recovery details. |
-| `voidbrain.recover-session` | planned | Read recoverable logs, hot cache support records, and staged files; redact provider secrets in diagnostics. |
-| `voidbrain.validate-agent-surfaces` | scaffolded | Check markdown command IDs, safety phrases, and fixture-safe examples from bounded repository paths. |
+| `voidbrain.recover-session` | implemented | Read hot cache support records, staged recovery state, health reports, operation logs, and validation output; return redacted retry or discard diagnostics without mutating vault files. |
+| `voidbrain.validate-agent-surfaces` | implemented | Fail closed on stale command IDs, status drift, safety phrases, and fixture-safe examples from bounded repository paths. |
 | `voidbrain.preview-framework-update` | scaffolded | Produce a dry-run plan for framework files and exclude user vault content. |
 
 ## Repository Workflow

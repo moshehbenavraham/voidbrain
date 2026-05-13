@@ -23,14 +23,31 @@ export const AGENT_VALIDATION_ERROR_CODES = [
 	"surface.missing-command-id",
 	"surface.unknown-command-id",
 	"surface.missing-safety-phrase",
+	"surface.stale-command-status",
+	"surface.missing-required-surface",
+	"surface.unreadable-required-surface",
 	"surface.invalid-input",
 	"fixture.secret-like-key",
 	"fixture.credential-like-value",
 	"fixture.private-path-hint",
+	"fixture.unsupported-scan-path",
+	"fixture.unreadable-scan-path",
 	"fixture.invalid-input",
 	"framework.user-content-target",
 	"framework.duplicate-preview",
 	"framework.invalid-input",
+] as const;
+
+export const AGENT_VALIDATION_BOUNDARY_KINDS = [
+	"agent-surface",
+	"documentation",
+	"framework",
+	"script",
+	"source-contract",
+	"synthetic-fixture",
+	"skill",
+	"excluded-user-content",
+	"unsupported",
 ] as const;
 
 export type AgentCommandId = (typeof AGENT_COMMAND_IDS)[number];
@@ -39,6 +56,7 @@ export type AgentPrivacyLevel = (typeof AGENT_PRIVACY_LEVELS)[number];
 export type AgentWritePolicy = (typeof AGENT_WRITE_POLICIES)[number];
 export type AgentCommandStatus = (typeof AGENT_COMMAND_STATUSES)[number];
 export type AgentValidationErrorCode = (typeof AGENT_VALIDATION_ERROR_CODES)[number];
+export type AgentValidationBoundaryKind = (typeof AGENT_VALIDATION_BOUNDARY_KINDS)[number];
 
 export interface AgentCommandIO {
 	readonly name: string;
@@ -71,14 +89,25 @@ export interface AgentSurfaceDefinition {
 	readonly requiredSafetyPhrases: readonly string[];
 }
 
+export interface AgentValidationBoundary {
+	readonly kind: AgentValidationBoundaryKind;
+	readonly root?: string;
+	readonly allowed: boolean;
+	readonly reason: string;
+}
+
 export interface AgentValidationIssue {
 	readonly code: AgentValidationErrorCode;
 	readonly message: string;
-	readonly commandId?: AgentCommandId | string;
-	readonly surfaceId?: AgentSurfaceId | string;
-	readonly path?: string;
-	readonly field?: string;
-	readonly line?: number;
+	readonly commandId?: AgentCommandId | string | undefined;
+	readonly surfaceId?: AgentSurfaceId | string | undefined;
+	readonly path?: string | undefined;
+	readonly field?: string | undefined;
+	readonly line?: number | undefined;
+	readonly heading?: string | undefined;
+	readonly remediation?: string | undefined;
+	readonly excerpt?: string | undefined;
+	readonly boundary?: AgentValidationBoundary | undefined;
 }
 
 export interface AgentValidationSuccess {

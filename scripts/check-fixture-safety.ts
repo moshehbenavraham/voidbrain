@@ -1,17 +1,53 @@
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { extname, join, relative } from "node:path";
+import { formatAgentValidationIssue, sortAgentValidationIssues } from "../src/agent/agent-validation-reporting";
 import { AGENT_SURFACES } from "../src/agent/command-catalog";
 import { validateFixtureSafetyEntries } from "../src/agent/fixture-safety";
+import { uniqueRepositoryPaths, validateRepositoryScanPath } from "../src/agent/repository-scan-boundary";
 import type { AgentValidationIssue, FixtureSafetyEntry } from "../src/types/agent-commands";
 
-const repoRoot = process.cwd();
-const allowedExtensions = new Set([".md", ".json", ".ts", ".txt"]);
-const boundedRoots = ["docs", "test/fixtures", "skills"] as const;
-const standaloneFiles = ["README.md", "src/README.md", ...AGENT_SURFACES.map((surface) => surface.path)] as const;
+export interface FixtureSafetyScriptResult {
+	readonly entries: readonly FixtureSafetyEntry[];
+	readonly issues: readonly AgentValidationIssue[];
+}
 
-const toRepositoryPath = (absolutePath: string): string => relative(repoRoot, absolutePath).replace(/\\/g, "/");
+const allowedExtensions = [".md", ".json", ".ts", ".txt"] as const;
+const boundedRoots = ["docs", "skills", "test/fixtures", "scripts"] as const;
+const standaloneFiles = [
+	"README.md",
+	"src/README.md",
+	"package.json",
+	"src/types/agent-commands.ts",
+	...AGENT_SURFACES.map((surface) => surface.path),
+] as const;
+const excludedRoots = [
+	".voidbrain",
+	"EXAMPLES",
+	"vault",
+	"fixtures",
+	"sources",
+	"entities",
+	"concepts",
+	"summaries",
+	"conversations",
+] as const;
 
-const collectFiles = (relativeRoot: string): readonly string[] => {
+const toRepositoryPath = (repoRoot: string, absolutePath: string): string =>
+	relative(repoRoot, absolutePath).replace(/\\/g, "/");
+
+const unreadableCandidateIssue = (
+	path: string,
+	error: unknown,
+	boundary?: AgentValidationIssue["boundary"],
+): AgentValidationIssue => ({
+	code: "fixture.unreadable-scan-path",
+	message: `Fixture safety scan candidate could not be read: ${path}`,
+	path,
+	remediation: `Fix file permissions or remove the candidate from the validation scan. Read failure: ${error instanceof Error ? error.message : String(error)}`,
+	boundary,
+});
+
+const collectFiles = (repoRoot: string, relativeRoot: string, issues: AgentValidationIssue[]): readonly string[] => {
 	const absoluteRoot = join(repoRoot, relativeRoot);
 	if (!existsSync(absoluteRoot)) {
 		return [];
@@ -26,51 +62,151 @@ const collectFiles = (relativeRoot: string): readonly string[] => {
 			continue;
 		}
 
-		const stats = statSync(current);
+		let stats: ReturnType<typeof statSync>;
+		try {
+			stats = statSync(current);
+		} catch (error) {
+			issues.push(unreadableCandidateIssue(toRepositoryPath(repoRoot, current), error));
+			continue;
+		}
+
 		if (stats.isDirectory()) {
-			for (const child of readdirSync(current)) {
-				pending.push(join(current, child));
+			try {
+				for (const child of readdirSync(current)) {
+					pending.push(join(current, child));
+				}
+			} catch (error) {
+				issues.push(unreadableCandidateIssue(toRepositoryPath(repoRoot, current), error));
 			}
 			continue;
 		}
 
-		if (stats.isFile() && allowedExtensions.has(extname(current))) {
-			discovered.push(toRepositoryPath(current));
+		if (stats.isFile() && (allowedExtensions as readonly string[]).includes(extname(current))) {
+			discovered.push(toRepositoryPath(repoRoot, current));
 		}
 	}
 
-	return discovered.sort((left, right) => left.localeCompare(right));
+	return discovered;
 };
 
-const candidatePaths = [
-	...standaloneFiles.filter((path) => existsSync(join(repoRoot, path))),
-	...boundedRoots.flatMap(collectFiles),
-]
-	.filter((path, index, paths) => paths.indexOf(path) === index)
-	.sort((left, right) => left.localeCompare(right));
+const validateCandidatePaths = (paths: readonly string[]): FixtureSafetyScriptResult => {
+	const entries: FixtureSafetyEntry[] = [];
+	const issues: AgentValidationIssue[] = [];
 
-const entries: readonly FixtureSafetyEntry[] = candidatePaths.map((path) => ({
-	path,
-	content: readFileSync(join(repoRoot, path), "utf8"),
-}));
+	for (const path of uniqueRepositoryPaths(paths)) {
+		const boundaryResult = validateRepositoryScanPath(path, {
+			allowedRoots: boundedRoots,
+			allowedStandalonePaths: standaloneFiles,
+			allowedExtensions,
+			excludedRoots,
+			issueCode: "fixture.unsupported-scan-path",
+			remediation: "Scan only framework docs, skills, scripts, source contracts, and synthetic fixtures.",
+		});
 
-const formatIssue = (issue: AgentValidationIssue): string => {
-	const line = issue.line === undefined ? "" : `:${issue.line}`;
-	return `${issue.path ?? "<unknown>"}${line}: ${issue.code} - ${issue.message}`;
-};
+		if (!boundaryResult.ok) {
+			issues.push(boundaryResult.issue);
+			continue;
+		}
 
-const result = validateFixtureSafetyEntries(entries);
-const issues = result.ok
-	? []
-	: [...result.issues].sort((left, right) => formatIssue(left).localeCompare(formatIssue(right)));
-
-if (issues.length > 0) {
-	console.error(`Fixture safety validation failed (${issues.length} issues).`);
-	for (const issue of issues) {
-		console.error(`- ${formatIssue(issue)}`);
+		entries.push({
+			path: boundaryResult.path,
+			content: "",
+		});
 	}
-	process.exitCode = 1;
-} else {
+
+	return {
+		entries,
+		issues: sortAgentValidationIssues(issues),
+	};
+};
+
+export const collectFixtureSafetyCandidatePaths = (
+	repoRoot = process.cwd(),
+	explicitCandidatePaths: readonly string[] = [],
+): FixtureSafetyScriptResult => {
+	const collectionIssues: AgentValidationIssue[] = [];
+	const candidatePaths =
+		explicitCandidatePaths.length > 0
+			? explicitCandidatePaths
+			: [
+					...standaloneFiles.filter((path) => existsSync(join(repoRoot, path))),
+					...boundedRoots.flatMap((root) => collectFiles(repoRoot, root, collectionIssues)),
+				];
+	const validationResult = validateCandidatePaths(candidatePaths);
+
+	return {
+		entries: validationResult.entries,
+		issues: sortAgentValidationIssues([...collectionIssues, ...validationResult.issues]),
+	};
+};
+
+export const readFixtureSafetyEntries = (
+	repoRoot = process.cwd(),
+	explicitCandidatePaths: readonly string[] = [],
+): FixtureSafetyScriptResult => {
+	const { entries: candidates, issues: candidateIssues } = collectFixtureSafetyCandidatePaths(
+		repoRoot,
+		explicitCandidatePaths,
+	);
+	const entries: FixtureSafetyEntry[] = [];
+	const issues: AgentValidationIssue[] = [...candidateIssues];
+
+	for (const candidate of candidates) {
+		const boundaryResult = validateRepositoryScanPath(candidate.path, {
+			allowedRoots: boundedRoots,
+			allowedStandalonePaths: standaloneFiles,
+			allowedExtensions,
+			excludedRoots,
+			issueCode: "fixture.unsupported-scan-path",
+			remediation: "Scan only framework docs, skills, scripts, source contracts, and synthetic fixtures.",
+		});
+		const boundary = boundaryResult.ok ? boundaryResult.boundary : undefined;
+
+		try {
+			entries.push({
+				path: candidate.path,
+				content: readFileSync(join(repoRoot, candidate.path), "utf8"),
+			});
+		} catch (error) {
+			issues.push(unreadableCandidateIssue(candidate.path, error, boundary));
+		}
+	}
+
+	return {
+		entries,
+		issues: sortAgentValidationIssues(issues),
+	};
+};
+
+export const runFixtureSafetyScript = (
+	repoRoot = process.cwd(),
+	explicitCandidatePaths: readonly string[] = [],
+): FixtureSafetyScriptResult => {
+	const { entries, issues: readIssues } = readFixtureSafetyEntries(repoRoot, explicitCandidatePaths);
+	const result = validateFixtureSafetyEntries(entries);
+
+	return {
+		entries,
+		issues: sortAgentValidationIssues([...(result.ok ? [] : result.issues), ...readIssues]),
+	};
+};
+
+const runCli = (): void => {
+	const { entries, issues } = runFixtureSafetyScript(process.cwd(), process.argv.slice(2));
+
+	if (issues.length > 0) {
+		console.error(`Fixture safety validation failed (${issues.length} issues).`);
+		for (const issue of issues) {
+			console.error(`- ${formatAgentValidationIssue(issue)}`);
+		}
+		process.exitCode = 1;
+		return;
+	}
+
 	console.log("Fixture safety validation passed.");
 	console.log(`Files checked: ${entries.length}`);
+};
+
+if ((import.meta as ImportMeta & { main?: boolean }).main) {
+	runCli();
 }

@@ -256,19 +256,20 @@ export const AGENT_COMMAND_CATALOG: readonly AgentCommand[] = [
 	{
 		id: "voidbrain.recover-session",
 		name: "Recover session",
-		intent: "Reconstruct recoverable command context from logs, staged files, and generated support records.",
-		status: "planned",
+		intent: "Reconstruct recoverable command context from hot cache, staged changes, health reports, operation logs, and generated support records.",
+		status: "implemented",
 		privacyLevel: "local-first",
 		writePolicy: "read-only",
 		prerequisites: [
-			"Recovery reads only repository or vault-owned support records.",
-			"Recovery output redacts provider secrets and private diagnostics.",
+			"Recovery reads only local Voidbrain support records and in-memory runtime recovery state.",
+			"Recovery output redacts provider secrets, authorization headers, hidden provider state, private diagnostics, and raw note bodies.",
+			"Recovery never applies note edits, rewrites support records, or replays provider calls.",
 		],
 		inputs: [
 			{
 				name: "sessionId",
-				description: "Recoverable command or staged-change session identifier.",
-				required: true,
+				description: "Optional recoverable command, cache, report, target path, or staged-change identifier.",
+				required: false,
 			},
 		],
 		outputs: [
@@ -278,17 +279,29 @@ export const AGENT_COMMAND_CATALOG: readonly AgentCommand[] = [
 				required: true,
 			},
 		],
-		requiredEvidence: ["recovery log path", "staged-change IDs"],
+		requiredEvidence: [
+			"command ID",
+			"cache path",
+			"target paths",
+			"report IDs",
+			"staged-change IDs",
+			"backup path intent",
+			"validation output",
+		],
 		supportedSurfaces: ["agents-md", "claude-md", "gemini-md", "voidbrain-skill", "human-docs"],
-		requiredSafetyPhrases: ["local-first", "provider secrets", "recovery"],
-		recoveryBehavior: "Fail read-only and tell the user which recovery record is missing or malformed.",
-		notes: ["Recovery command execution is planned for a later session."],
+		requiredSafetyPhrases: ["local-first", "staged changes", "provider secrets", "synthetic fixtures", "recovery"],
+		recoveryBehavior:
+			"Summarize command ID, cache path, target path, report ID, staged-change ID, backup path intent, validation output, and retry or discard actions without mutating vault files.",
+		notes: [
+			"Runtime recovery is read-only and notice-based; richer UI remains out of scope.",
+			"Missing, malformed, stale, unsupported, and read-failed support records return diagnostics instead of throwing.",
+		],
 	},
 	{
 		id: "voidbrain.validate-agent-surfaces",
 		name: "Validate agent surfaces",
-		intent: "Validate command IDs, safety phrases, stale references, and fixture-safe examples.",
-		status: "scaffolded",
+		intent: "Fail closed on stale command IDs, command status drift, missing safety phrases, unsafe examples, and unsupported validation scan paths.",
+		status: "implemented",
 		privacyLevel: "local-first",
 		writePolicy: "read-only",
 		prerequisites: [
@@ -312,9 +325,20 @@ export const AGENT_COMMAND_CATALOG: readonly AgentCommand[] = [
 		],
 		requiredEvidence: ["validation result list"],
 		supportedSurfaces: ["agents-md", "claude-md", "gemini-md", "voidbrain-skill", "human-docs"],
-		requiredSafetyPhrases: ["local-first", "staged changes", "synthetic fixtures", "provider secrets"],
+		requiredSafetyPhrases: [
+			"local-first",
+			"staged changes",
+			"synthetic fixtures",
+			"provider secrets",
+			"citations",
+			"dry-run",
+			"recovery",
+		],
 		recoveryBehavior: "Return nonzero failures with deterministic issue text and no repository mutations.",
-		notes: ["Local scripts in this session scaffold the validation behavior."],
+		notes: [
+			"Validation scripts are read-only and bounded to framework documentation, scripts, source contracts, and synthetic fixtures.",
+			"Issues include stable path, heading, line, command ID, redacted excerpt, and remediation metadata.",
+		],
 	},
 	{
 		id: "voidbrain.preview-framework-update",
@@ -475,6 +499,48 @@ const validateCommandShape = (command: unknown, index: number): readonly AgentVa
 			message: `Catalog entry ${index} must define required safety phrases.`,
 			...commandIdField,
 			field: "requiredSafetyPhrases",
+			remediation:
+				"Add local-first, staged-change, provider-secret, synthetic-fixture, citation, dry-run, or recovery language as required.",
+		});
+	}
+
+	return issues;
+};
+
+const validateCommandRequiredText = (command: AgentCommand, index: number): readonly AgentValidationIssue[] => {
+	const requiredStringFields = ["name", "intent", "recoveryBehavior"] as const;
+	const issues: AgentValidationIssue[] = [];
+
+	for (const field of requiredStringFields) {
+		if (command[field].trim().length === 0) {
+			issues.push({
+				code: "catalog.invalid-command-id",
+				message: `Catalog entry ${index} has an empty ${field} field.`,
+				commandId: command.id,
+				field,
+				remediation: "Fill in the command catalog text so generated surfaces remain inspectable.",
+			});
+		}
+	}
+
+	if (command.supportedSurfaces.length === 0) {
+		issues.push({
+			code: "catalog.invalid-surface",
+			message: `Catalog entry ${index} must support at least one agent surface.`,
+			commandId: command.id,
+			field: "supportedSurfaces",
+			remediation: "Add the repository surfaces that must mention this command.",
+		});
+	}
+
+	if (command.requiredEvidence.length === 0) {
+		issues.push({
+			code: "catalog.invalid-command-id",
+			message: `Catalog entry ${index} must define required evidence.`,
+			commandId: command.id,
+			field: "requiredEvidence",
+			remediation:
+				"Add the durable IDs, paths, reports, validation output, or citation records needed for recovery.",
 		});
 	}
 
@@ -531,7 +597,8 @@ export const validateAgentCommandCatalog = (input: unknown = AGENT_COMMAND_CATAL
 	);
 	const duplicateIssues = validateDuplicateCommandIds(validCommands);
 	const completenessIssues = validateCatalogCompleteness(validCommands);
-	const issues = [...shapeIssues, ...duplicateIssues, ...completenessIssues];
+	const requiredTextIssues = validCommands.flatMap((command, index) => validateCommandRequiredText(command, index));
+	const issues = [...shapeIssues, ...duplicateIssues, ...completenessIssues, ...requiredTextIssues];
 
 	if (issues.length > 0) {
 		return {

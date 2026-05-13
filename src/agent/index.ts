@@ -14,6 +14,7 @@ export type {
 	RuntimeCommandHandlerEntry,
 	RuntimeCommandHandlerOptions,
 	HealthRuntimeCommandExecutionOptions,
+	RecoveryRuntimeCommandExecutionOptions,
 	StagedReviewRuntimeCommandExecutionOptions,
 } from "./runtime-command-handlers";
 export { GroundedVaultChatService } from "./grounded-vault-chat-service";
@@ -29,9 +30,21 @@ export {
 	createHotCacheService,
 	restoreHotCacheState,
 } from "./hot-cache-service";
+export { RecoverSessionService, createRecoverSessionService } from "./recover-session-service";
+export type {
+	RecoverSessionInput,
+	RecoveryAction,
+	RecoveryDiagnostic,
+	RecoveryEvidenceItem,
+	RecoverySupportReadFailure,
+	RecoverySummary,
+} from "../types/recovery";
 export { createRuntimeStatusSnapshot } from "./runtime-status";
 export {
+	extractAgentCommandReferencesFromMarkdown,
 	findMissingRequiredSafetyPhrases,
+	findStaleCommandStatusIssues,
+	getMarkdownLineContexts,
 	validateAgentSurfaceMarkdown,
 	validateAgentSurfaces,
 } from "./surface-validation";
@@ -40,6 +53,18 @@ export {
 	scanFixtureSafetyTexts,
 	validateFixtureSafetyEntries,
 } from "./fixture-safety";
+export {
+	createRedactedLineExcerpt,
+	formatAgentValidationIssue,
+	redactSensitiveValidationText,
+	sortAgentValidationIssues,
+} from "./agent-validation-reporting";
+export {
+	normalizeRepositoryPath,
+	isRepositoryPathWithinRoot,
+	uniqueRepositoryPaths,
+	validateRepositoryScanPath,
+} from "./repository-scan-boundary";
 export {
 	createFrameworkUpdatePreviewPlanner,
 	planFrameworkUpdatePreview,

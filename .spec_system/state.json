@@ -17,6 +17,12 @@
       "description": "Turn the Phase 00 foundations into usable Obsidian MVP workflows for provider setup, vault indexing, grounded chat, source ingestion, staged review, health reporting, and recoverable recent context.",
       "status": "complete",
       "session_count": 8
+    },
+    "2": {
+      "name": "Agentic Maintenance",
+      "description": "Implement read-only recovery, hardened agent surface validation, dry-run framework update previews, reviewable maintenance recommendations, similar-note and placement suggestions, batch source ingestion, and integration validation.",
+      "status": "in_progress",
+      "session_count": 7
     }
   },
   "completed_sessions": [
@@ -32,7 +38,10 @@
     "phase01-session04-grounded-vault-chat",
     "phase01-session05-source-ingestion-staging",
     "phase01-session06-staged-change-review-apply",
-    "phase01-session07-vault-health-repair-staging"
+    "phase01-session07-vault-health-repair-staging",
+    "phase01-session08-hot-cache-mvp-integration-validation",
+    "phase02-session01-recover-session-command",
+    "phase02-session02-agent-surface-validation-hardening"
   ],
   "next_session_history": [
     {
@@ -153,6 +162,26 @@
     {
       "date": "2026-05-13",
       "session": "phase01-session08-hot-cache-mvp-integration-validation",
+      "status": "completed"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase02-session01-recover-session-command",
+      "status": "planned"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase02-session01-recover-session-command",
+      "status": "completed"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase02-session02-agent-surface-validation-hardening",
+      "status": "planned"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase02-session02-agent-surface-validation-hardening",
       "status": "completed"
     }
   ]

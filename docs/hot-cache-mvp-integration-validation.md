@@ -53,12 +53,17 @@ The integration test covers a fixture-only Phase 01 path:
 - Hot cache persistence to `.voidbrain/cache/hot-cache.json`.
 - Plugin reload recovery of recent chat draft context.
 
+## Recovery Handoff
+
+`voidbrain.recover-session` now reads hot cache support records as one recovery
+source alongside staged-change metadata, health reports, operation logs, and
+validation output. Hot cache entries provide cache path, command ID, target
+paths, report IDs, staged-change IDs, and validation details for retry or
+discard guidance without applying note edits.
+
 ## Residual Risks
 
-- Full `voidbrain.recover-session` remains planned; hot cache records preserve
-  the support data needed for that future command.
 - Restored chat turns are intentionally bounded. Raw provider attempts and raw
   retrieval snippets are not restored from cache.
 - Cache writes are best-effort support writes. User notes remain safe if cache
   persistence fails, and the failure is surfaced in runtime status.
-

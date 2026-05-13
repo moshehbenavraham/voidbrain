@@ -1,5 +1,6 @@
 import type { AgentCommand, AgentCommandId, AgentValidationIssue } from "../types/agent-commands";
 import type { VoidbrainPluginSettings } from "../types/plugin";
+import type { RecoverySummary } from "../types/recovery";
 import type { RuntimeCommandContext, RuntimeCommandOutcome, RuntimeStatusSnapshot } from "../types/runtime";
 import {
 	AGENT_COMMAND_CATALOG,
@@ -32,6 +33,11 @@ export interface HealthRuntimeCommandExecutionOptions {
 	readonly canOpenHealthCheck?: () => boolean;
 }
 
+export interface RecoveryRuntimeCommandExecutionOptions {
+	readonly recoverSession: () => Promise<RecoverySummary> | RecoverySummary;
+	readonly canRecoverSession?: () => boolean;
+}
+
 export interface RuntimeCommandHandlerOptions {
 	readonly getSettings: () => VoidbrainPluginSettings;
 	readonly getStatusSnapshot: () => RuntimeStatusSnapshot;
@@ -39,6 +45,7 @@ export interface RuntimeCommandHandlerOptions {
 	readonly ingestion?: IngestionRuntimeCommandExecutionOptions;
 	readonly stagedReview?: StagedReviewRuntimeCommandExecutionOptions;
 	readonly health?: HealthRuntimeCommandExecutionOptions;
+	readonly recovery?: RecoveryRuntimeCommandExecutionOptions;
 }
 
 export class RuntimeCommandRegistrationError extends Error {
@@ -58,8 +65,7 @@ const plannedWorkflowMessages: Readonly<Record<AgentCommandId, string>> = {
 	"voidbrain.health-check": "Vault health reporting is unavailable. No vault notes were changed.",
 	"voidbrain.stage-change":
 		"Staged-change review and confirmed apply are unavailable. Direct note writes remain disabled.",
-	"voidbrain.recover-session":
-		"Session recovery is not ready yet. Recovery output will stay redacted when this workflow is implemented.",
+	"voidbrain.recover-session": "Session recovery runtime is unavailable. Recovery remains read-only and redacted.",
 	"voidbrain.validate-agent-surfaces":
 		"Agent surface validation is available from repository tooling, but the Obsidian command is read-only placeholder behavior.",
 	"voidbrain.preview-framework-update":
@@ -74,7 +80,8 @@ const recoveryHints: Readonly<Record<AgentCommandId, string>> = {
 	"voidbrain.health-check": "Reload the plugin and retry the local health scan; repairs remain staged changes only.",
 	"voidbrain.stage-change":
 		"Review staged-change IDs, confirmation requirements, backup intent, validation output, and recovery details before apply.",
-	"voidbrain.recover-session": "Keep command IDs and staged-change IDs available for later recovery workflows.",
+	"voidbrain.recover-session":
+		"Inspect command IDs, cache paths, target paths, report IDs, staged-change IDs, validation output, and retry or discard guidance.",
 	"voidbrain.validate-agent-surfaces": "Run bun run validate:agent-surfaces from the repository root.",
 	"voidbrain.preview-framework-update": "Run bun run preview:framework-update for a dry-run plan.",
 };
@@ -250,6 +257,53 @@ const buildHealthCommandOutcome = (
 	};
 };
 
+const buildRecoveryCommandOutcome = (
+	context: RuntimeCommandContext,
+	recovery: RecoveryRuntimeCommandExecutionOptions | undefined,
+	inFlightCommandIds: Set<AgentCommandId>,
+): RuntimeCommandOutcome => {
+	if (context.command.id !== "voidbrain.recover-session" || context.command.status !== "implemented") {
+		return buildCommandOutcome(context);
+	}
+
+	if (recovery === undefined || recovery.canRecoverSession?.() === false) {
+		return {
+			commandId: context.command.id,
+			kind: "not-ready",
+			severity: "error",
+			userMessage: "Session recovery runtime is unavailable. No vault notes or support records were changed.",
+			recoveryHint:
+				"Reload the plugin and inspect hot cache path, staged-change IDs, report IDs, validation output, and retry or discard options.",
+		};
+	}
+
+	if (inFlightCommandIds.has(context.command.id)) {
+		return {
+			commandId: context.command.id,
+			kind: "not-ready",
+			severity: "warning",
+			userMessage: "Session recovery is already running. No duplicate recovery read was started.",
+			recoveryHint: "Wait for the current recovery summary before retrying or discarding records.",
+		};
+	}
+
+	inFlightCommandIds.add(context.command.id);
+	Promise.resolve(recovery.recoverSession())
+		.catch(() => undefined)
+		.finally(() => {
+			inFlightCommandIds.delete(context.command.id);
+		});
+	return {
+		commandId: context.command.id,
+		kind: "read-only",
+		severity: "ready",
+		userMessage:
+			"Session recovery started as a read-only local support-record scan. No providers were called and no vault files were changed.",
+		recoveryHint:
+			"Inspect command IDs, cache paths, target paths, report IDs, staged-change IDs, validation output, and retry or discard guidance before taking action.",
+	};
+};
+
 export const mapRuntimeCommandError = (command: AgentCommand, error: unknown): RuntimeCommandOutcome => ({
 	commandId: command.id,
 	kind: "error",
@@ -289,6 +343,9 @@ export const createRuntimeCommandHandlers = (
 				}
 				if (command.id === "voidbrain.health-check") {
 					return buildHealthCommandOutcome(context, options.health, inFlightCommandIds);
+				}
+				if (command.id === "voidbrain.recover-session") {
+					return buildRecoveryCommandOutcome(context, options.recovery, inFlightCommandIds);
 				}
 
 				return buildCommandOutcome(context);

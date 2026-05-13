@@ -24,6 +24,34 @@ Obsidian vault -> src/main.ts -> domain services -> local indexes / staged recor
 - **Notes**: Keep Obsidian-specific integration here and delegate domain logic to
   testable services.
 
+### Staged Change Review and Apply
+
+- **Purpose**: Review proposed note mutations, handle conflicts, and apply
+  confirmed changes through an explicit local workflow.
+- **Location**: `src/agent/staged-change-review-service.ts`,
+  `src/stores/staged-change-review-store.ts`, `src/views/`
+- **Notes**: This layer keeps destructive note edits reviewable, reversible, and
+  separate from raw vault writes.
+
+### Hot Cache and Recent Context Recovery
+
+- **Purpose**: Persist bounded recent runtime context for reload recovery and
+  staged session summaries.
+- **Location**: `src/agent/hot-cache-service.ts`,
+  `src/stores/hot-cache-store.ts`
+- **Notes**: Hot cache records are support artifacts, not durable knowledge, and
+  must stay redacted and rebuildable.
+
+### Recover Session Command
+
+- **Purpose**: Build read-only recovery summaries from hot cache, staged-change
+  metadata, health reports, operation logs, validation output, and adapter read
+  failures.
+- **Location**: `src/agent/recover-session-service.ts`, `src/main.ts`
+- **Notes**: Recovery emits bounded IDs, paths, diagnostics, and retry or
+  discard actions. It never mutates vault notes, rewrites support records, or
+  replays provider calls.
+
 ### Agent Commands
 
 - **Purpose**: Define the canonical command catalog, surface validation, staged
@@ -78,7 +106,11 @@ Obsidian vault -> src/main.ts -> domain services -> local indexes / staged recor
 2. Domain services validate paths, capabilities, privacy rules, and staged-write
    safety.
 3. Retrieval services build citation-ready evidence from local indexes.
-4. Agent surfaces and docs describe the command and validation workflow.
+4. Staged-change and hot-cache services write bounded support artifacts that can
+   be inspected or rebuilt locally.
+5. Recover-session service summarizes support artifacts for read-only retry or
+   discard decisions.
+6. Agent surfaces and docs describe the command and validation workflow.
 
 ## Key Decisions
 

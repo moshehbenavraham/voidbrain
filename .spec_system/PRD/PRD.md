@@ -118,7 +118,7 @@ This system delivers the product via phases. Each phase is implemented via multi
 |-------|------|----------|--------|
 | 00 | Foundation | 6 | Complete |
 | 01 | Vault Intelligence MVP | 8 | Complete |
-| 02 | Agentic Maintenance | TBD | Not Started |
+| 02 | Agentic Maintenance | 7 | In Progress |
 | 03 | Offline and Provider Hardening | TBD | Not Started |
 | 04 | Distribution and Ecosystem | TBD | Not Started |
 
@@ -167,6 +167,33 @@ Phase 01 turned the completed foundations into the first usable local-first Obsi
 | 06 | Staged Change Review and Apply | Add explicit review, conflict handling, confirmed apply, and recovery for staged changes. |
 | 07 | Vault Health Check and Repair Staging | Surface health findings, export reports, and stage safe repairs while unsafe items remain report-only. |
 | 08 | Hot Cache and MVP Integration Validation | Persist recent context and validate the complete MVP workflow with docs and tests. |
+
+## Phase 02: Agentic Maintenance
+
+Phase 02 turns the completed MVP into an inspectable maintenance system. It
+implements recovery from local support records, hardens agent command surface
+validation, keeps framework updates dry-run and vault-safe, and adds reviewable
+maintenance recommendations for citations, links, related notes, note placement,
+and batch source ingestion.
+
+### Objectives
+
+1. Implement read-only recovery workflows that reconstruct command context from hot cache, logs, reports, staged-change records, and validation output.
+2. Harden agent command validation and framework update previews so command surfaces stay synchronized while user vault content remains excluded.
+3. Produce prioritized vault maintenance recommendations with citations, affected paths, confidence, recovery details, and staged-change handoff.
+4. Extend ingestion into bounded, recoverable batch workflows that preserve provider review, citation requirements, and review-first mutation behavior.
+
+### Sessions
+
+| Session | Name | Objective |
+|---------|------|-----------|
+| 01 | Recover Session Command | Implement `voidbrain.recover-session` as a read-only local workflow over hot cache, logs, reports, staged changes, and validation output. |
+| 02 | Agent Surface Validation Hardening | Harden `voidbrain.validate-agent-surfaces` so command IDs, safety phrases, stale references, and unsafe examples fail closed. |
+| 03 | Framework Update Preview Planner | Harden `voidbrain.preview-framework-update` as a dry-run planner that excludes user vault content and reports conflicts. |
+| 04 | Maintenance Recommendation Planner | Turn health, retrieval, index, and citation findings into prioritized, citation-backed repair proposals. |
+| 05 | Similar Note and Placement Suggestions | Suggest related notes, wikilinks, tags, folders, and frontmatter placement through staged review. |
+| 06 | Batch Source Ingestion Queue | Queue multiple approved markdown, text, pasted, or URL source records with provider review, citations, cancellation, retry, and recovery. |
+| 07 | Agentic Maintenance Integration Validation | Validate the complete Phase 02 workflow and synchronize docs, agent surfaces, phase records, and residual risk notes. |
 
 ## Technical Stack
 
