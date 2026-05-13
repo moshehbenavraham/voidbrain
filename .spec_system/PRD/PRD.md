@@ -120,7 +120,7 @@ This system delivers the product via phases. Each phase is implemented via multi
 | 01 | Vault Intelligence MVP | 8 | Complete |
 | 02 | Agentic Maintenance | 7 | Complete |
 | 03 | Offline and Provider Hardening | 6 | Complete |
-| 04 | Distribution and Ecosystem | TBD | Not Started |
+| 04 | Distribution and Ecosystem | 6 | Not Started |
 
 ## Phase 00: Foundation
 
@@ -230,6 +230,39 @@ compatibility, provider troubleshooting, and closeout integration.
 | 04 | Offline Embeddings and Index Compatibility | Keep semantic indexing and retrieval safe across local runtime outages and embedding model family changes. |
 | 05 | Provider Troubleshooting and Recovery UX | Surface provider readiness, troubleshooting, retry, recovery, and docs without leaking secrets or private content. |
 | 06 | Offline Provider Integration Validation | Validate Phase 03 workflows and synchronize docs, agent surfaces, security, phase records, and residual risks. |
+
+## Phase 04: Distribution and Ecosystem
+
+Phase 04 prepares Voidbrain for local-first release and ecosystem use. It turns
+the validated plugin, provider, retrieval, staged-change, recovery, and agent
+surface workflows into installable, documented, and validated distribution
+artifacts without weakening vault privacy or review-first mutation guarantees.
+
+### Objectives
+
+1. Produce deterministic Obsidian plugin release artifacts with aligned package,
+   manifest, version map, checksums, and validation evidence.
+2. Make local install, update, rollback, and troubleshooting workflows clear for
+   Obsidian users without moving or mutating existing vault content.
+3. Package markdown agent surfaces and command catalogs for multiple agent
+   ecosystems while keeping examples fixture-safe and provider-aware.
+4. Strengthen onboarding and provider readiness guidance so users understand
+   local, cloud, and custom remote disclosure boundaries before using AI flows.
+5. Define safe ecosystem handoff and export boundaries for selected markdown
+   outputs without adding hosted sync or third-party publishing to the MVP.
+6. Validate the full distribution path with docs, tests, security review,
+   fixture safety, and recovery details.
+
+### Sessions
+
+| Session | Name | Objective |
+|---------|------|-----------|
+| 01 | Release Metadata and Build Artifacts | Align release metadata, Obsidian build output, version maps, and bundle validation for deterministic local release artifacts. |
+| 02 | Obsidian Install and Update Workflow | Make local install, update, rollback, compatibility, and troubleshooting workflows inspectable and vault-safe. |
+| 03 | Agent Skill and Surface Packaging | Package AGENTS, CLAUDE, GEMINI, skills, and command catalogs for agent ecosystem reuse with fixture-safe validation. |
+| 04 | Onboarding and Provider Readiness Guides | Improve first-run onboarding and provider readiness guidance while preserving explicit disclosure gates. |
+| 05 | Ecosystem Export and Handoff Boundaries | Define safe markdown export and handoff workflows for selected outputs without hosted publishing or silent cloud disclosure. |
+| 06 | Distribution Integration Validation | Validate Phase 04 release artifacts, docs, agent surfaces, security posture, and residual risks end to end. |
 
 ## Technical Stack
 

@@ -55,7 +55,11 @@ Proven patterns and anti-patterns. Reference during implementation.
 - [P02] **Queue recovery metadata**: Provider-denied, citation-blocked, canceled, retried, staged, and failed queue states are recoverable when summaries keep item IDs, source paths, target paths, staged-change IDs, validation output, and provider decisions.
 - [P02] **Closeout integration coverage**: Phase-end integration tests are most useful when they exercise recovery, validation, preview, recommendation, suggestion, and queue boundaries together.
 - [P03] **Provider closeout fixture orchestration**: One synthetic provider fixture module can validate local profiles, OpenAI-compatible profiles, invocation boundaries, semantic fallback, troubleshooting, and surface safety without live provider calls.
+- [P03] **Endpoint classification before trust**: Schema-compatible endpoints are not safe by URL shape alone; keep remote, cloud, and local profile classification explicit.
+- [P03] **Shared invocation boundaries**: One timeout/cancellation/retry/duplicate guard path keeps chat and embedding behavior aligned and easier to recover.
+- [P03] **Bounded recovery metadata**: IDs, counts, readiness codes, fallback mode, and validation output were enough to diagnose failures without exposing payloads.
 - [P03] **Semantic fallback evidence**: Phase 03 showed that stale, missing, incompatible, canceled, provider-blocked, and offline semantic states are easier to recover when lexical fallback and reindex guidance are asserted together.
+- [P03] **Closeout integration coverage**: End-to-end phase closeout tests are most useful when they span profile readiness, invocation, fallback, troubleshooting, fixture safety, and docs sync together.
 
 ### What to Avoid
 
@@ -69,6 +73,8 @@ Proven patterns and anti-patterns. Reference during implementation.
 - [P01] **Silent fallback to cloud**: Local workflows should not quietly escalate to cloud providers when preflight fails.
 - [P02] **Late-only doc updates**: Waiting until the end of a session to update docs increases drift; update command docs and PRD records as validation evidence becomes available.
 - [P03] **State update timing drift**: Keep `.spec_system/state.json` changes in the explicit update workflow even when implementation closeout updates PRD and validation artifacts.
+- [P03] **Cloud safety by shape**: Do not infer disclosure safety from an OpenAI-compatible URL or API shape; trust must stay explicit.
+- [P03] **Runtime-only diagnostics**: Do not persist semantic compatibility or troubleshooting diagnostics into plugin settings when they are only needed for live support flows.
 
 ### Tool/Library Notes
 

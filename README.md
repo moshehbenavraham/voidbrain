@@ -88,7 +88,8 @@ documentation set lives at the repository root and in `docs/`, with
 repository-specific workflow and architecture details kept alongside the phase
 and domain docs.
 
-Phase 03 offline and provider hardening is in closeout validation, including
-local runtime profiles, OpenAI-compatible profiles, provider invocation
-boundaries, offline embedding compatibility, lexical fallback, provider
-troubleshooting recovery, and synchronized agent-surface safety checks.
+Phase 03 offline and provider hardening is complete, with closeout validation
+evidence recorded for local runtime profiles, OpenAI-compatible profiles,
+provider invocation boundaries, offline embedding compatibility, lexical
+fallback, provider troubleshooting recovery, and synchronized agent-surface
+safety checks.
