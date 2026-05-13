@@ -20,8 +20,8 @@ behavior, and recovery context.
 - Do not call live providers or include private vault content in fixtures.
 - Do not write API keys, tokens, passwords, authorization headers, or provider
   secrets into tracked files.
-- Keep any note mutation as a staged change until a later reviewed apply path
-  exists.
+- Keep any note mutation as a staged change until explicit review, confirmation,
+  backup, audit, and recovery checks pass.
 
 ## Commands
 
@@ -30,21 +30,21 @@ behavior, and recovery context.
 | `voidbrain.ingest-source` | implemented | Preview approved fixture-safe sources and stage generated source, entity, concept, and summary notes with citations and recovery details. |
 | `voidbrain.chat-with-vault` | implemented | Run cited vault chat with explicit provider review before cloud use. |
 | `voidbrain.health-check` | planned | Plan read-only plugin, provider, index, fixture, and doc status checks. |
-| `voidbrain.stage-change` | planned | Plan staged changes with before/after review context. |
+| `voidbrain.stage-change` | implemented | Review, confirm, apply, reject, retry, or dismiss staged changes with diffs, backups, audit records, and recovery details. |
 | `voidbrain.recover-session` | planned | Plan recovery from logs and staged files with redacted diagnostics. |
 | `voidbrain.validate-agent-surfaces` | scaffolded | Run bounded command surface validation for stale IDs and safety phrases. |
 | `voidbrain.preview-framework-update` | scaffolded | Run dry-run framework update previews while excluding user vault content. |
 
 ## Safe Examples
 
-Fixture-safe source path:
+Fixture-safe staged review:
 
 ```json
 {
-  "command": "voidbrain.ingest-source",
-  "sourcePath": "test/fixtures/vault/sources/demo-article.md",
+  "command": "voidbrain.stage-change",
+  "stagedChangeId": "stage-create-note-summaries-demo-summary-md-voidbrain-stage-change-000000",
   "writePolicy": "staged changes",
-  "requiredEvidence": ["source path", "citation IDs", "staged-change IDs"]
+  "requiredEvidence": ["target path", "before/after diff", "backup path intent", "validation output"]
 }
 ```
 

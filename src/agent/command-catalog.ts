@@ -191,41 +191,50 @@ export const AGENT_COMMAND_CATALOG: readonly AgentCommand[] = [
 	{
 		id: "voidbrain.stage-change",
 		name: "Stage change",
-		intent: "Create an inspectable proposed note mutation with before and after content.",
-		status: "planned",
+		intent: "Review, confirm, apply, reject, retry, or dismiss staged note mutations with backups, audit records, and recovery details.",
+		status: "implemented",
 		privacyLevel: "local-first",
 		writePolicy: "staged-changes",
 		prerequisites: [
-			"Target path is vault-relative and validated.",
-			"Existing content is loaded through Obsidian vault APIs at runtime.",
-			"Destructive rewrites require stronger confirmation in a later apply path.",
+			"Staged-change records include target paths, before and after diffs, validation output, and recovery metadata.",
+			"Apply uses Obsidian vault APIs after explicit confirmation and final preflight revalidation.",
+			"Delete, move, overwrite, and batch apply require stronger confirmation and backup support records.",
 		],
 		inputs: [
 			{
-				name: "targetPath",
-				description: "Vault-relative note path for the proposed mutation.",
+				name: "stagedChangeId",
+				description:
+					"One or more staged-change IDs selected for review, confirmation, apply, reject, retry, or dismiss.",
 				required: true,
 			},
 			{
-				name: "proposedContent",
-				description: "Candidate markdown content for review.",
-				required: true,
+				name: "confirmationText",
+				description: "Exact confirmation text for destructive, overwrite, or batch apply.",
+				required: false,
 			},
 		],
 		outputs: [
 			{
-				name: "stagedChange",
-				description: "Reviewable staged change ID with before and after diff context.",
+				name: "reviewOutcome",
+				description:
+					"Per-record apply, reject, retry, dismiss, conflict, or failed outcome with audit and recovery details.",
 				required: true,
 			},
 		],
-		requiredEvidence: ["target path", "before/after diff", "staged-change ID"],
+		requiredEvidence: [
+			"target path",
+			"before/after diff",
+			"staged-change ID",
+			"backup path intent",
+			"validation output",
+		],
 		supportedSurfaces: ["agents-md", "claude-md", "gemini-md", "voidbrain-skill", "human-docs"],
-		requiredSafetyPhrases: ["local-first", "staged changes", "recovery"],
-		recoveryBehavior: "Keep staged-change ID and target path so the user can inspect, apply, or discard later.",
+		requiredSafetyPhrases: ["local-first", "staged changes", "provider secrets", "synthetic fixtures", "recovery"],
+		recoveryBehavior:
+			"Keep command ID, target path, staged-change ID, backup path intent, validation output, and audit entry IDs so the user can retry or inspect later.",
 		notes: [
-			"Pure staged-change builders exist for create, update, delete, move, and frontmatter edit proposals.",
-			"Review UI and apply behavior remain planned for later sessions.",
+			"Review UI groups active, conflicted, failed, rejected, dismissed, and applied records by command, operation, status, destructive flag, and target path.",
+			"Apply behavior never calls providers and only mutates vault notes after explicit confirmation, conflict checks, and backup support writes for destructive changes.",
 		],
 	},
 	{

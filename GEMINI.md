@@ -25,7 +25,7 @@ content is out of scope unless a later reviewed workflow supplies it.
 | `voidbrain.ingest-source` | implemented | Use approved fixture-safe source input; generated notes remain staged changes with citations, target paths, and recovery details. |
 | `voidbrain.chat-with-vault` | implemented | Cite retrieval paths and require explicit provider review before cloud use. |
 | `voidbrain.health-check` | planned | Produce read-only status with clear failures and no vault mutation. |
-| `voidbrain.stage-change` | planned | Record before/after context and staged-change IDs for review. |
+| `voidbrain.stage-change` | implemented | Review, confirm, apply, reject, retry, or dismiss staged changes with diffs, backups, audit records, and recovery details. |
 | `voidbrain.recover-session` | planned | Read recovery state, redact provider secrets, and report retry or discard options. |
 | `voidbrain.validate-agent-surfaces` | scaffolded | Check known surfaces for command drift, missing safety phrases, and unsafe examples. |
 | `voidbrain.preview-framework-update` | scaffolded | Return a dry-run plan and exclude user vault content or generated knowledge notes. |

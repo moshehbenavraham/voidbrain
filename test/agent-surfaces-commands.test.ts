@@ -45,12 +45,12 @@ describe("agent command catalog", () => {
 		expect(agentCommandStatusLabel("planned")).toBe("Planned");
 		expect(getAgentCommandsByStatus("planned").map((command) => command.id)).toEqual([
 			"voidbrain.health-check",
-			"voidbrain.stage-change",
 			"voidbrain.recover-session",
 		]);
 		expect(getAgentCommandsByStatus("implemented").map((command) => command.id)).toEqual([
 			"voidbrain.ingest-source",
 			"voidbrain.chat-with-vault",
+			"voidbrain.stage-change",
 		]);
 		expect(getAgentCommandsByStatus("scaffolded").map((command) => command.id)).toEqual([
 			"voidbrain.validate-agent-surfaces",

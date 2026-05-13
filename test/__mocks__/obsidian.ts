@@ -101,11 +101,28 @@ export class Vault {
 	private files: TFile[] = [];
 	private readonly readContents = new Map<string, string>();
 	private readonly failedReadPaths = new Set<string>();
+	private readonly failedCreatePaths = new Set<string>();
+	private readonly failedModifyPaths = new Set<string>();
+	private readonly failedDeletePaths = new Set<string>();
+	private readonly failedRenamePaths = new Set<string>();
+	private readonly failedAdapterWritePaths = new Set<string>();
 
 	adapter = {
-		exists: vi.fn(async (_path: string): Promise<boolean> => true),
-		read: vi.fn(async (_path: string): Promise<string> => ""),
-		write: vi.fn(async (_path: string, _data: string): Promise<void> => undefined),
+		exists: vi.fn(async (path: string): Promise<boolean> => this.pathExists(path)),
+		read: vi.fn(async (path: string): Promise<string> => {
+			if (this.failedReadPaths.has(path)) {
+				throw new Error("Synthetic adapter read failed.");
+			}
+
+			return this.readContents.get(path) ?? "";
+		}),
+		write: vi.fn(async (path: string, data: string): Promise<void> => {
+			if (this.failedAdapterWritePaths.has(path)) {
+				throw new Error("Synthetic adapter write failed.");
+			}
+
+			this.readContents.set(path, data);
+		}),
 	};
 
 	getFiles = vi.fn((): TFile[] => [...this.files]);
@@ -122,13 +139,78 @@ export class Vault {
 
 		return this.adapter.read(file.path);
 	});
+	create = vi.fn(async (path: string, data: string): Promise<TFile> => {
+		if (this.failedCreatePaths.has(path)) {
+			throw new Error("Synthetic vault create failed.");
+		}
+
+		if (this.pathExists(path)) {
+			throw new Error(`Synthetic vault create target already exists: ${path}`);
+		}
+
+		const file = new TFile(path, { size: data.length });
+		this.files.push(file);
+		this.readContents.set(path, data);
+		return file;
+	});
+	modify = vi.fn(async (file: TFile, data: string): Promise<void> => {
+		if (this.failedModifyPaths.has(file.path)) {
+			throw new Error("Synthetic vault modify failed.");
+		}
+
+		if (!this.pathExists(file.path)) {
+			throw new Error(`Synthetic vault modify target is missing: ${file.path}`);
+		}
+
+		this.readContents.set(file.path, data);
+		file.stat = {
+			...file.stat,
+			mtime: file.stat.mtime + 1,
+			size: data.length,
+		};
+	});
+	delete = vi.fn(async (file: TFile): Promise<void> => {
+		if (this.failedDeletePaths.has(file.path)) {
+			throw new Error("Synthetic vault delete failed.");
+		}
+
+		this.files = this.files.filter((candidate) => candidate.path !== file.path);
+		this.readContents.delete(file.path);
+	});
+	rename = vi.fn(async (file: TFile, newPath: string): Promise<void> => {
+		if (this.failedRenamePaths.has(file.path) || this.failedRenamePaths.has(newPath)) {
+			throw new Error("Synthetic vault rename failed.");
+		}
+
+		if (!this.pathExists(file.path)) {
+			throw new Error(`Synthetic vault rename target is missing: ${file.path}`);
+		}
+
+		if (this.pathExists(newPath)) {
+			throw new Error(`Synthetic vault rename destination already exists: ${newPath}`);
+		}
+
+		const content = this.readContents.get(file.path) ?? "";
+		this.readContents.delete(file.path);
+		setTFilePath(file, newPath);
+		this.readContents.set(newPath, content);
+	});
 
 	setFiles(files: readonly TFile[]): void {
 		this.files = [...files];
 	}
 
 	setReadContent(path: string, content: string): void {
+		this.ensureFile(path, content.length);
 		this.readContents.set(path, content);
+	}
+
+	getReadContent(path: string): string | undefined {
+		return this.readContents.get(path);
+	}
+
+	pathExists(path: string): boolean {
+		return this.readContents.has(path) || this.files.some((file) => file.path === path);
 	}
 
 	setReadFailure(path: string): void {
@@ -137,6 +219,51 @@ export class Vault {
 
 	clearReadFailure(path: string): void {
 		this.failedReadPaths.delete(path);
+	}
+
+	setCreateFailure(path: string): void {
+		this.failedCreatePaths.add(path);
+	}
+
+	setModifyFailure(path: string): void {
+		this.failedModifyPaths.add(path);
+	}
+
+	setDeleteFailure(path: string): void {
+		this.failedDeletePaths.add(path);
+	}
+
+	setRenameFailure(path: string): void {
+		this.failedRenamePaths.add(path);
+	}
+
+	setAdapterWriteFailure(path: string): void {
+		this.failedAdapterWritePaths.add(path);
+	}
+
+	setPermissionFailure(path: string): void {
+		this.failedCreatePaths.add(path);
+		this.failedModifyPaths.add(path);
+		this.failedDeletePaths.add(path);
+		this.failedRenamePaths.add(path);
+		this.failedAdapterWritePaths.add(path);
+	}
+
+	clearFailures(path: string): void {
+		this.failedReadPaths.delete(path);
+		this.failedCreatePaths.delete(path);
+		this.failedModifyPaths.delete(path);
+		this.failedDeletePaths.delete(path);
+		this.failedRenamePaths.delete(path);
+		this.failedAdapterWritePaths.delete(path);
+	}
+
+	private ensureFile(path: string, size: number): void {
+		if (this.files.some((file) => file.path === path)) {
+			return;
+		}
+
+		this.files.push(new TFile(path, { size }));
 	}
 }
 
@@ -223,6 +350,15 @@ export class TFile {
 		};
 	}
 }
+
+const setTFilePath = (file: TFile, path: string): void => {
+	const fileName = path.split("/").at(-1) ?? path;
+	const extension = fileName.includes(".") ? (fileName.split(".").at(-1) ?? "") : "";
+	file.path = path;
+	file.name = fileName;
+	file.basename = extension.length === 0 ? fileName : fileName.slice(0, -(extension.length + 1));
+	file.extension = extension;
+};
 
 export class Notice {
 	readonly message: string;

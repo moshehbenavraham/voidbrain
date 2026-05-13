@@ -4,6 +4,7 @@ import {
 	GroundedVaultChatService,
 	SourceIngestionIntakeService,
 	SourceIngestionStagingService,
+	StagedChangeReviewService,
 	createRuntimeCommandHandlers,
 	createRuntimeStatusSnapshot,
 } from "./agent";
@@ -21,10 +22,21 @@ import {
 	createIngestionStagingStore,
 } from "./stores/ingestion-staging-store";
 import { type RuntimeStatusStore, createRuntimeStatusStore } from "./stores/runtime-status-store";
+import { type StagedChangeReviewStore, createStagedChangeReviewStore } from "./stores/staged-change-review-store";
 import type { IndexingRuntimeState } from "./types/indexing-runtime";
 import { DEFAULT_PLUGIN_SETTINGS, SHOW_STATUS_COMMAND_ID, type VoidbrainPluginSettings } from "./types/plugin";
 import type { RuntimeCommandOutcome, RuntimeStatusSnapshot } from "./types/runtime";
-import type { StagedChangeRecord } from "./types/vault";
+import type {
+	StagedReviewActionRequest,
+	StagedReviewApplyFailure,
+	StagedReviewApplyOutcome,
+	StagedReviewApplyPlanEntry,
+	StagedReviewApplyPlanFailure,
+	StagedReviewApplyRuntimeAdapter,
+	StagedReviewAuditEntry,
+	StagedReviewIndexRefreshResult,
+} from "./types/staged-review";
+import type { NormalizedVaultPath, StagedChangeRecord } from "./types/vault";
 import {
 	type SettingsLoadStatus,
 	type SettingsValidationError,
@@ -36,6 +48,7 @@ import { IndexingRuntimeService, createObsidianMarkdownIndexSource } from "./vec
 import { VOIDBRAIN_CHAT_VIEW_TYPE, VoidbrainChatView } from "./views/chat-view";
 import { VoidbrainSettingsTab } from "./views/settings-tab";
 import { SourceIngestionModal } from "./views/source-ingestion-modal";
+import { StagedChangeReviewModal } from "./views/staged-change-review-modal";
 import { VOIDBRAIN_STATUS_VIEW_TYPE, VoidbrainStatusView } from "./views/status-view";
 
 type CleanupCallback = () => void;
@@ -69,6 +82,9 @@ export default class VoidbrainPlugin extends Plugin {
 	private ingestionStagingStore: IngestionStagingStore | null = null;
 	private ingestionPersistenceState: PersistedIngestionStagingState | null = null;
 	private readonly ingestionStagedChanges: StagedChangeRecord[] = [];
+	private stagedChangeReviewService: StagedChangeReviewService | null = null;
+	private stagedChangeReviewStore: StagedChangeReviewStore | null = null;
+	private readonly stagedReviewAuditEntries: StagedReviewAuditEntry[] = [];
 	private ribbonActionCount = 0;
 	private settingsTabCount = 0;
 	private runtimeStatusSnapshot: RuntimeStatusSnapshot = createRuntimeStatusSnapshot({
@@ -86,6 +102,7 @@ export default class VoidbrainPlugin extends Plugin {
 		this.createIndexingRuntime();
 		this.createChatRuntime();
 		this.createIngestionRuntime();
+		this.createStagedReviewRuntime();
 		this.refreshRuntimeStatusSnapshot();
 		this.isRuntimeLoaded = true;
 
@@ -113,6 +130,10 @@ export default class VoidbrainPlugin extends Plugin {
 			this.ingestionStagingStore = null;
 			this.ingestionStagingService = null;
 			this.ingestionIntakeService = null;
+			this.stagedChangeReviewStore?.clear();
+			this.stagedChangeReviewStore = null;
+			this.stagedChangeReviewService = null;
+			this.stagedReviewAuditEntries.splice(0, this.stagedReviewAuditEntries.length);
 			this.ingestionStagedChanges.splice(0, this.ingestionStagedChanges.length);
 			this.isRuntimeLoaded = false;
 			this.runtimeStatusStore.clear();
@@ -231,6 +252,11 @@ export default class VoidbrainPlugin extends Plugin {
 		});
 	}
 
+	private createStagedReviewRuntime(): void {
+		this.stagedChangeReviewService = new StagedChangeReviewService();
+		this.stagedChangeReviewStore = createStagedChangeReviewStore();
+	}
+
 	private startIndexingOnStartup(): void {
 		if (!this.settings.indexing.shouldIndexOnStartup || this.indexingRuntime === null) {
 			return;
@@ -279,6 +305,11 @@ export default class VoidbrainPlugin extends Plugin {
 					this.ingestionIntakeService !== null &&
 					this.ingestionStagingService !== null &&
 					this.ingestionStagingStore !== null,
+			},
+			stagedReview: {
+				openStagedChangeReview: () => this.openStagedChangeReviewModal(),
+				canOpenStagedChangeReview: () =>
+					this.stagedChangeReviewService !== null && this.stagedChangeReviewStore !== null,
 			},
 		});
 
@@ -467,6 +498,296 @@ export default class VoidbrainPlugin extends Plugin {
 		}).open();
 	}
 
+	private async openStagedChangeReviewModal(): Promise<void> {
+		const service = this.stagedChangeReviewService;
+		const store = this.stagedChangeReviewStore;
+		if (service === null || store === null) {
+			if (this.settings.shouldShowStatusNotices) {
+				new Notice("Voidbrain staged-change review is unavailable. No vault files were changed.", 7000);
+			}
+			return;
+		}
+
+		new StagedChangeReviewModal(this.app, {
+			store,
+			loadReviewModel: () => service.createModel(this.ingestionStagedChanges),
+			applyReviewAction: async (request) => {
+				const result = service.applyAction(this.ingestionStagedChanges, request);
+				this.replaceStagedChanges(result.records);
+				this.stagedReviewAuditEntries.push(...result.auditEntries);
+				this.refreshRuntimeStatusSnapshot();
+				return result;
+			},
+			applySelectedChanges: (request) => this.applySelectedStagedChanges(request),
+			isOnline: () => this.isRuntimeLoaded,
+			onNotice: (message) => {
+				if (this.settings.shouldShowStatusNotices) {
+					new Notice(message, 7000);
+				}
+			},
+		}).open();
+	}
+
+	private async applySelectedStagedChanges(request: StagedReviewActionRequest): Promise<StagedReviewApplyOutcome> {
+		const service = this.stagedChangeReviewService;
+		if (service === null) {
+			return this.applyPlanFailureOutcome("preflight-unavailable", {
+				ok: false,
+				records: this.ingestionStagedChanges,
+				outcomes: [],
+				auditEntries: [],
+				recovery: [],
+				errors: [
+					{
+						code: "record.invalid-operation",
+						message: "Staged-change review service is unavailable.",
+					},
+				],
+			});
+		}
+
+		const adapter = this.createStagedReviewApplyAdapter();
+		const planResult = await service.planApply(this.ingestionStagedChanges, request, adapter);
+		if (!planResult.ok) {
+			this.replaceStagedChanges(planResult.records);
+			this.stagedReviewAuditEntries.push(...planResult.auditEntries);
+			this.refreshRuntimeStatusSnapshot();
+			return this.applyPlanFailureOutcome("preflight-failed", planResult);
+		}
+
+		const failures: StagedReviewApplyFailure[] = [];
+		for (const entry of planResult.plan.entries) {
+			try {
+				await this.executeStagedApplyEntry(entry, adapter);
+			} catch (error) {
+				failures.push({
+					changeId: entry.record.changeId,
+					message: safeRuntimeErrorMessage(error, `Failed to apply staged change ${entry.record.changeId}.`),
+					validationOutput: [
+						{
+							code: "record.invalid-operation",
+							message: safeRuntimeErrorMessage(
+								error,
+								`Failed to apply staged change ${entry.record.changeId}.`,
+							),
+							path: entry.record.targetPath,
+						},
+					],
+				});
+			}
+		}
+
+		const successfulPaths = planResult.plan.entries
+			.filter((entry) => !failures.some((failure) => failure.changeId === entry.record.changeId))
+			.flatMap((entry) => [
+				entry.record.targetPath,
+				...(entry.destinationPath === undefined ? [] : [entry.destinationPath]),
+			]);
+		const indexRefresh =
+			successfulPaths.length === 0
+				? {
+						attempted: false,
+						ok: true,
+						message: "No staged changes were applied, so index refresh was not requested.",
+						retryable: false,
+						targetPaths: [],
+					}
+				: await this.refreshIndexAfterStagedApply(successfulPaths);
+		const outcome = service.finalizeApplyPlan(planResult.plan, failures, indexRefresh);
+		this.mergeStagedChangeRecords(outcome.records);
+		this.stagedReviewAuditEntries.push(...outcome.auditEntries);
+		this.refreshRuntimeStatusSnapshot();
+		return outcome;
+	}
+
+	private createStagedReviewApplyAdapter(): StagedReviewApplyRuntimeAdapter {
+		return {
+			exists: async (path) => this.findVaultFile(path) !== undefined || this.app.vault.adapter.exists(path),
+			read: async (path) => {
+				const file = this.findVaultFile(path);
+				return file === undefined ? this.app.vault.adapter.read(path) : this.app.vault.read(file as TFile);
+			},
+			canWrite: async (path) => !path.startsWith("../") && !path.startsWith("/"),
+			create: async (path, content) => {
+				await this.app.vault.create(path, content);
+			},
+			modify: async (path, content) => {
+				await this.app.vault.modify(this.requireVaultFile(path), content);
+			},
+			delete: async (path) => {
+				await this.app.vault.delete(this.requireVaultFile(path));
+			},
+			rename: async (path, destinationPath) => {
+				await this.app.vault.rename(this.requireVaultFile(path), destinationPath);
+			},
+			writeSupportRecord: async (path, content) => {
+				if (!path.startsWith(".voidbrain/")) {
+					throw new Error("Backup support records must stay under .voidbrain.");
+				}
+
+				await this.app.vault.adapter.write(path, content);
+			},
+			refreshIndex: (paths) => this.refreshIndexAfterStagedApply(paths),
+		};
+	}
+
+	private async executeStagedApplyEntry(
+		entry: StagedReviewApplyPlanEntry,
+		adapter: StagedReviewApplyRuntimeAdapter,
+	): Promise<void> {
+		const record = entry.record;
+		switch (record.operationKind) {
+			case "create-note": {
+				if (record.diff.afterContent === undefined) {
+					throw new Error("Create staged change is missing after content.");
+				}
+				await adapter.create(record.targetPath, record.diff.afterContent);
+				return;
+			}
+			case "update-note":
+			case "update-frontmatter": {
+				if (record.diff.afterContent === undefined) {
+					throw new Error("Update staged change is missing after content.");
+				}
+				await adapter.modify(record.targetPath, record.diff.afterContent);
+				return;
+			}
+			case "delete-note": {
+				await this.writeDestructiveBackup(entry, adapter);
+				await adapter.delete(record.targetPath);
+				return;
+			}
+			case "move-note": {
+				if (entry.destinationPath === undefined) {
+					throw new Error("Move staged change is missing destination path.");
+				}
+				await this.writeDestructiveBackup(entry, adapter);
+				await adapter.rename(record.targetPath, entry.destinationPath);
+				return;
+			}
+			default: {
+				const exhaustive: never = record.operationKind;
+				throw new Error(`Unhandled staged-change operation: ${String(exhaustive)}`);
+			}
+		}
+	}
+
+	private async writeDestructiveBackup(
+		entry: StagedReviewApplyPlanEntry,
+		adapter: StagedReviewApplyRuntimeAdapter,
+	): Promise<void> {
+		if (entry.backupPath === undefined || entry.backupContent === undefined) {
+			throw new Error("Destructive staged changes require a backup support record before apply.");
+		}
+
+		await adapter.writeSupportRecord(entry.backupPath, this.renderBackupSupportRecord(entry));
+	}
+
+	private renderBackupSupportRecord(entry: StagedReviewApplyPlanEntry): string {
+		return [
+			"---",
+			"artifact-kind: staged-change-backup",
+			`staged-change-id: ${entry.record.changeId}`,
+			`command-id: ${entry.record.recovery.commandId}`,
+			`target-path: ${entry.record.targetPath}`,
+			...(entry.destinationPath === undefined ? [] : [`destination-path: ${entry.destinationPath}`]),
+			"---",
+			"",
+			entry.backupContent ?? "",
+		].join("\n");
+	}
+
+	private async refreshIndexAfterStagedApply(
+		targetPaths: readonly NormalizedVaultPath[],
+	): Promise<StagedReviewIndexRefreshResult> {
+		if (this.indexingRuntime === null) {
+			return {
+				attempted: false,
+				ok: false,
+				message: "Index refresh is unavailable; applied notes remain in the vault.",
+				retryable: true,
+				targetPaths,
+			};
+		}
+
+		for (let attempt = 0; attempt < 2; attempt += 1) {
+			try {
+				const result = await withTimeout(this.indexingRuntime.reindexLexical(), 5000);
+				return {
+					attempted: true,
+					ok: result.accepted,
+					message: result.message,
+					retryable: !result.accepted,
+					targetPaths,
+				};
+			} catch (error) {
+				if (attempt === 1) {
+					return {
+						attempted: true,
+						ok: false,
+						message: safeRuntimeErrorMessage(error, "Index refresh timed out after staged apply."),
+						retryable: true,
+						targetPaths,
+					};
+				}
+				await Promise.resolve();
+			}
+		}
+
+		return {
+			attempted: true,
+			ok: false,
+			message: "Index refresh failed after retry.",
+			retryable: true,
+			targetPaths,
+		};
+	}
+
+	private applyPlanFailureOutcome(planId: string, failure: StagedReviewApplyPlanFailure): StagedReviewApplyOutcome {
+		return {
+			ok: false,
+			planId,
+			records: failure.records,
+			outcomes: failure.outcomes,
+			auditEntries: failure.auditEntries,
+			recovery: failure.recovery,
+			indexRefresh: {
+				attempted: false,
+				ok: false,
+				message: failure.errors.map((error) => error.message).join(" "),
+				retryable: true,
+				targetPaths: failure.records.map((record) => record.targetPath),
+			},
+		};
+	}
+
+	private replaceStagedChanges(records: readonly StagedChangeRecord[]): void {
+		this.ingestionStagedChanges.splice(0, this.ingestionStagedChanges.length, ...records);
+	}
+
+	private mergeStagedChangeRecords(records: readonly StagedChangeRecord[]): void {
+		const updates = new Map(records.map((record) => [record.changeId, record]));
+		for (const [index, record] of this.ingestionStagedChanges.entries()) {
+			const updated = updates.get(record.changeId);
+			if (updated !== undefined) {
+				this.ingestionStagedChanges[index] = updated;
+			}
+		}
+	}
+
+	private findVaultFile(path: NormalizedVaultPath): TFile | undefined {
+		return this.app.vault.getFiles().find((file) => file.path === path) as TFile | undefined;
+	}
+
+	private requireVaultFile(path: NormalizedVaultPath): TFile {
+		const file = this.findVaultFile(path);
+		if (file === undefined) {
+			throw new Error(`Vault file is missing: ${path}`);
+		}
+
+		return file;
+	}
+
 	private async readVaultSourcePath(path: string): Promise<string> {
 		const normalized = normalizeVaultPath(path);
 		if (!normalized.ok) {
@@ -583,3 +904,24 @@ const clonePluginSettings = (settings: VoidbrainPluginSettings): VoidbrainPlugin
 	ui: { ...settings.ui },
 	status: { ...settings.status },
 });
+
+const safeRuntimeErrorMessage = (error: unknown, fallback: string): string =>
+	error instanceof Error && error.message.trim().length > 0 ? error.message : fallback;
+
+const withTimeout = async <TValue>(promise: Promise<TValue>, timeoutMs: number): Promise<TValue> =>
+	new Promise<TValue>((resolve, reject) => {
+		const timeoutId = window.setTimeout(() => {
+			reject(new Error("Timed out waiting for index refresh."));
+		}, timeoutMs);
+
+		promise.then(
+			(value) => {
+				window.clearTimeout(timeoutId);
+				resolve(value);
+			},
+			(error: unknown) => {
+				window.clearTimeout(timeoutId);
+				reject(error);
+			},
+		);
+	});

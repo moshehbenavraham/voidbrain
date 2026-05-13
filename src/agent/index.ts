@@ -13,6 +13,7 @@ export {
 export type {
 	RuntimeCommandHandlerEntry,
 	RuntimeCommandHandlerOptions,
+	StagedReviewRuntimeCommandExecutionOptions,
 } from "./runtime-command-handlers";
 export { GroundedVaultChatService } from "./grounded-vault-chat-service";
 export type {
@@ -64,6 +65,12 @@ export type {
 	StagedChangeServiceHooks,
 	StagedChangeServiceOptions,
 } from "./staged-change-service";
+export {
+	StagedChangeReviewService,
+	createStagedChangeReviewService,
+	createStagedReviewModel,
+} from "./staged-change-review-service";
+export type { StagedChangeReviewServiceOptions } from "./staged-change-review-service";
 export { validateGeneratedIngestionArtifacts, validateSourceCitationEvidence } from "./source-citation-validation";
 export {
 	SourceIngestionIntakeService,

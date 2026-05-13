@@ -49,6 +49,13 @@ const OPERATION_KIND_SET: ReadonlySet<string> = new Set([
 	"note-indexed",
 	"summary-generated",
 	"staged-change-created",
+	"staged-change-approved",
+	"staged-change-applied",
+	"staged-change-rejected",
+	"staged-change-dismissed",
+	"staged-change-failed",
+	"staged-change-conflicted",
+	"staged-change-backup-written",
 ]);
 const STAGED_CHANGE_OPERATION_SET: ReadonlySet<string> = new Set(STAGED_CHANGE_OPERATION_KINDS);
 const STAGED_CHANGE_STATUS_SET: ReadonlySet<string> = new Set(STAGED_CHANGE_STATUSES);
@@ -590,10 +597,18 @@ const validateStagedChangeRecovery = (record: UnknownRecord): ValidationIssue[] 
 			: normalizeVaultPath(recovery.backupPathIntent).ok
 				? []
 				: [issue("path.unsupported-location", "backupPathIntent must be vault-relative.", "backupPathIntent")]),
+		...(recovery.backupWrittenAt === undefined
+			? []
+			: validateIsoTimestamp(recovery.backupWrittenAt, "backupWrittenAt")),
+		...(recovery.appliedAt === undefined ? [] : validateIsoTimestamp(recovery.appliedAt, "appliedAt")),
 		...validateRecordArray(recovery, "validationOutput", validateStoredValidationIssue),
 		...(recovery.rejectedAt === undefined ? [] : validateIsoTimestamp(recovery.rejectedAt, "rejectedAt")),
+		...(recovery.dismissedAt === undefined ? [] : validateIsoTimestamp(recovery.dismissedAt, "dismissedAt")),
 		...(recovery.failedAt === undefined ? [] : validateIsoTimestamp(recovery.failedAt, "failedAt")),
 		...validateOptionalString(recovery, "lastFailureMessage"),
+		...(recovery.auditLogEntryIds === undefined
+			? []
+			: validateStringArray(recovery, "auditLogEntryIds", { requireNonEmpty: true })),
 	].map((error) => prefixIssueField(error, "recovery"));
 };
 
@@ -683,8 +698,14 @@ const validateStagedChangeRecordShape = (record: UnknownRecord): ValidationIssue
 	...validateStagedOperationMetadata(record),
 	...(Array.isArray(record.conflicts) &&
 	record.conflicts.some((conflict) => isRecord(conflict) && conflict.severity === "blocking") &&
-	record.status !== "conflicted"
-		? [issue("record.invalid-state", "Blocking staged-change conflicts require conflicted status.", "status")]
+	!["conflicted", "rejected", "dismissed", "failed"].includes(String(record.status))
+		? [
+				issue(
+					"record.invalid-state",
+					"Blocking staged-change conflicts require conflicted or recoverable terminal status.",
+					"status",
+				),
+			]
 		: []),
 	...(Array.isArray(record.conflicts) && record.conflicts.length === 0 && record.status === "conflicted"
 		? [issue("record.invalid-state", "Conflicted staged-change status requires at least one conflict.", "status")]

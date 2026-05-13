@@ -22,11 +22,17 @@ export interface IngestionRuntimeCommandExecutionOptions {
 	readonly canOpenIngestion?: () => boolean;
 }
 
+export interface StagedReviewRuntimeCommandExecutionOptions {
+	readonly openStagedChangeReview: () => Promise<void> | void;
+	readonly canOpenStagedChangeReview?: () => boolean;
+}
+
 export interface RuntimeCommandHandlerOptions {
 	readonly getSettings: () => VoidbrainPluginSettings;
 	readonly getStatusSnapshot: () => RuntimeStatusSnapshot;
 	readonly chat?: ChatRuntimeCommandExecutionOptions;
 	readonly ingestion?: IngestionRuntimeCommandExecutionOptions;
+	readonly stagedReview?: StagedReviewRuntimeCommandExecutionOptions;
 }
 
 export class RuntimeCommandRegistrationError extends Error {
@@ -46,7 +52,7 @@ const plannedWorkflowMessages: Readonly<Record<AgentCommandId, string>> = {
 	"voidbrain.health-check":
 		"Runtime health checks are not ready yet. This command is currently a local-first readiness placeholder.",
 	"voidbrain.stage-change":
-		"Staged-change review entry points are not ready yet. Direct note writes remain disabled.",
+		"Staged-change review and confirmed apply are unavailable. Direct note writes remain disabled.",
 	"voidbrain.recover-session":
 		"Session recovery is not ready yet. Recovery output will stay redacted when this workflow is implemented.",
 	"voidbrain.validate-agent-surfaces":
@@ -61,7 +67,8 @@ const recoveryHints: Readonly<Record<AgentCommandId, string>> = {
 	"voidbrain.chat-with-vault":
 		"Build or refresh the lexical index and configure providers first; chat remains blocked until retrieval and provider preflight are ready.",
 	"voidbrain.health-check": "Use the repository validation commands until runtime health checks are implemented.",
-	"voidbrain.stage-change": "Review staged-change support records only; do not edit user notes directly.",
+	"voidbrain.stage-change":
+		"Review staged-change IDs, confirmation requirements, backup intent, validation output, and recovery details before apply.",
 	"voidbrain.recover-session": "Keep command IDs and staged-change IDs available for later recovery workflows.",
 	"voidbrain.validate-agent-surfaces": "Run bun run validate:agent-surfaces from the repository root.",
 	"voidbrain.preview-framework-update": "Run bun run preview:framework-update for a dry-run plan.",
@@ -166,6 +173,34 @@ const buildIngestionCommandOutcome = (
 	};
 };
 
+const buildStagedReviewCommandOutcome = (
+	context: RuntimeCommandContext,
+	stagedReview: StagedReviewRuntimeCommandExecutionOptions | undefined,
+): RuntimeCommandOutcome => {
+	if (context.command.id !== "voidbrain.stage-change" || context.command.status !== "implemented") {
+		return buildCommandOutcome(context);
+	}
+
+	if (stagedReview === undefined || stagedReview.canOpenStagedChangeReview?.() === false) {
+		return {
+			commandId: context.command.id,
+			kind: "not-ready",
+			severity: "error",
+			userMessage: "Staged-change review runtime is unavailable. No vault notes were changed.",
+			recoveryHint: "Reload the plugin and inspect staged-change IDs, target paths, and validation output.",
+		};
+	}
+
+	void stagedReview.openStagedChangeReview();
+	return {
+		commandId: context.command.id,
+		kind: "opened",
+		severity: "ready",
+		userMessage: "Staged-change review opened with explicit confirmation and local backup gates.",
+		recoveryHint: "Apply only after reviewing diffs, backup intent, conflicts, and recovery details.",
+	};
+};
+
 export const mapRuntimeCommandError = (command: AgentCommand, error: unknown): RuntimeCommandOutcome => ({
 	commandId: command.id,
 	kind: "error",
@@ -194,6 +229,9 @@ export const createRuntimeCommandHandlers = (
 				};
 				if (command.id === "voidbrain.ingest-source") {
 					return buildIngestionCommandOutcome(context, options.ingestion);
+				}
+				if (command.id === "voidbrain.stage-change") {
+					return buildStagedReviewCommandOutcome(context, options.stagedReview);
 				}
 				if (command.id === "voidbrain.chat-with-vault") {
 					return buildChatCommandOutcome(context, options.chat);

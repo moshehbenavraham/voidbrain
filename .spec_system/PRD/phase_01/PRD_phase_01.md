@@ -4,7 +4,7 @@
 **Sessions**: 8
 **Estimated Duration**: 8-12 days
 
-**Progress**: 5/8 sessions (62.5%)
+**Progress**: 6/8 sessions (75%)
 
 ---
 
@@ -25,7 +25,7 @@ The phase preserves the vault as user-owned data. Provider calls require explici
 | 03 | Indexing Runtime and Retrieval Readiness | Complete | ~12-25 | PASS |
 | 04 | Grounded Vault Chat | Complete | ~12-25 | PASS |
 | 05 | Source Ingestion Staging | Complete | ~12-25 | PASS |
-| 06 | Staged Change Review and Apply | Not Started | ~12-25 | - |
+| 06 | Staged Change Review and Apply | Complete | ~12-25 | PASS |
 | 07 | Vault Health Check and Repair Staging | Not Started | ~12-25 | - |
 | 08 | Hot Cache and MVP Integration Validation | Not Started | ~12-25 | - |
 
@@ -38,12 +38,12 @@ The phase preserves the vault as user-owned data. Provider calls require explici
 - `phase01-session03-indexing-runtime-retrieval-readiness`
 - `phase01-session04-grounded-vault-chat`
 - `phase01-session05-source-ingestion-staging`
+- `phase01-session06-staged-change-review-apply`
 
 ---
 
 ## Upcoming Sessions
 
-- Session 06: Staged Change Review and Apply
 - Session 07: Vault Health Check and Repair Staging
 - Session 08: Hot Cache and MVP Integration Validation
 

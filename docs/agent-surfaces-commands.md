@@ -27,7 +27,7 @@ is the source of truth; this document is the human-readable companion.
 | `voidbrain.ingest-source` | Preview and stage approved source content as vault-ready artifacts. | implemented | local-first | staged changes | source path, source record, citation IDs, generated note paths, staged-change IDs |
 | `voidbrain.chat-with-vault` | Answer from indexed vault evidence with citations. | implemented | explicit provider review | no direct writes | cited retrieval paths and headings |
 | `voidbrain.health-check` | Report plugin, provider, index, and fixture safety state. | planned | local-first | read-only | status summary and failing checks |
-| `voidbrain.stage-change` | Create an inspectable proposed note mutation. | planned | local-first | staged changes | before/after diff and target path |
+| `voidbrain.stage-change` | Review and confirmed apply workflow for staged note mutations. | implemented | local-first | staged changes | staged-change ID, before/after diff, target path, backup path intent, validation output |
 | `voidbrain.recover-session` | Reconstruct recoverable command context from logs and staged files. | planned | local-first | read-only by default | recovery log path and staged-change IDs |
 | `voidbrain.validate-agent-surfaces` | Validate command IDs, safety phrases, and fixture-safe examples. | scaffolded | local-first | read-only | validation result list |
 | `voidbrain.preview-framework-update` | Preview framework file changes while excluding user vault content. | scaffolded | local-first | dry-run | planned framework file actions |
@@ -47,7 +47,7 @@ Status labels are intentionally conservative:
 | `voidbrain.ingest-source` | approved markdown path, text path, pasted content, or approved URL source record | staged-change IDs, generated target paths, source links, citation IDs, and recovery details |
 | `voidbrain.chat-with-vault` | user question and fresh retrieval evidence | cited answer with retrieval paths, headings, and source records |
 | `voidbrain.health-check` | optional bounded scope | pass/fail status with failing checks |
-| `voidbrain.stage-change` | `targetPath` and proposed markdown content | staged-change ID and before/after diff context |
+| `voidbrain.stage-change` | staged-change ID and confirmation text when required | per-record apply, reject, retry, dismiss, conflict, or failed outcome with audit and recovery details |
 | `voidbrain.recover-session` | recoverable session or staged-change ID | recovery summary with retry or discard options |
 | `voidbrain.validate-agent-surfaces` | known surface paths from the repository root | deterministic validation issues or pass status |
 | `voidbrain.preview-framework-update` | optional repository-relative framework paths | dry-run action list and excluded user-content paths |
@@ -67,15 +67,26 @@ and must pass explicit provider review and preflight first; denied or
 unavailable providers fall back to deterministic local extraction.
 
 Apply behavior is not part of ingestion staging. Review and apply controls stay
-in the staged-change workflow.
+in the staged-change workflow and require explicit confirmation before vault
+mutation.
 
 ## Staged Change And Health Primitives
 
-`voidbrain.stage-change` now has pure service primitives for proposed note
-creates, updates, deletes, moves, and frontmatter edits. The primitives produce
-reviewable staged-change records with before/after diff context, conflict
-metadata, destructive-review flags, and recovery metadata. They do not apply
-changes to user vault files.
+`voidbrain.stage-change` now opens a staged-change review workflow for proposed
+note creates, updates, deletes, moves, and frontmatter edits. The workflow
+groups records by command, operation, status, destructive flag, and target
+path; shows bounded before/after previews, conflicts, validation output, backup
+intent, and recovery details; and allows approve, reject, retry, dismiss, or
+confirmed apply.
+
+Apply behavior uses Obsidian vault APIs only after preflight revalidation.
+Create, update, and frontmatter edits require explicit review. Delete, move,
+overwrite, and batch apply require stronger typed confirmation. Destructive
+apply writes a `.voidbrain/staged-changes/` backup support record before
+mutation. Per-record audit and recovery output preserves command ID, target
+path, staged-change ID, backup path intent, validation output, and failed apply
+messages. Index refresh is triggered after successful apply; refresh failures
+are visible and retryable without hiding completed vault mutations.
 
 `voidbrain.health-check` now has fixture-safe report primitives for parsed
 notes and index freshness snapshots. Reports can identify orphan notes, broken
@@ -112,6 +123,6 @@ future apply plan automatically.
 ## Deferred Behavior
 
 These surfaces do not implement autonomous web research, destructive framework
-updates, direct writes to user notes, or staged-change apply behavior. Those
-workflows remain planned until later sessions add review primitives and
-staged-write application paths.
+updates, auto-apply of AI-proposed note edits, or remote sync conflict
+resolution. Note mutation remains bounded to the explicit staged-change
+review/apply workflow.

@@ -278,7 +278,22 @@ const stagedChangeStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem =>
 	const activeChanges = stagedChanges.filter(isActiveStagedChange);
 	const conflictedChanges = stagedChanges.filter((change) => change.status === "conflicted");
 	const failedChanges = stagedChanges.filter((change) => change.status === "failed");
-	const paths = limitedPaths(activeChanges.map((change) => change.targetPath));
+	const rejectedChanges = stagedChanges.filter((change) => change.status === "rejected");
+	const dismissedChanges = stagedChanges.filter((change) => change.status === "dismissed");
+	const appliedChanges = stagedChanges.filter((change) => change.status === "applied");
+	const paths = limitedPaths([...activeChanges, ...failedChanges].map((change) => change.targetPath));
+	const details = [
+		`${activeChanges.length} active staged change(s).`,
+		`${conflictedChanges.length} conflicted, ${failedChanges.length} failed, ${rejectedChanges.length} rejected, ${dismissedChanges.length} dismissed, ${appliedChanges.length} applied.`,
+		...limitedPaths(
+			[...conflictedChanges, ...failedChanges].flatMap((change) => [
+				change.targetPath,
+				...(change.operationMetadata?.destinationPath === undefined
+					? []
+					: [change.operationMetadata.destinationPath]),
+			]),
+		).map((path) => `Recovery path: ${path}.`),
+	];
 
 	if (failedChanges.length > 0) {
 		return {
@@ -287,7 +302,7 @@ const stagedChangeStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem =>
 			label: "Staged changes",
 			severity: "error",
 			summary: "At least one staged change has failed and needs recovery.",
-			details: [`${failedChanges.length} failed staged change(s).`],
+			details,
 			paths,
 			count: activeChanges.length,
 		};
@@ -300,7 +315,7 @@ const stagedChangeStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem =>
 			label: "Staged changes",
 			severity: "warning",
 			summary: "At least one staged change has a review conflict.",
-			details: [`${conflictedChanges.length} conflicted staged change(s).`],
+			details,
 			paths,
 			count: activeChanges.length,
 		};
@@ -313,7 +328,7 @@ const stagedChangeStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem =>
 			label: "Staged changes",
 			severity: "warning",
 			summary: "Staged changes are waiting for review.",
-			details: [`${activeChanges.length} active staged change(s).`],
+			details,
 			paths,
 			count: activeChanges.length,
 		};
@@ -325,7 +340,10 @@ const stagedChangeStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem =>
 		label: "Staged changes",
 		severity: "ready",
 		summary: "No staged changes are waiting for review.",
-		details: ["Direct note writes remain disabled."],
+		details:
+			appliedChanges.length === 0 && rejectedChanges.length === 0 && dismissedChanges.length === 0
+				? ["Direct note writes require explicit staged-change confirmation."]
+				: details,
 		paths,
 		count: 0,
 	};

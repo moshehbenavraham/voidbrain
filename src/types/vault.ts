@@ -180,7 +180,18 @@ export interface HotCacheState {
 	readonly entries: readonly HotCacheEntry[];
 }
 
-export type OperationKind = "source-imported" | "note-indexed" | "summary-generated" | "staged-change-created";
+export type OperationKind =
+	| "source-imported"
+	| "note-indexed"
+	| "summary-generated"
+	| "staged-change-created"
+	| "staged-change-approved"
+	| "staged-change-applied"
+	| "staged-change-rejected"
+	| "staged-change-dismissed"
+	| "staged-change-failed"
+	| "staged-change-conflicted"
+	| "staged-change-backup-written";
 
 export interface OperationLogEntry {
 	readonly id: string;
@@ -213,6 +224,7 @@ export const STAGED_CHANGE_STATUSES = [
 	"approved",
 	"applied",
 	"rejected",
+	"dismissed",
 	"failed",
 ] as const;
 
@@ -232,7 +244,9 @@ export const STAGED_CHANGE_RECOVERY_STATUSES = [
 	"not-needed",
 	"pending-review",
 	"retryable",
+	"applied",
 	"rejected",
+	"dismissed",
 	"failed-apply",
 ] as const;
 
@@ -290,10 +304,14 @@ export interface StagedChangeRecoveryMetadata {
 	readonly targetPath: NormalizedVaultPath;
 	readonly status: StagedChangeRecoveryStatus;
 	readonly backupPathIntent?: NormalizedVaultPath;
+	readonly backupWrittenAt?: IsoTimestamp;
+	readonly appliedAt?: IsoTimestamp;
 	readonly validationOutput: readonly ValidationIssue[];
 	readonly rejectedAt?: IsoTimestamp;
+	readonly dismissedAt?: IsoTimestamp;
 	readonly failedAt?: IsoTimestamp;
 	readonly lastFailureMessage?: string;
+	readonly auditLogEntryIds?: readonly string[];
 }
 
 export interface StagedChangeRecord {

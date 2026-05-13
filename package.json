@@ -1,6 +1,6 @@
 {
 	"name": "voidbrain",
-	"version": "0.1.11",
+	"version": "0.1.12",
 	"description": "Local-first AI second-brain scaffold for Obsidian-style markdown vaults.",
 	"type": "module",
 	"license": "MIT",

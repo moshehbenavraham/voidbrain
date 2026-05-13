@@ -5,6 +5,7 @@ import VoidbrainPlugin from "../src/main";
 import { TRUSTED_CLOUD_FIXTURE_PROVIDER_ID } from "../src/providers/provider-registry";
 import { AGENT_COMMAND_IDS } from "../src/types/agent-commands";
 import { DEFAULT_PLUGIN_SETTINGS, SHOW_STATUS_COMMAND_ID } from "../src/types/plugin";
+import type { StagedChangeRecord } from "../src/types/vault";
 import { VOIDBRAIN_CHAT_VIEW_TYPE } from "../src/views/chat-view";
 import { VOIDBRAIN_STATUS_VIEW_TYPE } from "../src/views/status-view";
 import type { Command, PluginSettingTab, RibbonAction } from "./__mocks__/obsidian";
@@ -19,6 +20,17 @@ import {
 	INGESTION_FIXTURE_MARKDOWN,
 	INGESTION_FIXTURE_MARKDOWN_PATH,
 } from "./fixtures/vault/source-ingestion-fixtures";
+import {
+	STAGED_REVIEW_CREATE_TARGET,
+	STAGED_REVIEW_DELETE_TARGET,
+	STAGED_REVIEW_FRONTMATTER_AFTER,
+	STAGED_REVIEW_FRONTMATTER_TARGET,
+	STAGED_REVIEW_MOVE_DESTINATION,
+	STAGED_REVIEW_MOVE_TARGET,
+	STAGED_REVIEW_UPDATE_AFTER,
+	STAGED_REVIEW_UPDATE_TARGET,
+	createStagedReviewFixtureRecords,
+} from "./fixtures/vault/staged-change-review-fixtures";
 
 interface MockedPluginRuntime extends VoidbrainPlugin {
 	commands: Command[];
@@ -59,6 +71,37 @@ const waitForCondition = async (predicate: () => boolean, count = 1000): Promise
 		await Promise.resolve();
 		await vi.advanceTimersByTimeAsync(0);
 	}
+};
+
+const seedStagedChanges = (plugin: MockedPluginRuntime, records: readonly StagedChangeRecord[]): void => {
+	(plugin as unknown as { ingestionStagedChanges: StagedChangeRecord[] }).ingestionStagedChanges.push(...records);
+};
+
+const clickStageChangeCommand = async (plugin: MockedPluginRuntime): Promise<void> => {
+	const stageCommand = plugin.commands.find((command) => command.id === "voidbrain.stage-change");
+	stageCommand?.callback?.();
+	await flushPromises();
+};
+
+const selectReviewGroup = (targetPath: string): void => {
+	const button = [...document.body.querySelectorAll<HTMLButtonElement>("[data-group-id]")].find((candidate) =>
+		candidate.textContent?.includes(targetPath),
+	);
+	button?.click();
+};
+
+const applyVisibleReviewGroup = async (confirmationText?: string): Promise<void> => {
+	const input = document.body.querySelector<HTMLInputElement>("[data-confirmation-input='true']");
+	if (input !== null && confirmationText !== undefined) {
+		input.value = confirmationText;
+		input.dispatchEvent(new Event("input", { bubbles: true }));
+	}
+	const applyButton = document.body.querySelector<HTMLButtonElement>("[data-review-action='apply']");
+	applyButton?.click();
+	await flushPromises(20);
+	await waitForCondition(
+		() => document.body.querySelector<HTMLButtonElement>("[data-review-action='refresh']")?.disabled === false,
+	);
 };
 
 describe("VoidbrainPlugin lifecycle", () => {
@@ -402,6 +445,125 @@ describe("VoidbrainPlugin lifecycle", () => {
 		expect(
 			plugin.getRuntimeStatusSnapshot().items.find((item) => item.id === "staged-change-readiness"),
 		).toBeDefined();
+	});
+
+	it("opens staged review command and applies a synthetic create with index refresh", async () => {
+		const app = new MockApp();
+		const plugin = new VoidbrainPlugin(
+			app as unknown as App,
+			{
+				id: "voidbrain",
+				name: "voidbrain",
+				version: "0.1.0",
+			} as PluginManifest,
+		) as MockedPluginRuntime;
+		plugin.loadData.mockResolvedValue(undefined);
+		const records = await createStagedReviewFixtureRecords();
+		seedStagedChanges(
+			plugin,
+			records.filter((record) => record.operationKind === "create-note"),
+		);
+
+		await plugin.onload();
+		await clickStageChangeCommand(plugin);
+		await waitForCondition(() => document.body.textContent?.includes(STAGED_REVIEW_CREATE_TARGET) === true);
+		await applyVisibleReviewGroup();
+
+		expect(app.vault.getReadContent(STAGED_REVIEW_CREATE_TARGET)).toContain("Synthetic staged review content.");
+		expect(notices.some((notice) => notice.message.includes("Staged changes applied"))).toBe(true);
+		expect(
+			plugin.getRuntimeStatusSnapshot().items.find((item) => item.id === "staged-change-readiness"),
+		).toMatchObject({
+			severity: "ready",
+		});
+	});
+
+	it("applies update, frontmatter edit, delete backup, and move backup through Obsidian APIs", async () => {
+		const app = new MockApp();
+		const plugin = new VoidbrainPlugin(
+			app as unknown as App,
+			{
+				id: "voidbrain",
+				name: "voidbrain",
+				version: "0.1.0",
+			} as PluginManifest,
+		) as MockedPluginRuntime;
+		plugin.loadData.mockResolvedValue(undefined);
+		const records = await createStagedReviewFixtureRecords();
+		for (const record of records) {
+			if (record.diff.beforeContent !== undefined) {
+				app.vault.setReadContent(record.targetPath, record.diff.beforeContent);
+			}
+		}
+		seedStagedChanges(
+			plugin,
+			records
+				.filter((record) =>
+					["update-note", "update-frontmatter", "delete-note", "move-note"].includes(record.operationKind),
+				)
+				.filter((record) => record.status === "review-ready"),
+		);
+
+		await plugin.onload();
+		await clickStageChangeCommand(plugin);
+		await waitForCondition(() => document.body.textContent?.includes(STAGED_REVIEW_UPDATE_TARGET) === true);
+
+		selectReviewGroup(STAGED_REVIEW_UPDATE_TARGET);
+		await applyVisibleReviewGroup(`APPLY OVERWRITE ${STAGED_REVIEW_UPDATE_TARGET}`);
+		expect(app.vault.getReadContent(STAGED_REVIEW_UPDATE_TARGET)).toBe(STAGED_REVIEW_UPDATE_AFTER);
+
+		selectReviewGroup(STAGED_REVIEW_FRONTMATTER_TARGET);
+		await applyVisibleReviewGroup(`APPLY OVERWRITE ${STAGED_REVIEW_FRONTMATTER_TARGET}`);
+		expect(app.vault.getReadContent(STAGED_REVIEW_FRONTMATTER_TARGET)).toBe(STAGED_REVIEW_FRONTMATTER_AFTER);
+
+		selectReviewGroup(STAGED_REVIEW_DELETE_TARGET);
+		await applyVisibleReviewGroup(`APPLY DESTRUCTIVE ${STAGED_REVIEW_DELETE_TARGET}`);
+		expect(app.vault.pathExists(STAGED_REVIEW_DELETE_TARGET)).toBe(false);
+		expect(app.vault.adapter.write).toHaveBeenCalledWith(
+			expect.stringContaining(".voidbrain/staged-changes/"),
+			expect.stringContaining("Synthetic content that can be backed up before deletion."),
+		);
+
+		selectReviewGroup(STAGED_REVIEW_MOVE_TARGET);
+		await applyVisibleReviewGroup(`APPLY DESTRUCTIVE ${STAGED_REVIEW_MOVE_TARGET}`);
+		expect(app.vault.pathExists(STAGED_REVIEW_MOVE_TARGET)).toBe(false);
+		expect(app.vault.pathExists(STAGED_REVIEW_MOVE_DESTINATION)).toBe(true);
+	});
+
+	it("keeps destructive target intact when backup support write fails", async () => {
+		const app = new MockApp();
+		const plugin = new VoidbrainPlugin(
+			app as unknown as App,
+			{
+				id: "voidbrain",
+				name: "voidbrain",
+				version: "0.1.0",
+			} as PluginManifest,
+		) as MockedPluginRuntime;
+		plugin.loadData.mockResolvedValue(undefined);
+		const records = await createStagedReviewFixtureRecords();
+		const deleteRecord = records.find((record) => record.operationKind === "delete-note");
+		if (deleteRecord === undefined || deleteRecord.diff.beforeContent === undefined) {
+			throw new Error("Expected synthetic delete record.");
+		}
+		app.vault.setReadContent(deleteRecord.targetPath, deleteRecord.diff.beforeContent);
+		if (deleteRecord.recovery.backupPathIntent !== undefined) {
+			app.vault.setAdapterWriteFailure(deleteRecord.recovery.backupPathIntent);
+		}
+		seedStagedChanges(plugin, [deleteRecord]);
+
+		await plugin.onload();
+		await clickStageChangeCommand(plugin);
+		await waitForCondition(() => document.body.textContent?.includes(STAGED_REVIEW_DELETE_TARGET) === true);
+		await applyVisibleReviewGroup(`APPLY DESTRUCTIVE ${STAGED_REVIEW_DELETE_TARGET}`);
+
+		expect(app.vault.pathExists(STAGED_REVIEW_DELETE_TARGET)).toBe(true);
+		expect(
+			plugin.getRuntimeStatusSnapshot().items.find((item) => item.id === "staged-change-readiness"),
+		).toMatchObject({
+			severity: "error",
+		});
+		expect(notices.some((notice) => notice.message.includes("failed during apply"))).toBe(true);
 	});
 
 	it("saves validated settings through Obsidian plugin storage", async () => {
