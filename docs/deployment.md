@@ -29,11 +29,26 @@ Set `VOIDBRAIN_DEV_VAULT` in `.env` to the Obsidian vault root, then run:
 bun run deploy:obsidian
 ```
 
-The deploy helper builds the production plugin bundle and copies only
-`main.js`, `styles.css`, `manifest.json`, and `versions.json` into
-`$VOIDBRAIN_DEV_VAULT/.obsidian/plugins/voidbrain`. Use
-`bun run deploy:obsidian -- --dry-run` to preview the target without building
-or copying.
+The deploy helper builds the production plugin bundle, validates release
+artifacts, creates an install/update plan, and copies only `main.js`,
+`styles.css`, `manifest.json`, and `versions.json` into
+`.obsidian/plugins/voidbrain`. It does not read, move, rewrite, delete, stage,
+or index user notes.
+
+Use dry run to preview the artifact plan without building or copying:
+
+```bash
+bun run deploy:obsidian -- --dry-run
+```
+
+Dry-run output reports command ID `voidbrain.deploy-obsidian-plugin`,
+operation kind, target plugin path, installed and incoming versions, release
+validation status, rollback intent, and planned artifact actions. It does not
+build, copy, clean, back up, mutate vault files, or print vault note content.
+
+See [Obsidian Install And Update Workflow](obsidian-install-update.md) for
+fresh install, update, downgrade, clean deploy, rollback intent, and
+troubleshooting details.
 
 ## Repository Health
 
@@ -58,6 +73,10 @@ workflow.
 - Preserve release recovery details with command ID
   `voidbrain.validate-release-artifacts`, artifact path, checksum, version
   values, validation issue code, and remediation text.
+- Preserve install/update recovery details with command ID
+  `voidbrain.deploy-obsidian-plugin`, operation kind, target plugin path,
+  installed version, incoming version, validation output, rollback intent, and
+  remediation text.
 
 ## Recovery
 
@@ -68,6 +87,9 @@ workflow.
   `versions.json` as the declared package files.
 - Unsafe diagnostic output: replace unsafe examples with fake placeholders or
   repository-relative paths.
+- Blocked install/update plan: run a dry run, inspect the install issue code,
+  confirm the target plugin path is `.obsidian/plugins/voidbrain`, and retry
+  only after release validation and compatibility issues are resolved.
 
 ## Operational Notes
 

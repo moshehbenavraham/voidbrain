@@ -80,10 +80,18 @@ Preview a dev-vault deploy without building or copying:
 bun run deploy:obsidian -- --dry-run
 ```
 
-The dry run reports planned artifact labels, repository-relative source paths,
-target plugin path, release validation status, and incoming version. It does
-not build, copy, clean, back up, mutate vault files, or record user vault note
+The dry run reuses release artifact validation as the handoff into the
+install/update planner. The planner blocks before copy or clean operations if
+release metadata, checksums, or expected artifacts fail validation.
+
+The dry run reports the planned artifact labels, repository-relative source
+paths, target plugin path, operation kind, installed version when present,
+incoming version, release validation status, and rollback intent. It does not
+build, copy, clean, back up, mutate vault files, or record user vault note
 content.
+
+See [Obsidian Install And Update Workflow](obsidian-install-update.md) for the
+local install, update, downgrade, rollback intent, and troubleshooting flow.
 
 ## Recovery Details
 
@@ -94,6 +102,10 @@ When validation fails, keep these details for inspection or retry:
 - Version values from the diagnostic output.
 - Validation issue code and remediation.
 - SHA-256 checksum for artifacts that were readable.
+- Install/update command ID `voidbrain.deploy-obsidian-plugin` when validation
+  output is carried into a deploy plan.
+- Target plugin path `.obsidian/plugins/voidbrain` and rollback intent when a
+  deploy plan is blocked.
 
 Common retries:
 

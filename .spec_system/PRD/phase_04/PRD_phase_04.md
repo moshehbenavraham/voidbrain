@@ -1,10 +1,10 @@
 # PRD Phase 04: Distribution and Ecosystem
 
-**Status**: Not Started
+**Status**: In Progress
 **Sessions**: 6
 **Estimated Duration**: 6-9 days
 
-**Progress**: 0/6 sessions (0%)
+**Progress**: 2/6 sessions (33%)
 
 ---
 
@@ -28,8 +28,8 @@ disclosure gates before private vault content can leave the local machine.
 
 | Session | Name | Status | Est. Tasks | Validated |
 |---------|------|--------|------------|-----------|
-| 01 | Release Metadata and Build Artifacts | Not Started | ~12-25 | - |
-| 02 | Obsidian Install and Update Workflow | Not Started | ~12-25 | - |
+| 01 | Release Metadata and Build Artifacts | Complete | ~12-25 | 2026-05-13 |
+| 02 | Obsidian Install and Update Workflow | Complete | ~12-25 | 2026-05-13 |
 | 03 | Agent Skill and Surface Packaging | Not Started | ~12-25 | - |
 | 04 | Onboarding and Provider Readiness Guides | Not Started | ~12-25 | - |
 | 05 | Ecosystem Export and Handoff Boundaries | Not Started | ~12-25 | - |
@@ -39,13 +39,14 @@ disclosure gates before private vault content can leave the local machine.
 
 ## Completed Sessions
 
-None yet.
+1. Release Metadata and Build Artifacts
+2. Obsidian Install and Update Workflow
 
 ---
 
 ## Upcoming Sessions
 
-- Session 01: Release Metadata and Build Artifacts
+- Session 03: Agent Skill and Surface Packaging
 
 ---
 

@@ -2,12 +2,19 @@
 
 import { spawnSync } from "node:child_process";
 import { constants } from "node:fs";
-import { access, copyFile, mkdir, readFile, rm, stat } from "node:fs/promises";
+import { access, readFile, stat } from "node:fs/promises";
 import { homedir } from "node:os";
 import { dirname, isAbsolute, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import type {
+	ObsidianInstallActionDiagnostic,
+	ObsidianInstallIssue,
+	ObsidianInstallPlan,
+} from "../src/types/obsidian-install";
+import { RELEASE_PLUGIN_ID } from "../src/types/release";
+import { createObsidianInstallPlan, executeObsidianInstallPlan } from "../src/utils/obsidian-install-workflow";
+import { validateReleaseArtifacts } from "../src/utils/release-artifacts";
 
-const pluginId = "voidbrain";
 const vaultEnvVar = "VOIDBRAIN_DEV_VAULT";
 const defaultEnvPath = ".env";
 
@@ -28,18 +35,13 @@ interface DeployOptions {
 	readonly dryRun: boolean;
 	readonly clean: boolean;
 	readonly createObsidianFolder: boolean;
+	readonly allowDowngrade: boolean;
 	readonly help: boolean;
 }
 
 interface VaultPathResolution {
 	readonly path: string;
 	readonly source: "cli" | "environment" | "env-file";
-}
-
-interface ArtifactCopy {
-	readonly label: string;
-	readonly from: string;
-	readonly to: string;
 }
 
 class UsageError extends Error {
@@ -60,12 +62,13 @@ Options:
   --skip-build                Copy the current build output without running bun run build.
   --clean                    Remove existing deploy artifacts before copying.
   --create-obsidian-folder    Create .obsidian/ if the vault folder exists without it.
-  --dry-run                   Validate inputs and print planned actions without building or copying.
+  --allow-downgrade           Permit installing an older incoming version after review.
+  --dry-run                   Validate inputs and print planned actions without building, copying, cleaning, or backup.
   -h, --help                  Show this help.
 
 Environment:
   ${vaultEnvVar} must point at the Obsidian vault root, not the plugin folder.
-  Final target: $${vaultEnvVar}/.obsidian/plugins/${pluginId}
+  Final target: $${vaultEnvVar}/.obsidian/plugins/${RELEASE_PLUGIN_ID}
 `;
 
 const parseArgs = (args: readonly string[]): DeployOptions => {
@@ -75,6 +78,7 @@ const parseArgs = (args: readonly string[]): DeployOptions => {
 	let dryRun = false;
 	let clean = false;
 	let createObsidianFolder = false;
+	let allowDowngrade = false;
 	let help = false;
 
 	for (let index = 0; index < args.length; index += 1) {
@@ -106,6 +110,8 @@ const parseArgs = (args: readonly string[]): DeployOptions => {
 			clean = true;
 		} else if (arg === "--create-obsidian-folder") {
 			createObsidianFolder = true;
+		} else if (arg === "--allow-downgrade") {
+			allowDowngrade = true;
 		} else if (!arg.startsWith("-") && vaultPath === null) {
 			vaultPath = arg;
 		} else {
@@ -120,6 +126,7 @@ const parseArgs = (args: readonly string[]): DeployOptions => {
 		dryRun,
 		clean,
 		createObsidianFolder,
+		allowDowngrade,
 		help,
 	};
 };
@@ -132,14 +139,6 @@ const isReadableFile = async (path: string): Promise<boolean> => {
 		}
 		await access(path, constants.R_OK);
 		return true;
-	} catch {
-		return false;
-	}
-};
-
-const isDirectory = async (path: string): Promise<boolean> => {
-	try {
-		return (await stat(path)).isDirectory();
 	} catch {
 		return false;
 	}
@@ -229,68 +228,29 @@ const resolveVaultPathValue = (path: string, baseDir: string): string => {
 };
 
 const validateRepository = async (): Promise<void> => {
-	const packageJsonPath = join(repoRoot, "package.json");
-	const manifestPath = join(repoRoot, "manifest.json");
-	const versionsPath = join(repoRoot, "versions.json");
-	const viteConfigPath = join(repoRoot, "vite.config.ts");
+	const requiredFiles = ["package.json", "manifest.json", "versions.json", "vite.config.ts"] as const;
 
-	for (const path of [packageJsonPath, manifestPath, versionsPath, viteConfigPath]) {
-		if (!(await isReadableFile(path))) {
+	for (const path of requiredFiles) {
+		if (!(await isReadableFile(join(repoRoot, path)))) {
 			throw new UsageError(`Run from a complete Voidbrain checkout; missing ${path}.`);
 		}
 	}
 
-	const packageJson = JSON.parse(await readFile(packageJsonPath, "utf8")) as { readonly name?: string };
-	if (packageJson.name !== pluginId) {
-		throw new UsageError(`Expected package name "${pluginId}", got "${packageJson.name ?? "unknown"}".`);
-	}
-};
-
-const validateVault = async (vaultRoot: string, createObsidianFolder: boolean, dryRun: boolean): Promise<string> => {
-	if (!(await isDirectory(vaultRoot))) {
-		throw new UsageError(`Vault root does not exist or is not a directory: ${vaultRoot}`);
-	}
-
-	const obsidianDir = join(vaultRoot, ".obsidian");
-	if (!(await isDirectory(obsidianDir))) {
-		if (!createObsidianFolder) {
+	try {
+		const packageJson = JSON.parse(await readFile(join(repoRoot, "package.json"), "utf8")) as {
+			readonly name?: string;
+		};
+		if (packageJson.name !== RELEASE_PLUGIN_ID) {
 			throw new UsageError(
-				"Vault root is missing .obsidian/. Open it in Obsidian first or rerun with --create-obsidian-folder.",
+				`Expected package name "${RELEASE_PLUGIN_ID}", got "${packageJson.name ?? "unknown"}".`,
 			);
 		}
-
-		if (!dryRun) {
-			await mkdir(obsidianDir, { recursive: true });
+	} catch (error) {
+		if (error instanceof UsageError) {
+			throw error;
 		}
+		throw new UsageError("Could not parse package.json while validating the deploy repository.");
 	}
-
-	return join(obsidianDir, "plugins", pluginId);
-};
-
-const buildArtifacts = (pluginDir: string): readonly ArtifactCopy[] => {
-	const buildDir = join(repoRoot, "build", pluginId);
-	return [
-		{
-			label: "main.js",
-			from: join(buildDir, "main.js"),
-			to: join(pluginDir, "main.js"),
-		},
-		{
-			label: "styles.css",
-			from: join(buildDir, "styles.css"),
-			to: join(pluginDir, "styles.css"),
-		},
-		{
-			label: "manifest.json",
-			from: join(repoRoot, "manifest.json"),
-			to: join(pluginDir, "manifest.json"),
-		},
-		{
-			label: "versions.json",
-			from: join(repoRoot, "versions.json"),
-			to: join(pluginDir, "versions.json"),
-		},
-	];
 };
 
 const runBuild = (): void => {
@@ -309,36 +269,58 @@ const runBuild = (): void => {
 	}
 };
 
-const verifyArtifacts = async (artifacts: readonly ArtifactCopy[]): Promise<void> => {
-	const missing: string[] = [];
-	for (const artifact of artifacts) {
-		if (!(await isReadableFile(artifact.from))) {
-			missing.push(artifact.from);
+const formatInstallIssue = (issue: ObsidianInstallIssue): string => {
+	const location = [issue.path, issue.field].filter((value) => value !== undefined).join("#");
+	const actual =
+		issue.actual === undefined
+			? ""
+			: ` Actual: ${Array.isArray(issue.actual) ? issue.actual.join(", ") : String(issue.actual)}.`;
+	return `[${issue.code}] ${location.length > 0 ? `${location}: ` : ""}${issue.message}${actual} ${issue.remediation}`;
+};
+
+const formatAction = (action: ObsidianInstallActionDiagnostic, prefix: string): string => {
+	if (action.kind === "copy-artifact") {
+		return `${prefix} copy ${action.artifactName ?? "artifact"}: ${action.sourcePath ?? "release-artifact"} -> ${
+			action.targetPath
+		}`;
+	}
+	if (action.kind === "clean-artifact") {
+		return `${prefix} clean ${action.artifactName ?? "artifact"}: ${action.targetPath}`;
+	}
+	if (action.kind === "backup-existing-artifact") {
+		return `${prefix} backup ${action.artifactName ?? "artifact"}: ${action.targetPath}`;
+	}
+	return `${prefix} ensure ${action.targetPath}`;
+};
+
+const printInstallPlan = (plan: ObsidianInstallPlan): void => {
+	console.log("==> Install/update plan");
+	console.log(`    command: ${plan.commandId}`);
+	console.log(`    status: ${plan.status}`);
+	console.log(`    operation: ${plan.operationKind}`);
+	console.log(`    target: ${plan.diagnostic.targetPluginPath}`);
+	console.log(`    installed version: ${plan.installedVersion ?? "none"}`);
+	console.log(`    incoming version: ${plan.incomingVersion ?? "unknown"}`);
+	console.log(`    release validation: ${plan.diagnostic.releaseValidation.status}`);
+	console.log(`    rollback intent: ${plan.rollbackIntent.mode}`);
+
+	if (plan.issues.length > 0) {
+		console.log("==> Plan issues");
+		for (const issue of plan.issues) {
+			console.log(`    ${formatInstallIssue(issue)}`);
 		}
+		return;
 	}
 
-	if (missing.length > 0) {
-		throw new UsageError(
-			`Missing deploy artifact(s): ${missing.join(", ")}. Run bun run build or retry without --skip-build.`,
-		);
+	console.log("==> Planned actions");
+	for (const action of plan.diagnostic.actions) {
+		console.log(`    ${formatAction(action, "would")}`);
 	}
 };
 
-const cleanArtifacts = async (artifacts: readonly ArtifactCopy[]): Promise<void> => {
-	console.log("==> Cleaning previous deploy artifacts");
-	for (const artifact of artifacts) {
-		await rm(artifact.to, { force: true });
-	}
-};
-
-const copyArtifacts = async (pluginDir: string, artifacts: readonly ArtifactCopy[]): Promise<void> => {
-	console.log("==> Copying plugin artifacts");
-	await mkdir(pluginDir, { recursive: true });
-	for (const artifact of artifacts) {
-		await copyFile(artifact.from, artifact.to);
-		const deployedStat = await stat(artifact.to);
-		console.log(`    ${artifact.label} -> ${deployedStat.size} bytes`);
-	}
+const formatPlanFailure = (plan: ObsidianInstallPlan): string => {
+	const issueSummary = plan.issues.map((issue) => issue.code).join(", ");
+	return `Install/update plan blocked: ${issueSummary}. Review the plan issues above and rerun after remediation.`;
 };
 
 const runDeploy = async (options: DeployOptions): Promise<void> => {
@@ -351,31 +333,57 @@ const runDeploy = async (options: DeployOptions): Promise<void> => {
 	await validateRepository();
 
 	const vault = await resolveVaultPath(options);
-	const pluginDir = await validateVault(vault.path, options.createObsidianFolder, options.dryRun);
-	const artifacts = buildArtifacts(pluginDir);
 
 	console.log(`==> Vault path source: ${vault.source}`);
-	console.log(`==> Target plugin dir: ${pluginDir}`);
+	console.log(`==> Target plugin dir: .obsidian/plugins/${RELEASE_PLUGIN_ID}`);
 
 	if (options.dryRun) {
-		console.log("==> Dry run only; no build or copy will run.");
-		for (const artifact of artifacts) {
-			console.log(`    would copy ${artifact.label}: ${artifact.from} -> ${artifact.to}`);
+		console.log("==> Dry run only; no build, copy, clean, backup, or vault mutation will run.");
+	}
+
+	if (!options.dryRun && !options.skipBuild) {
+		runBuild();
+	} else if (!options.dryRun) {
+		console.log("==> Skipping build; using existing build/voidbrain artifacts");
+	}
+
+	const releaseValidation = await validateReleaseArtifacts({ repoRoot });
+	const plan = await createObsidianInstallPlan({
+		options: {
+			repoRoot,
+			vaultRoot: vault.path,
+			createObsidianFolder: options.createObsidianFolder,
+			clean: options.clean,
+			dryRun: options.dryRun,
+			allowDowngrade: options.allowDowngrade,
+		},
+		releaseValidation,
+	});
+	printInstallPlan(plan);
+
+	if (options.dryRun) {
+		if (plan.status !== "ready") {
+			throw new UsageError(formatPlanFailure(plan));
 		}
 		return;
 	}
 
-	if (!options.skipBuild) {
-		runBuild();
-	} else {
-		console.log("==> Skipping build; using existing build/voidbrain artifacts");
+	if (plan.status !== "ready") {
+		throw new UsageError(formatPlanFailure(plan));
 	}
 
-	await verifyArtifacts(artifacts);
-	if (options.clean) {
-		await cleanArtifacts(artifacts);
+	console.log("==> Executing plugin artifact deploy");
+	const execution = await executeObsidianInstallPlan(plan);
+	if (!execution.ok) {
+		for (const issue of execution.issues) {
+			console.error(`    ${formatInstallIssue(issue)}`);
+		}
+		throw new UsageError("Install/update execution failed. Review rollback intent and completed actions above.");
 	}
-	await copyArtifacts(pluginDir, artifacts);
+
+	for (const action of execution.completedActions) {
+		console.log(`    ${formatAction(action, "did")}`);
+	}
 
 	console.log("");
 	console.log("Deploy complete. Reload Obsidian or disable/enable the Voidbrain plugin to pick up changes.");
@@ -391,7 +399,7 @@ try {
 		console.error("Run with --help for options.");
 		process.exitCode = 1;
 	} else {
-		console.error(error instanceof Error ? error.stack : String(error));
+		console.error(`Deploy failed unexpectedly: ${error instanceof Error ? error.name : "UnknownError"}.`);
 		process.exitCode = 1;
 	}
 }

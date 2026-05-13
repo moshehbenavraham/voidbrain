@@ -40,6 +40,18 @@ bun run validate:fixture-safety
 bun run preview:framework-update
 ```
 
+Local Obsidian install/update preview:
+
+```bash
+bun run deploy:obsidian -- --dry-run --vault fixtures/demo-vault
+```
+
+The deploy workflow builds and validates the plugin bundle, then copies only
+`main.js`, `manifest.json`, `styles.css`, and `versions.json` into
+`.obsidian/plugins/voidbrain`. Dry run prints the install/update plan without
+building, copying, cleaning, backing up, or mutating vault files. See
+[Obsidian Install And Update Workflow](docs/obsidian-install-update.md).
+
 ## Project Docs
 
 - [Contributing](CONTRIBUTING.md)
@@ -54,6 +66,7 @@ bun run preview:framework-update
 - [Environment Guide](docs/environments.md)
 - [Deployment Guide](docs/deployment.md)
 - [Release Artifact Validation](docs/release-artifacts.md)
+- [Obsidian Install And Update Workflow](docs/obsidian-install-update.md)
 - [Provider Setup](docs/provider-setup.md)
 - [Provider Troubleshooting and Recovery](docs/provider-troubleshooting-recovery.md)
 - [Phase 03 Offline Provider Integration Validation](docs/phase03-offline-provider-integration-validation.md)
@@ -98,4 +111,5 @@ safety checks.
 
 Phase 04 distribution work has started with local release artifact validation
 for package metadata, Obsidian manifest metadata, version maps, checksums,
-bounded diagnostics, and reproducible build output.
+bounded diagnostics, reproducible build output, and vault-safe Obsidian
+install/update planning.

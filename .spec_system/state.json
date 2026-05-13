@@ -33,7 +33,7 @@
     "4": {
       "name": "Distribution and Ecosystem",
       "description": "Prepare Voidbrain for local-first release by hardening Obsidian packaging, install and update workflows, agent ecosystem packaging, onboarding, safe export boundaries, and distribution validation.",
-      "status": "not_started",
+      "status": "in_progress",
       "session_count": 6
     }
   },
@@ -64,7 +64,9 @@
     "phase03-session03-provider-transport-invocation-boundaries",
     "phase03-session04-offline-embeddings-index-compatibility",
     "phase03-session05-provider-troubleshooting-recovery-ux",
-    "phase03-session06-offline-provider-integration-validation"
+    "phase03-session06-offline-provider-integration-validation",
+    "phase04-session01-release-metadata-build-artifacts",
+    "phase04-session02-obsidian-install-update-workflow"
   ],
   "next_session_history": [
     {
@@ -290,6 +292,26 @@
     {
       "date": "2026-05-13",
       "session": "phase03-session06-offline-provider-integration-validation",
+      "status": "completed"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase04-session01-release-metadata-build-artifacts",
+      "status": "planned"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase04-session01-release-metadata-build-artifacts",
+      "status": "completed"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase04-session02-obsidian-install-update-workflow",
+      "status": "planned"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase04-session02-obsidian-install-update-workflow",
       "status": "completed"
     }
   ]
