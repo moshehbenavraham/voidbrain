@@ -26,6 +26,7 @@ import {
 	type HotCacheSessionSummaryResult,
 } from "../types/hot-cache";
 import type { IndexingPathDiagnostic, IndexingRuntimeReport } from "../types/indexing-runtime";
+import type { SourceIngestionQueueSummary } from "../types/ingestion-queue";
 import type {
 	HotCacheEntry,
 	HotCacheEntryKind,
@@ -345,6 +346,42 @@ const healthReportEntry = (
 	];
 };
 
+const sourceIngestionQueueEntries = (
+	summaries: readonly SourceIngestionQueueSummary[] | undefined,
+	cachePath: NormalizedVaultPath,
+	now: IsoTimestamp,
+): readonly HotCacheEntry[] =>
+	(summaries ?? []).map((summary) =>
+		entry({
+			key: summary.queueId,
+			kind: "source-ingestion-queue",
+			cachePath,
+			commandId: "voidbrain.ingest-source",
+			lastAccessedAt: summary.updatedAt ?? now,
+			path: summary.targetPaths[0] ?? null,
+			sourcePaths: summary.sourcePaths,
+			summary: `Source ingestion queue ${summary.queueId} is ${summary.status} with ${summary.counts.staged} staged, ${summary.counts.failed} failed, and ${summary.counts.canceled} canceled item(s).`,
+			metadata: {
+				queueId: summary.queueId,
+				status: summary.status,
+				itemCount: summary.counts.total,
+				stagedCount: summary.counts.staged,
+				failedCount: summary.counts.failed,
+				canceledCount: summary.counts.canceled,
+				skippedCount: summary.counts.skipped,
+				retryableCount: summary.counts.retryable,
+				providerBlockedCount: summary.counts.providerBlocked,
+				citationBlockedCount: summary.counts.citationBlocked,
+				itemIds: summary.items.map((item) => item.itemId).slice(0, HOT_CACHE_MAX_PATHS),
+				itemStatuses: summary.items
+					.map((item) => `${item.itemId}:${item.status}`)
+					.slice(0, HOT_CACHE_MAX_PATHS),
+				stagedChangeIds: summary.stagedChangeIds.slice(0, HOT_CACHE_MAX_PATHS),
+			},
+			validationOutput: summary.validationOutput,
+		}),
+	);
+
 const validationFailure = (
 	cachePath: NormalizedVaultPath,
 	errors: readonly ValidationIssue[],
@@ -510,6 +547,7 @@ export class HotCacheService {
 			...indexEntries(input.indexReports, cachePath, now),
 			...stagedChangeEntries(input.stagedChanges, cachePath, now),
 			...healthReportEntry(input.healthReport, cachePath, now),
+			...sourceIngestionQueueEntries(input.sourceIngestionQueues, cachePath, now),
 			...(input.priorEntries ?? []),
 		]
 			.sort(compareEntries)

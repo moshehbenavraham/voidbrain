@@ -1,6 +1,7 @@
 import type { ChatContextChip, ChatThreadState, PersistedChatThreadState } from "./chat";
 import type { VaultHealthReport } from "./health";
 import type { IndexingRuntimeReport } from "./indexing-runtime";
+import type { SourceIngestionQueueSummary } from "./ingestion-queue";
 import type {
 	HotCacheEntry,
 	HotCacheState,
@@ -27,6 +28,7 @@ export const HOT_CACHE_ENTRY_KINDS = [
 	"staged-change",
 	"health-report",
 	"runtime-status",
+	"source-ingestion-queue",
 ] as const;
 
 export const HOT_CACHE_STORE_STATUSES = [
@@ -71,6 +73,7 @@ export interface HotCacheCaptureInput {
 	readonly indexReports?: readonly IndexingRuntimeReport[];
 	readonly stagedChanges?: readonly StagedChangeRecord[];
 	readonly healthReport?: VaultHealthReport | null;
+	readonly sourceIngestionQueues?: readonly SourceIngestionQueueSummary[];
 	readonly priorEntries?: readonly HotCacheEntry[];
 	readonly now?: Date;
 }

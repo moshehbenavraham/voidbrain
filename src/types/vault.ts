@@ -161,6 +161,7 @@ export const HOT_CACHE_ENTRY_KINDS = [
 	"staged-change",
 	"health-report",
 	"runtime-status",
+	"source-ingestion-queue",
 ] as const;
 
 export type HotCacheEntryKind = (typeof HOT_CACHE_ENTRY_KINDS)[number];

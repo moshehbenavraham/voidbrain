@@ -50,6 +50,7 @@ export interface SourceIngestionStagingServiceOptions {
 
 interface TimedProviderExtraction {
 	readonly timedOut: boolean;
+	readonly aborted?: boolean;
 	readonly extraction?: SourceIngestionExtractionCandidate;
 	readonly error?: unknown;
 }
@@ -199,14 +200,27 @@ const runProviderExtractorWithTimeout = async (
 	extractor: SourceIngestionProviderExtractor,
 	input: Omit<SourceIngestionProviderExtractionInput, "signal">,
 	timeoutMs: number,
+	parentSignal?: AbortSignal,
 ): Promise<TimedProviderExtraction> => {
+	if (parentSignal?.aborted === true) {
+		return { timedOut: false, aborted: true };
+	}
+
 	const controller = new AbortController();
 	let timeoutId: ReturnType<typeof setTimeout> | undefined;
+	let abortListener: (() => void) | undefined;
 	const timeout = new Promise<"timeout">((resolve) => {
 		timeoutId = setTimeout(() => {
 			controller.abort();
 			resolve("timeout");
 		}, timeoutMs);
+	});
+	const aborted = new Promise<"aborted">((resolve) => {
+		abortListener = () => {
+			controller.abort();
+			resolve("aborted");
+		};
+		parentSignal?.addEventListener("abort", abortListener, { once: true });
 	});
 
 	try {
@@ -216,9 +230,13 @@ const runProviderExtractorWithTimeout = async (
 				signal: controller.signal,
 			}),
 			timeout,
+			aborted,
 		]);
 		if (result === "timeout") {
 			return { timedOut: true };
+		}
+		if (result === "aborted") {
+			return { timedOut: false, aborted: true };
 		}
 
 		return {
@@ -233,6 +251,9 @@ const runProviderExtractorWithTimeout = async (
 	} finally {
 		if (timeoutId !== undefined) {
 			clearTimeout(timeoutId);
+		}
+		if (abortListener !== undefined) {
+			parentSignal?.removeEventListener("abort", abortListener);
 		}
 		controller.abort();
 	}
@@ -277,6 +298,8 @@ const validationIssueForFailure = (
 	path?: NormalizedVaultPath,
 ): readonly ValidationIssue[] => [issue("record.invalid-state", message, field, path)];
 
+const isAbortSignalAborted = (signal: AbortSignal | undefined): boolean => signal?.aborted === true;
+
 export class SourceIngestionStagingService {
 	private readonly intakeService: SourceIngestionIntakeService;
 	private readonly stagedChangeService: StagedChangeService;
@@ -299,6 +322,15 @@ export class SourceIngestionStagingService {
 	}
 
 	public async stageSource(request: SourceIngestionIntakeRequest): Promise<SourceIngestionStageResult> {
+		if (isAbortSignalAborted(request.signal)) {
+			return this.failure({
+				code: "ingestion.canceled",
+				message: "Source ingestion was canceled before preview.",
+				retryable: true,
+				validationOutput: validationIssueForFailure("Source ingestion was canceled.", "signal"),
+			});
+		}
+
 		const previewResult = await this.intakeService.createPreview(request);
 		if (!previewResult.ok) {
 			return this.failure({
@@ -310,6 +342,20 @@ export class SourceIngestionStagingService {
 		}
 
 		const preview = previewResult.value;
+		if (isAbortSignalAborted(request.signal)) {
+			return this.failure({
+				code: "ingestion.canceled",
+				message: "Source ingestion was canceled before staging.",
+				retryable: true,
+				preview,
+				validationOutput: validationIssueForFailure(
+					"Source ingestion was canceled before staging.",
+					"signal",
+					preview.sourcePath,
+				),
+			});
+		}
+
 		if (preview.duplicateStatus.isBlocking) {
 			return this.failure({
 				code: "ingestion.duplicate-source",
@@ -344,7 +390,21 @@ export class SourceIngestionStagingService {
 		this.inFlightFingerprints.add(preview.contentSha256);
 		try {
 			const content = sourceContentFromInput(request);
-			const providerResolution = await this.resolveProviderExtraction(preview, content);
+			const providerResolution = await this.resolveProviderExtraction(preview, content, request.signal);
+			if (isAbortSignalAborted(request.signal)) {
+				return this.failure({
+					code: "ingestion.canceled",
+					message: "Source ingestion was canceled before artifacts were staged.",
+					retryable: true,
+					preview,
+					providerDecision: providerResolution.decision,
+					validationOutput: validationIssueForFailure(
+						"Source ingestion was canceled before artifacts were staged.",
+						"signal",
+						preview.sourcePath,
+					),
+				});
+			}
 			const artifacts = renderSourceIngestionArtifacts({
 				preview,
 				extraction: providerResolution.extraction,
@@ -364,6 +424,22 @@ export class SourceIngestionStagingService {
 
 			const stagedChanges: StagedChangeRecord[] = [];
 			for (const artifact of artifacts) {
+				if (isAbortSignalAborted(request.signal)) {
+					return this.failure({
+						code: "ingestion.canceled",
+						message: "Source ingestion was canceled before all artifacts were staged.",
+						retryable: true,
+						preview,
+						providerDecision: providerResolution.decision,
+						stagedChanges,
+						validationOutput: validationIssueForFailure(
+							"Source ingestion was canceled before all artifacts were staged.",
+							"signal",
+							artifact.targetPath,
+						),
+					});
+				}
+
 				const staged = await this.stagedChangeService.stageCreateNote({
 					commandId: INGEST_SOURCE_COMMAND_ID,
 					targetPath: artifact.targetPath,
@@ -418,6 +494,7 @@ export class SourceIngestionStagingService {
 	private async resolveProviderExtraction(
 		preview: SourceIngestionPreview,
 		content: string,
+		signal?: AbortSignal,
 	): Promise<ProviderExtractionResolution> {
 		const fallback = createDeterministicExtraction(preview, content);
 		if (preview.extractionPlan.providerRequirement.mode === "none") {
@@ -466,7 +543,17 @@ export class SourceIngestionStagingService {
 					attempt,
 				},
 				this.providerTimeoutMs,
+				signal,
 			);
+
+			if (timed.aborted === true) {
+				attempts.push(
+					createAttempt(this.now, attempt, "failed", {
+						reason: "provider-aborted",
+					}),
+				);
+				break;
+			}
 
 			if (timed.timedOut) {
 				attempts.push(

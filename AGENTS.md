@@ -27,7 +27,7 @@ inspectable, provider-aware, and recoverable.
 
 | Command ID | Status | Agent Behavior |
 |------------|--------|----------------|
-| `voidbrain.ingest-source` | implemented | Preview approved markdown, text, pasted content, or URL source records; stage generated artifacts with citations and recovery details only. |
+| `voidbrain.ingest-source` | implemented | Preview approved markdown, text, pasted content, URL source records, or bounded batch queues; stage generated artifacts with citations, provider review, cancellation, retry, and recovery details only. |
 | `voidbrain.chat-with-vault` | implemented | Require retrieval citations and explicit provider review before any cloud call. |
 | `voidbrain.health-check` | implemented | Scan local vault notes and index freshness, export redacted reports, and stage only deterministic safe repairs through staged changes with recovery details. |
 | `voidbrain.stage-change` | implemented | Review, confirm, apply, reject, retry, or dismiss staged changes with before/after diffs, backup intent, audit records, and recovery details. |

@@ -6,6 +6,7 @@ import {
 	type RecoverSessionService,
 	type RecoverySummary,
 	SourceIngestionIntakeService,
+	SourceIngestionQueueService,
 	SourceIngestionStagingService,
 	StagedChangeReviewService,
 	VaultHealthRuntimeService,
@@ -24,6 +25,11 @@ import { BASELINE_PROVIDERS } from "./providers/provider-registry";
 import { type ChatThreadStore, createChatThreadStore } from "./stores/chat-thread-store";
 import { type HotCacheStore, createHotCacheStore } from "./stores/hot-cache-store";
 import {
+	type IngestionQueueStore,
+	type PersistedIngestionQueueState,
+	createIngestionQueueStore,
+} from "./stores/ingestion-queue-store";
+import {
 	type IngestionStagingStore,
 	type PersistedIngestionStagingState,
 	createIngestionStagingStore,
@@ -40,6 +46,7 @@ import type {
 } from "./types/health";
 import { HOT_CACHE_SESSION_SUMMARY_COMMAND_ID, type HotCacheSessionSummaryResult } from "./types/hot-cache";
 import type { IndexingRuntimeState } from "./types/indexing-runtime";
+import type { SourceIngestionQueueStatusInput, SourceIngestionQueueSummary } from "./types/ingestion-queue";
 import { DEFAULT_PLUGIN_SETTINGS, SHOW_STATUS_COMMAND_ID, type VoidbrainPluginSettings } from "./types/plugin";
 import type { RecoverySupportReadFailure } from "./types/recovery";
 import type { RuntimeCommandOutcome, RuntimeStatusSnapshot } from "./types/runtime";
@@ -103,6 +110,10 @@ export default class VoidbrainPlugin extends Plugin {
 	private ingestionStagingService: SourceIngestionStagingService | null = null;
 	private ingestionStagingStore: IngestionStagingStore | null = null;
 	private ingestionPersistenceState: PersistedIngestionStagingState | null = null;
+	private ingestionQueueService: SourceIngestionQueueService | null = null;
+	private ingestionQueueStore: IngestionQueueStore | null = null;
+	private ingestionQueuePersistenceState: PersistedIngestionQueueState | null = null;
+	private latestIngestionQueueSummary: SourceIngestionQueueSummary | null = null;
 	private readonly ingestionStagedChanges: StagedChangeRecord[] = [];
 	private stagedChangeReviewService: StagedChangeReviewService | null = null;
 	private stagedChangeReviewStore: StagedChangeReviewStore | null = null;
@@ -164,6 +175,12 @@ export default class VoidbrainPlugin extends Plugin {
 			this.chatService = null;
 			this.ingestionStagingStore?.clear();
 			this.ingestionStagingStore = null;
+			this.ingestionQueueService?.dispose();
+			this.ingestionQueueService = null;
+			this.ingestionQueueStore?.clear();
+			this.ingestionQueueStore = null;
+			this.ingestionQueuePersistenceState = null;
+			this.latestIngestionQueueSummary = null;
 			this.ingestionStagingService = null;
 			this.ingestionIntakeService = null;
 			this.stagedChangeReviewStore?.clear();
@@ -222,6 +239,7 @@ export default class VoidbrainPlugin extends Plugin {
 		const providers = buildProviderDefinitionsForSettings(this.settings, BASELINE_PROVIDERS);
 		const indexingState = this.indexingRuntime?.getState() ?? null;
 		const lexicalReport = indexingState?.lexicalReport ?? null;
+		const ingestionQueueStatus = this.getIngestionQueueStatusInput();
 		this.runtimeStatusSnapshot = createRuntimeStatusSnapshot({
 			settings: this.settings,
 			providers,
@@ -241,6 +259,7 @@ export default class VoidbrainPlugin extends Plugin {
 			stagedChanges: this.ingestionStagedChanges,
 			healthReport: this.latestHealthReport,
 			hotCache: this.hotCacheStore?.getStatusInput() ?? null,
+			...(ingestionQueueStatus === null ? {} : { ingestionQueue: ingestionQueueStatus }),
 		});
 		this.runtimeStatusStore.setSnapshot(this.runtimeStatusSnapshot);
 
@@ -335,6 +354,22 @@ export default class VoidbrainPlugin extends Plugin {
 			persistence: {
 				save: async (state) => {
 					this.ingestionPersistenceState = state;
+				},
+			},
+		});
+		this.ingestionQueueService = new SourceIngestionQueueService({
+			intakeService: this.ingestionIntakeService,
+			stagingService: this.ingestionStagingService,
+			getSettings: () => this.settings,
+			baselineProviders: BASELINE_PROVIDERS,
+		});
+		this.ingestionQueueStore = createIngestionQueueStore({
+			...(this.ingestionQueuePersistenceState === null
+				? {}
+				: { initialPersistedState: this.ingestionQueuePersistenceState }),
+			persistence: {
+				save: async (state) => {
+					this.ingestionQueuePersistenceState = state;
 				},
 			},
 		});
@@ -623,6 +658,8 @@ export default class VoidbrainPlugin extends Plugin {
 		const intakeService = this.ingestionIntakeService;
 		const stagingService = this.ingestionStagingService;
 		const store = this.ingestionStagingStore;
+		const queueService = this.ingestionQueueService;
+		const queueStore = this.ingestionQueueStore;
 		if (intakeService === null || stagingService === null || store === null) {
 			if (this.settings.shouldShowStatusNotices) {
 				new Notice("Voidbrain source ingestion is unavailable. No vault files were changed.", 7000);
@@ -653,6 +690,29 @@ export default class VoidbrainPlugin extends Plugin {
 				return result;
 			},
 			readSourcePath: (path) => this.readVaultSourcePath(path),
+			...(queueStore === null ? {} : { queueStore }),
+			...(queueService === null
+				? {}
+				: {
+						runQueue: async (input) => {
+							const result = await queueService.runQueue({
+								...input,
+								existingNotes: this.getExistingMarkdownNotePlaceholders(),
+								existingStagedChanges: this.ingestionStagedChanges,
+								onUpdate: (summary) => {
+									input.onUpdate?.(summary);
+									this.latestIngestionQueueSummary = summary;
+									this.refreshRuntimeStatusSnapshot();
+								},
+							});
+							this.latestIngestionQueueSummary = result.summary;
+							this.ingestionStagedChanges.push(...result.stagedChanges);
+							this.refreshRuntimeStatusSnapshot();
+							this.queueHotCachePersist();
+							return result;
+						},
+						cancelQueue: (queueId) => queueService.cancelQueue(queueId),
+					}),
 			getExistingNotes: () => this.getExistingMarkdownNotePlaceholders(),
 			getExistingStagedChanges: () => this.ingestionStagedChanges,
 			onNotice: (message) => {
@@ -1168,6 +1228,18 @@ export default class VoidbrainPlugin extends Plugin {
 		return notes;
 	}
 
+	private getIngestionQueueStatusInput(): SourceIngestionQueueStatusInput | null {
+		const status = this.ingestionQueueStore?.getStatusInput();
+		if (status === undefined) {
+			return null;
+		}
+		if (status.summary === null && !status.isRunning && status.lastFailureMessage === undefined) {
+			return null;
+		}
+
+		return status;
+	}
+
 	private queueHotCachePersist(): void {
 		void this.persistHotCache().catch((error) => {
 			const message = safeRuntimeErrorMessage(error, "Hot cache persistence failed.");
@@ -1197,6 +1269,9 @@ export default class VoidbrainPlugin extends Plugin {
 			...(lexicalReport === null ? {} : { indexReports: [lexicalReport] }),
 			stagedChanges: this.ingestionStagedChanges,
 			healthReport: this.latestHealthReport,
+			...(this.latestIngestionQueueSummary === null
+				? {}
+				: { sourceIngestionQueues: [this.latestIngestionQueueSummary] }),
 		});
 		if (!result.ok) {
 			store.applyCaptureResult(result);

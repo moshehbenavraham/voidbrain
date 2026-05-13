@@ -2,6 +2,7 @@ import type { AgentCommand, AgentCommandId } from "./agent-commands";
 import type { VaultHealthReport } from "./health";
 import type { HotCacheStatusInput } from "./hot-cache";
 import type { IndexingPathDiagnostic, IndexingRuntimeReport, SemanticIndexReadiness } from "./indexing-runtime";
+import type { SourceIngestionQueueStatusInput } from "./ingestion-queue";
 import type { MaintenanceRecommendationPlan } from "./maintenance";
 import type { VoidbrainPluginSettings } from "./plugin";
 import type { ProviderRoleCapabilitySummary, ProviderSetupSummary } from "./provider-setup";
@@ -16,6 +17,7 @@ export const RUNTIME_STATUS_AREAS = [
 	"staged-change",
 	"health",
 	"hot-cache",
+	"ingestion",
 	"maintenance",
 ] as const;
 export const RUNTIME_STATUS_SEVERITIES = ["ready", "warning", "error", "missing"] as const;
@@ -72,6 +74,7 @@ export interface RuntimeStatusInput {
 	readonly stagedChanges?: readonly StagedChangeRecord[];
 	readonly healthReport?: VaultHealthReport | null;
 	readonly hotCache?: HotCacheStatusInput | null;
+	readonly ingestionQueue?: SourceIngestionQueueStatusInput | null;
 	readonly maintenanceRecommendations?: MaintenanceRecommendationStatusInput | null;
 	readonly similarNoteSuggestions?: SimilarNoteSuggestionStatusInput | null;
 	readonly now?: Date;

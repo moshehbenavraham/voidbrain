@@ -1,4 +1,5 @@
 import { type App, Modal, Notice } from "obsidian";
+import type { IngestionQueueStore } from "../stores/ingestion-queue-store";
 import type { IngestionStagingStore } from "../stores/ingestion-staging-store";
 import type {
 	SourceIngestionInput,
@@ -9,6 +10,12 @@ import type {
 	SourceIngestionStoreState,
 	SourceIngestionStoreUnsubscribe,
 } from "../types/ingestion";
+import type {
+	SourceIngestionQueueCancelResult,
+	SourceIngestionQueueRunInput,
+	SourceIngestionQueueRunResult,
+	SourceIngestionQueueStoreState,
+} from "../types/ingestion-queue";
 import type { StagedChangeRecord, ValidationIssue, ValidationResult } from "../types/vault";
 
 export interface SourceIngestionModalOptions {
@@ -18,6 +25,9 @@ export interface SourceIngestionModalOptions {
 	) => Promise<ValidationResult<SourceIngestionPreview>>;
 	readonly stageSource: (request: SourceIngestionIntakeRequest) => Promise<SourceIngestionStageResult>;
 	readonly readSourcePath: (path: string) => Promise<string>;
+	readonly queueStore?: IngestionQueueStore;
+	readonly runQueue?: (input: SourceIngestionQueueRunInput) => Promise<SourceIngestionQueueRunResult>;
+	readonly cancelQueue?: (queueId: string) => SourceIngestionQueueCancelResult;
 	readonly getExistingNotes?: () => SourceIngestionIntakeRequest["existingNotes"];
 	readonly getExistingStagedChanges?: () => readonly StagedChangeRecord[];
 	readonly onNotice?: (message: string) => void;
@@ -67,7 +77,11 @@ const failureFromValidation = (
 export class SourceIngestionModal extends Modal {
 	private draft = emptyDraft();
 	private activeRequest: SourceIngestionIntakeRequest | null = null;
+	private readonly queueRequests: SourceIngestionIntakeRequest[] = [];
+	private readonly retryRequestsByItemId = new Map<string, SourceIngestionIntakeRequest>();
 	private unsubscribe: SourceIngestionStoreUnsubscribe | null = null;
+	private unsubscribeQueue: SourceIngestionStoreUnsubscribe | null = null;
+	private queueState: SourceIngestionQueueStoreState | null = null;
 	private isBusy = false;
 	private isClosed = true;
 
@@ -81,18 +95,25 @@ export class SourceIngestionModal extends Modal {
 	override onOpen(): void {
 		this.isClosed = false;
 		this.unsubscribe = this.options.store.subscribe((state) => {
-			this.render(state);
+			this.render(state, this.queueState);
 		});
+		this.unsubscribeQueue =
+			this.options.queueStore?.subscribe((state) => {
+				this.queueState = state;
+				this.render(this.options.store.getState(), state);
+			}) ?? null;
 	}
 
 	override onClose(): void {
 		this.isClosed = true;
 		this.unsubscribe?.();
 		this.unsubscribe = null;
+		this.unsubscribeQueue?.();
+		this.unsubscribeQueue = null;
 		this.contentEl.replaceChildren();
 	}
 
-	private render(state: SourceIngestionStoreState): void {
+	private render(state: SourceIngestionStoreState, queueState: SourceIngestionQueueStoreState | null): void {
 		if (this.isClosed) {
 			return;
 		}
@@ -103,8 +124,8 @@ export class SourceIngestionModal extends Modal {
 		root.append(
 			this.createHeader(state),
 			this.createForm(state),
-			this.createStatus(state),
-			this.createActions(state),
+			this.createStatus(state, queueState),
+			this.createActions(state, queueState),
 		);
 
 		this.contentEl.replaceChildren(root);
@@ -154,7 +175,7 @@ export class SourceIngestionModal extends Modal {
 				...this.draft,
 				kind: typeSelect.value as SourceIngestionInput["kind"],
 			};
-			this.render(state);
+			this.render(state, this.queueState);
 		});
 		typeLabel.append(typeSelect);
 
@@ -210,11 +231,23 @@ export class SourceIngestionModal extends Modal {
 		previewButton.textContent = this.isBusy && state.status === "previewing" ? "Previewing" : "Preview";
 		previewButton.disabled = this.isBusy;
 
-		form.append(typeLabel, pathLabel, titleLabel, contentLabel, approvedLabel, previewButton);
+		const addQueueButton = document.createElement("button");
+		addQueueButton.type = "button";
+		addQueueButton.textContent = "Add to queue";
+		addQueueButton.disabled = this.isBusy || this.options.queueStore === undefined;
+		addQueueButton.setAttribute("aria-label", "Add source to batch queue");
+		addQueueButton.addEventListener("click", () => {
+			void this.handleAddToQueue();
+		});
+
+		form.append(typeLabel, pathLabel, titleLabel, contentLabel, approvedLabel, previewButton, addQueueButton);
 		return form;
 	}
 
-	private createStatus(state: SourceIngestionStoreState): HTMLElement {
+	private createStatus(
+		state: SourceIngestionStoreState,
+		queueState: SourceIngestionQueueStoreState | null,
+	): HTMLElement {
 		const section = document.createElement("section");
 		section.setAttribute("aria-label", "Source ingestion status");
 		if (state.preview !== null) {
@@ -247,10 +280,50 @@ export class SourceIngestionModal extends Modal {
 			section.append(staged);
 		}
 
+		if (queueState !== null) {
+			section.append(this.createQueueStatus(queueState));
+		}
+
 		return section;
 	}
 
-	private createActions(state: SourceIngestionStoreState): HTMLElement {
+	private createQueueStatus(queueState: SourceIngestionQueueStoreState): HTMLElement {
+		const queue = document.createElement("section");
+		queue.setAttribute("aria-label", "Batch source ingestion queue status");
+		const heading = document.createElement("h3");
+		heading.textContent = "Batch queue";
+		const summary = document.createElement("p");
+		const queueSummary = queueState.summary;
+		summary.textContent =
+			queueSummary === null
+				? `Queued drafts: ${this.queueRequests.length || queueState.draftItemCount}. Status: ${queueState.status}.`
+				: `Queue ${queueSummary.queueId}: ${queueSummary.counts.staged} staged, ${queueSummary.counts.failed} failed, ${queueSummary.counts.canceled} canceled, ${queueSummary.counts.skipped} skipped.`;
+		queue.append(heading, summary);
+
+		if (queueState.lastFailureMessage !== null) {
+			const failure = document.createElement("p");
+			failure.setAttribute("role", "alert");
+			failure.textContent = queueState.lastFailureMessage;
+			queue.append(failure);
+		}
+
+		if (queueSummary !== null) {
+			const list = document.createElement("ul");
+			for (const item of queueSummary.items.slice(0, 6)) {
+				const row = document.createElement("li");
+				row.textContent = `${item.status}: ${item.sourcePath ?? item.title ?? item.itemId}${item.stagedChangeIds.length === 0 ? "" : ` (${item.stagedChangeIds.join(", ")})`}`;
+				list.append(row);
+			}
+			queue.append(list);
+		}
+
+		return queue;
+	}
+
+	private createActions(
+		state: SourceIngestionStoreState,
+		queueState: SourceIngestionQueueStoreState | null,
+	): HTMLElement {
 		const actions = document.createElement("div");
 		const stageButton = document.createElement("button");
 		stageButton.type = "button";
@@ -259,6 +332,42 @@ export class SourceIngestionModal extends Modal {
 		stageButton.setAttribute("aria-label", "Stage generated source notes");
 		stageButton.addEventListener("click", () => {
 			void this.handleStage();
+		});
+
+		const runQueueButton = document.createElement("button");
+		runQueueButton.type = "button";
+		runQueueButton.textContent = this.isBusy && queueState?.status === "running" ? "Running queue" : "Run queue";
+		runQueueButton.disabled = this.isBusy || this.options.runQueue === undefined;
+		runQueueButton.setAttribute("aria-label", "Run batch source ingestion queue");
+		runQueueButton.addEventListener("click", () => {
+			void this.handleRunQueue();
+		});
+
+		const cancelQueueButton = document.createElement("button");
+		cancelQueueButton.type = "button";
+		cancelQueueButton.textContent = "Cancel queue";
+		cancelQueueButton.disabled =
+			this.options.cancelQueue === undefined ||
+			queueState?.summary === null ||
+			queueState?.summary === undefined ||
+			(queueState.summary.status !== "running" && queueState.summary.status !== "canceling");
+		cancelQueueButton.setAttribute("aria-label", "Cancel batch source ingestion queue");
+		cancelQueueButton.addEventListener("click", () => {
+			void this.handleCancelQueue();
+		});
+
+		const retryQueueButton = document.createElement("button");
+		retryQueueButton.type = "button";
+		retryQueueButton.textContent = "Retry queue";
+		retryQueueButton.disabled =
+			this.isBusy ||
+			this.options.runQueue === undefined ||
+			queueState?.summary === null ||
+			queueState?.summary === undefined ||
+			queueState.summary.items.every((item) => !item.retryable);
+		retryQueueButton.setAttribute("aria-label", "Retry failed or canceled source ingestion queue items");
+		retryQueueButton.addEventListener("click", () => {
+			void this.handleRetryQueue();
 		});
 
 		const retryButton = document.createElement("button");
@@ -270,7 +379,7 @@ export class SourceIngestionModal extends Modal {
 			void this.handleStage();
 		});
 
-		actions.append(stageButton, retryButton);
+		actions.append(stageButton, retryButton, runQueueButton, cancelQueueButton, retryQueueButton);
 		return actions;
 	}
 
@@ -341,7 +450,7 @@ export class SourceIngestionModal extends Modal {
 			this.notice("Source preview failed before staging. No vault files were changed.");
 		} finally {
 			this.isBusy = false;
-			this.render(this.options.store.getState());
+			this.render(this.options.store.getState(), this.queueState);
 		}
 	}
 
@@ -367,7 +476,98 @@ export class SourceIngestionModal extends Modal {
 			this.notice("Source staging failed before completion. No vault files were changed.");
 		} finally {
 			this.isBusy = false;
-			this.render(this.options.store.getState());
+			this.render(this.options.store.getState(), this.queueState);
+		}
+	}
+
+	private async handleAddToQueue(): Promise<void> {
+		if (this.isBusy || this.options.queueStore === undefined) {
+			return;
+		}
+
+		this.isBusy = true;
+		try {
+			const request = await this.buildRequest();
+			this.queueRequests.push(request);
+			await this.options.queueStore.setDraftItemCount(this.queueRequests.length);
+			this.notice(`Added source ${this.queueRequests.length} to the batch queue.`);
+		} catch {
+			await this.options.queueStore.setFailure("Source could not be added to the batch queue.");
+			this.notice("Source could not be added to the batch queue. No vault files were changed.");
+		} finally {
+			this.isBusy = false;
+			this.render(this.options.store.getState(), this.queueState);
+		}
+	}
+
+	private async handleRunQueue(requests?: readonly SourceIngestionIntakeRequest[]): Promise<void> {
+		if (this.isBusy || this.options.runQueue === undefined || this.options.queueStore === undefined) {
+			return;
+		}
+
+		this.isBusy = true;
+		const queueRequests = [...(requests ?? this.queueRequests)];
+		try {
+			if (queueRequests.length === 0) {
+				queueRequests.push(this.activeRequest ?? (await this.buildRequest()));
+			}
+			await this.options.queueStore.beginRun();
+			const result = await this.options.runQueue({
+				items: queueRequests,
+				onUpdate: (summary) => {
+					this.cacheRetryRequests(summary, queueRequests);
+					void this.options.queueStore?.applySummary(summary);
+				},
+			});
+			this.cacheRetryRequests(result.summary, queueRequests);
+			await this.options.queueStore.applySummary(result.summary);
+			this.queueRequests.splice(0, this.queueRequests.length);
+			this.notice(
+				`Source ingestion queue ${result.summary.status}: ${result.summary.counts.staged} staged, ${result.summary.counts.failed} failed, ${result.summary.counts.canceled} canceled.`,
+			);
+		} catch {
+			await this.options.queueStore.setFailure("Source ingestion queue failed before completion.");
+			this.notice("Source ingestion queue failed before completion. No vault files were changed.");
+		} finally {
+			this.isBusy = false;
+			this.render(this.options.store.getState(), this.queueState);
+		}
+	}
+
+	private async handleCancelQueue(): Promise<void> {
+		const queueId = this.queueState?.summary?.queueId;
+		if (queueId === undefined || this.options.cancelQueue === undefined || this.options.queueStore === undefined) {
+			return;
+		}
+
+		await this.options.queueStore.requestCancel();
+		const result = this.options.cancelQueue(queueId);
+		this.notice(result.message);
+	}
+
+	private async handleRetryQueue(): Promise<void> {
+		const retryableItems = this.queueState?.summary?.items.filter((item) => item.retryable) ?? [];
+		const requests = retryableItems.flatMap((item) => {
+			const request = this.retryRequestsByItemId.get(item.itemId);
+			return request === undefined ? [] : [request];
+		});
+		if (requests.length === 0) {
+			this.notice("No retryable queue items are available in this modal session.");
+			return;
+		}
+
+		await this.handleRunQueue(requests);
+	}
+
+	private cacheRetryRequests(
+		summary: SourceIngestionQueueRunResult["summary"],
+		requests: readonly SourceIngestionIntakeRequest[],
+	): void {
+		for (const item of summary.items) {
+			const request = requests[item.index];
+			if (request !== undefined) {
+				this.retryRequestsByItemId.set(item.itemId, request);
+			}
 		}
 	}
 

@@ -1,6 +1,7 @@
 import type { App } from "obsidian";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { SourceIngestionIntakeService } from "../src/agent";
+import { createIngestionQueueStore } from "../src/stores/ingestion-queue-store";
 import { createIngestionStagingStore } from "../src/stores/ingestion-staging-store";
 import {
 	INGEST_SOURCE_COMMAND_ID,
@@ -16,6 +17,10 @@ import {
 	INGESTION_FIXTURE_MARKDOWN_PATH,
 	SAFE_MARKDOWN_SOURCE_INPUT,
 } from "./fixtures/vault/source-ingestion-fixtures";
+import {
+	createQueueFixtureStagedChange,
+	createQueueFixtureSummary,
+} from "./fixtures/vault/source-ingestion-queue-fixtures";
 
 const flushPromises = async (count = 200): Promise<void> => {
 	for (let index = 0; index < count; index += 1) {
@@ -222,6 +227,7 @@ describe("SourceIngestionModal", () => {
 		checkbox.dispatchEvent(new Event("change", { bubbles: true }));
 		modal.contentEl.querySelector("form")?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
 		await waitForCondition(() => store.getState().status === "ready");
+		await waitForCondition(() => !getButton(modal.contentEl, "Stage").disabled);
 		getButton(modal.contentEl, "Stage").click();
 		await waitForCondition(() => stageSource.mock.calls.length === 1);
 
@@ -233,6 +239,57 @@ describe("SourceIngestionModal", () => {
 			},
 		});
 		expect(modal.contentEl.textContent).toContain("Provider role is not selected.");
+		expect(app.vault.adapter.write).not.toHaveBeenCalled();
+	});
+
+	it("queues batch input, renders queue progress, and keeps writes staged", async () => {
+		const app = new MockApp();
+		const intake = new SourceIngestionIntakeService({ now: fixedNow });
+		const store = createIngestionStagingStore({ now: fixedNow });
+		const queueStore = createIngestionQueueStore({ now: fixedNow });
+		const runQueue = vi.fn(async () => ({
+			summary: createQueueFixtureSummary(),
+			stagedChanges: [createQueueFixtureStagedChange("stage-queue-safe")],
+		}));
+		const cancelQueue = vi.fn(() => ({
+			ok: true,
+			queueId: "queue-fixture",
+			canceledItemIds: [],
+			runningItemIds: [],
+			message: "Source ingestion queue queue-fixture cancellation was requested.",
+		}));
+		const modal = new SourceIngestionModal(app as unknown as App, {
+			store,
+			queueStore,
+			previewSource: (request) => intake.createPreview(request),
+			stageSource: async () => {
+				const preview = store.getState().preview;
+				if (preview === null) {
+					throw new Error("Expected preview before staging");
+				}
+
+				return stageSuccessFor(preview);
+			},
+			runQueue,
+			cancelQueue,
+			readSourcePath: async () => INGESTION_FIXTURE_MARKDOWN,
+		});
+
+		modal.open();
+		const pathInput = getPathInput(modal.contentEl);
+		pathInput.value = INGESTION_FIXTURE_MARKDOWN_PATH;
+		pathInput.dispatchEvent(new Event("input", { bubbles: true }));
+		getButton(modal.contentEl, "Add to queue").click();
+		await waitForCondition(() => queueStore.getState().draftItemCount === 1);
+
+		expect(modal.contentEl.textContent).toContain("Queued drafts: 1");
+		getButton(modal.contentEl, "Run queue").click();
+		await waitForCondition(() => queueStore.getState().summary !== null);
+
+		expect(runQueue).toHaveBeenCalledTimes(1);
+		expect(queueStore.getState().summary?.queueId).toBe("queue-fixture");
+		expect(modal.contentEl.textContent).toContain("Queue queue-fixture");
+		expect(modal.contentEl.textContent).toContain("stage-queue-safe");
 		expect(app.vault.adapter.write).not.toHaveBeenCalled();
 	});
 });

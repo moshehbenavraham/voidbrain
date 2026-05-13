@@ -25,7 +25,7 @@ is the source of truth; this document is the human-readable companion.
 
 | Command ID | Intent | Status | Privacy | Write Policy | Required Evidence |
 |------------|--------|--------|---------|--------------|-------------------|
-| `voidbrain.ingest-source` | Preview and stage approved source content as vault-ready artifacts. | implemented | local-first | staged changes | source path, source record, citation IDs, generated note paths, staged-change IDs |
+| `voidbrain.ingest-source` | Preview and stage approved single or batch source content as vault-ready artifacts. | implemented | local-first | staged changes | queue ID, item IDs, source path, source record, citation IDs, generated note paths, provider decision, validation output, staged-change IDs |
 | `voidbrain.chat-with-vault` | Answer from indexed vault evidence with citations. | implemented | explicit provider review | no direct writes | cited retrieval paths and headings |
 | `voidbrain.health-check` | Scan local vault notes and index freshness, export redacted reports, and stage safe repairs. | implemented | local-first | staged changes | report ID, affected paths, finding evidence, validation output, staged-change IDs |
 | `voidbrain.stage-change` | Review and confirmed apply workflow for staged note mutations. | implemented | local-first | staged changes | staged-change ID, before/after diff, target path, backup path intent, validation output |
@@ -45,7 +45,7 @@ Status labels are intentionally conservative:
 
 | Command ID | Required Inputs | Outputs |
 |------------|-----------------|---------|
-| `voidbrain.ingest-source` | approved markdown path, text path, pasted content, or approved URL source record | staged-change IDs, generated target paths, source links, citation IDs, and recovery details |
+| `voidbrain.ingest-source` | approved markdown path, text path, pasted content, approved URL source record, or bounded batch queue | staged-change IDs, generated target paths, source links, citation IDs, per-item queue status, provider decisions, validation output, and recovery details |
 | `voidbrain.chat-with-vault` | user question and fresh retrieval evidence | cited answer with retrieval paths, headings, and source records |
 | `voidbrain.health-check` | local markdown notes and index freshness from the active Obsidian vault | grouped health report, redacted markdown export, report-only findings, optional staged repair IDs, and recovery details |
 | `voidbrain.stage-change` | staged-change ID and confirmation text when required | per-record apply, reject, retry, dismiss, conflict, or failed outcome with audit and recovery details |
@@ -57,6 +57,7 @@ Status labels are intentionally conservative:
 
 `voidbrain.ingest-source` now opens a local-first staging workflow for approved
 markdown files, text files, pasted content, and user-approved URL source
+records. It can also process a bounded batch queue of those approved source
 records. The workflow previews source metadata, privacy boundary, duplicate
 status, provider requirement, target paths, and citation expectations before
 staging any generated artifacts.
@@ -64,8 +65,16 @@ staging any generated artifacts.
 Generated source, entity, concept, and summary notes are created only as staged
 changes. They include source paths, citation IDs, wikilinks, stable
 frontmatter, and recovery metadata. Provider-assisted summaries are optional
-and must pass explicit provider review and preflight first; denied or
-unavailable providers fall back to deterministic local extraction.
+and must pass explicit provider review and preflight first. Batch provider
+denial fails closed for that item, remains retryable, and does not stage
+generated notes until the provider boundary is reviewed.
+
+Batch ingestion preserves deterministic item IDs, bounded concurrency,
+cancellation, retry, and per-item queued, running, staged, failed, canceled,
+skipped, provider-blocked, and citation-blocked states. Queue hot cache
+summaries store queue IDs, item IDs, bounded paths, staged-change IDs, provider
+decisions, validation output, and retry guidance, but not raw source bodies,
+provider secrets, authorization headers, or hidden provider state.
 
 Apply behavior is not part of ingestion staging. Review and apply controls stay
 in the staged-change workflow and require explicit confirmation before vault

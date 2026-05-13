@@ -67,15 +67,16 @@ export const AGENT_COMMAND_CATALOG: readonly AgentCommand[] = [
 	{
 		id: "voidbrain.ingest-source",
 		name: "Ingest source",
-		intent: "Preview and stage approved source content as source, entity, concept, and summary notes without mutating user notes directly.",
+		intent: "Preview and stage approved source content or a bounded batch queue as source, entity, concept, and summary notes without mutating user notes directly.",
 		status: "implemented",
 		privacyLevel: "local-first",
 		writePolicy: "staged-changes",
 		prerequisites: [
 			"Source path is vault-relative and validated, or pasted content is explicitly supplied.",
 			"URL source records are explicitly approved before preview or staging.",
-			"Provider-assisted extraction is optional and gated by provider review and preflight.",
+			"Provider-assisted extraction is optional and gated by provider review and preflight per source item.",
 			"Generated notes link back to source paths, source records, and citation IDs.",
+			"Batch queue summaries omit raw source bodies, provider secrets, auth headers, and hidden provider state.",
 		],
 		inputs: [
 			{
@@ -93,6 +94,11 @@ export const AGENT_COMMAND_CATALOG: readonly AgentCommand[] = [
 				description: "Explicitly approved URL metadata and user-supplied source record content.",
 				required: false,
 			},
+			{
+				name: "batchQueue",
+				description: "Bounded list of approved markdown, text, pasted, or URL source records.",
+				required: false,
+			},
 		],
 		outputs: [
 			{
@@ -100,8 +106,24 @@ export const AGENT_COMMAND_CATALOG: readonly AgentCommand[] = [
 				description: "Reviewable staged-change IDs for generated source, entity, concept, and summary notes.",
 				required: true,
 			},
+			{
+				name: "queueSummary",
+				description:
+					"Per-item queued, running, staged, failed, canceled, skipped, provider-blocked, citation-blocked, and retryable status.",
+				required: false,
+			},
 		],
-		requiredEvidence: ["source path", "source record", "citation IDs", "generated note paths", "staged-change IDs"],
+		requiredEvidence: [
+			"queue ID",
+			"item IDs",
+			"source path",
+			"source record",
+			"citation IDs",
+			"generated note paths",
+			"provider decision",
+			"validation output",
+			"staged-change IDs",
+		],
 		supportedSurfaces: ["agents-md", "claude-md", "gemini-md", "voidbrain-skill", "human-docs"],
 		requiredSafetyPhrases: [
 			"local-first",
@@ -112,9 +134,10 @@ export const AGENT_COMMAND_CATALOG: readonly AgentCommand[] = [
 			"recovery",
 		],
 		recoveryBehavior:
-			"Leave command ID, source path, target paths, provider decision, validation output, and staged-change IDs for retry or discard.",
+			"Leave command ID, queue ID, item IDs, source paths, target paths, provider decisions, validation output, cache path, and staged-change IDs for retry or discard.",
 		notes: [
 			"Runtime behavior stages generated notes only; apply and review UI behavior remain separate staged-change workflows.",
+			"Batch processing uses bounded concurrency, deterministic ordering, cancellation, retry, and redacted hot cache summaries.",
 			"Tests and examples use synthetic fixtures and do not fetch live URLs or call live providers.",
 		],
 	},

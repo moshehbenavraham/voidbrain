@@ -29,7 +29,7 @@ behavior, and recovery context.
 
 | Command ID | Status | Use |
 |------------|--------|-----|
-| `voidbrain.ingest-source` | implemented | Preview approved fixture-safe sources and stage generated source, entity, concept, and summary notes with citations and recovery details. |
+| `voidbrain.ingest-source` | implemented | Preview approved fixture-safe single or batch sources and stage generated source, entity, concept, and summary notes with citations, provider review, cancellation, retry, and recovery details. |
 | `voidbrain.chat-with-vault` | implemented | Run cited vault chat with explicit provider review before cloud use. |
 | `voidbrain.health-check` | implemented | Scan local vault notes and index freshness, export redacted markdown reports, and stage only deterministic safe repairs as staged changes with recovery details. |
 | `voidbrain.stage-change` | implemented | Review, confirm, apply, reject, retry, or dismiss staged changes with diffs, backups, audit records, and recovery details. |

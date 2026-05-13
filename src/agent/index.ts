@@ -191,6 +191,15 @@ export type {
 	SourceIngestionStagingServiceOptions,
 } from "./source-ingestion-staging-service";
 export {
+	SourceIngestionQueueService,
+	createSourceIngestionQueueService,
+	runSourceIngestionQueue,
+} from "./source-ingestion-queue-service";
+export type {
+	SourceIngestionQueueServiceOptions,
+	SourceIngestionQueueStageSource,
+} from "./source-ingestion-queue-service";
+export {
 	citationIdsForFinding,
 	classifyHealthRepairSafety,
 	createVaultHealthReport,

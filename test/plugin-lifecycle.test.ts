@@ -609,6 +609,12 @@ describe("VoidbrainPlugin lifecycle", () => {
 		if (pathInput === null) {
 			throw new Error("Expected source ingestion path input");
 		}
+		expect(document.body.textContent).toContain("Batch queue");
+		expect(
+			[...document.body.querySelectorAll<HTMLButtonElement>("button")].some(
+				(button) => button.textContent === "Run queue",
+			),
+		).toBe(true);
 		pathInput.value = INGESTION_FIXTURE_MARKDOWN_PATH;
 		pathInput.dispatchEvent(new Event("input", { bubbles: true }));
 		document.body.querySelector("form")?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));

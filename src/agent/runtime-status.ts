@@ -522,6 +522,71 @@ const hotCacheStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
 	};
 };
 
+const ingestionQueueStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
+	const queue = input.ingestionQueue ?? null;
+	if (queue === null) {
+		return {
+			id: "source-ingestion-queue",
+			area: "ingestion",
+			label: "Source ingestion queue",
+			severity: "ready",
+			summary: "No batch source ingestion queue is active.",
+			details: ["Generated notes still require staged-change review before apply."],
+			paths: [],
+			count: 0,
+		};
+	}
+
+	const summary = queue.summary;
+	const paths = limitedPaths([...(summary?.sourcePaths ?? []), ...(summary?.targetPaths ?? [])]);
+	const details = [
+		...(summary === null
+			? ["No queue summary has been recorded yet."]
+			: [
+					`Queue ${summary.queueId} is ${summary.status}.`,
+					`${summary.counts.queued} queued, ${summary.counts.running} running, ${summary.counts.staged} staged, ${summary.counts.failed} failed, ${summary.counts.canceled} canceled, ${summary.counts.skipped} skipped.`,
+					`${summary.counts.retryable} retryable, ${summary.counts.providerBlocked} provider-blocked, ${summary.counts.citationBlocked} citation-blocked.`,
+					...summary.items
+						.slice(0, 5)
+						.map(
+							(item) =>
+								`${item.itemId}: ${item.status}${item.sourcePath === undefined ? "" : ` at ${item.sourcePath}`}.`,
+						),
+				]),
+		...(queue.lastFailureMessage === undefined ? [] : [`Failure: ${queue.lastFailureMessage}`]),
+		"Queue support records omit raw source bodies and provider secrets.",
+	];
+	const severity: RuntimeStatusSeverity =
+		queue.lastFailureMessage !== undefined || summary?.status === "failed"
+			? "error"
+			: queue.isRunning || summary?.status === "running" || summary?.status === "canceling"
+				? "warning"
+				: summary?.status === "canceled" ||
+						(summary?.counts.retryable ?? 0) > 0 ||
+						(summary?.counts.skipped ?? 0) > 0
+					? "warning"
+					: "ready";
+	const text =
+		severity === "error"
+			? "Source ingestion queue has failed items that need recovery."
+			: severity === "warning"
+				? "Source ingestion queue needs review, retry, or cancellation follow-up."
+				: summary === null
+					? "No source ingestion queue summary is currently pending."
+					: "Source ingestion queue is complete and locally recoverable.";
+
+	return {
+		id: "source-ingestion-queue",
+		area: "ingestion",
+		label: "Source ingestion queue",
+		severity,
+		summary: text,
+		details,
+		paths,
+		count: summary?.counts.total ?? 0,
+	};
+};
+
 const maintenanceStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
 	const plan = input.maintenanceRecommendations?.plan ?? null;
 	if (plan === null) {
@@ -631,6 +696,7 @@ export const createRuntimeStatusSnapshot = (input: RuntimeStatusInput): RuntimeS
 		input.settings.status.shouldShowStagedChangeStatus ? stagedChangeStatusItem(input) : undefined,
 		input.settings.status.shouldShowHealthStatus ? healthStatusItem(input) : undefined,
 		input.settings.status.shouldShowHotCacheStatus ? hotCacheStatusItem(input) : undefined,
+		input.ingestionQueue === undefined ? undefined : ingestionQueueStatusItem(input),
 		input.maintenanceRecommendations === undefined ? undefined : maintenanceStatusItem(input),
 		input.similarNoteSuggestions === undefined ? undefined : similarNoteSuggestionStatusItem(input),
 	];

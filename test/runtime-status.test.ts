@@ -29,6 +29,7 @@ import {
 	createSimilarNoteRetrievalResults,
 	loadSimilarNoteFixtureNotes,
 } from "./fixtures/vault/similar-note-suggestion-fixtures";
+import { createQueueFixtureSummary } from "./fixtures/vault/source-ingestion-queue-fixtures";
 
 const fixedDate = new Date("2026-05-13T00:00:00.000Z");
 const fixedTimestamp = makeIsoTimestamp("2026-05-13T00:00:00.000Z");
@@ -213,6 +214,29 @@ describe("runtime status composition", () => {
 
 		expect(snapshot.overallSeverity).toBe("ready");
 		expect(snapshot.counts.ready).toBe(5);
+	});
+
+	it("reports source ingestion queue failures with bounded recovery paths", () => {
+		const summary = createQueueFixtureSummary();
+		const snapshot = createRuntimeStatusSnapshot({
+			settings: readySettings,
+			providers: BASELINE_PROVIDERS,
+			ingestionQueue: {
+				summary,
+				isRunning: false,
+			},
+			now: fixedDate,
+		});
+		const item = snapshot.items.find((candidate) => candidate.id === "source-ingestion-queue");
+
+		expect(item).toMatchObject({
+			area: "ingestion",
+			severity: "error",
+			count: 2,
+		});
+		expect(item?.details.join(" ")).toContain("provider-blocked");
+		expect(item?.paths).toContain(makeNormalizedVaultPath("inbox/synthetic-provider-denied-source.md"));
+		expect(JSON.stringify(item)).not.toContain("Synthetic URL source record supplied by the user");
 	});
 
 	it("reports warnings for cloud trust gaps, stale indexes, staged conflicts, and health warnings", () => {

@@ -35,6 +35,7 @@ export const SOURCE_INGESTION_FAILURE_CODES = [
 	"ingestion.citation-invalid",
 	"ingestion.staging-failed",
 	"ingestion.persistence-failed",
+	"ingestion.canceled",
 ] as const;
 
 export type SourceIngestionKind = (typeof SOURCE_INGESTION_KINDS)[number];
@@ -145,6 +146,7 @@ export interface SourceIngestionIntakeRequest {
 	readonly existingSourceManifest?: SourceManifest;
 	readonly existingNotes?: readonly { readonly path: string | NormalizedVaultPath; readonly content: string }[];
 	readonly existingStagedChanges?: readonly StagedChangeRecord[];
+	readonly signal?: AbortSignal;
 }
 
 export interface SourceIngestionProviderDecisionRecord {

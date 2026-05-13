@@ -13,6 +13,7 @@ import {
 	createHotCacheStagedChange,
 	createHotCacheStateFixture,
 } from "./fixtures/vault/hot-cache-fixtures";
+import { createQueueFixtureSummary } from "./fixtures/vault/source-ingestion-queue-fixtures";
 
 describe("HotCacheService", () => {
 	it("captures bounded redacted entries with deterministic validation", () => {
@@ -39,6 +40,35 @@ describe("HotCacheService", () => {
 		]);
 		expect(validateHotCacheState(result.state)).toMatchObject({ ok: true });
 		expect(JSON.stringify(result.state)).not.toContain(HOT_CACHE_FIXTURE_SOURCE_MARKDOWN);
+		expect(JSON.stringify(result.state)).not.toContain("authorization");
+	});
+
+	it("captures redacted source ingestion queue summaries for recovery", () => {
+		const result = captureHotCacheState({
+			cacheId: "hot-cache-queue-test",
+			sourceIngestionQueues: [createQueueFixtureSummary()],
+			now: new Date("2026-05-13T01:00:00.000Z"),
+		});
+
+		expect(result.ok).toBe(true);
+		if (!result.ok) {
+			throw new Error("Expected hot cache capture to succeed.");
+		}
+
+		const queueEntry = result.state.entries.find((entry) => entry.kind === "source-ingestion-queue");
+		expect(queueEntry).toMatchObject({
+			key: "queue-fixture",
+			recovery: {
+				commandId: "voidbrain.ingest-source",
+			},
+			metadata: {
+				queueId: "queue-fixture",
+				itemCount: 2,
+				stagedChangeIds: ["stage-queue-safe"],
+			},
+		});
+		expect(validateHotCacheState(result.state)).toMatchObject({ ok: true });
+		expect(JSON.stringify(result.state)).not.toContain("Synthetic URL source record supplied by the user");
 		expect(JSON.stringify(result.state)).not.toContain("authorization");
 	});
 

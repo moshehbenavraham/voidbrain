@@ -25,7 +25,7 @@ mutate notes.
 
 | Command ID | Status | Claude Code Guidance |
 |------------|--------|----------------------|
-| `voidbrain.ingest-source` | implemented | Use approved markdown, text, pasted content, or URL source records; keep generated outputs as staged changes with citations and recovery details. |
+| `voidbrain.ingest-source` | implemented | Use approved markdown, text, pasted content, URL source records, or bounded batch queues; keep generated outputs as staged changes with citations, provider review, cancellation, retry, and recovery details. |
 | `voidbrain.chat-with-vault` | implemented | Require citations and explicit provider review before any cloud provider handling of vault content. |
 | `voidbrain.health-check` | implemented | Scan local vault notes and index freshness, export redacted reports, and stage only deterministic safe repairs as staged changes with recovery details. |
 | `voidbrain.stage-change` | implemented | Review, confirm, apply, reject, retry, or dismiss staged changes with diffs, backups, audit records, and recovery details. |
