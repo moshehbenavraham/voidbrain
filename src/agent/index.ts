@@ -13,6 +13,7 @@ export {
 export type {
 	RuntimeCommandHandlerEntry,
 	RuntimeCommandHandlerOptions,
+	HealthRuntimeCommandExecutionOptions,
 	StagedReviewRuntimeCommandExecutionOptions,
 } from "./runtime-command-handlers";
 export { GroundedVaultChatService } from "./grounded-vault-chat-service";
@@ -93,10 +94,28 @@ export type {
 	SourceIngestionStagingServiceOptions,
 } from "./source-ingestion-staging-service";
 export {
+	citationIdsForFinding,
+	classifyHealthRepairSafety,
 	createVaultHealthReport,
+	groupHealthFindings,
+	renderVaultHealthMarkdownReport,
 	scanVaultHealth,
 	sortHealthFindings,
 	sortParsedNotesByPath,
 	summarizeHealthFindings,
 } from "./vault-health";
 export type { VaultHealthScannerInput } from "./vault-health";
+export {
+	VAULT_HEALTH_COMMAND_ID,
+	VAULT_HEALTH_REPORT_FOLDER,
+	VaultHealthRuntimeService,
+	createVaultHealthRuntimeService,
+} from "./vault-health-runtime-service";
+export type {
+	VaultHealthReportExportAdapter,
+	VaultHealthReportExportInput,
+	VaultHealthRuntimeMarkdownNote,
+	VaultHealthRuntimeScanInput,
+	VaultHealthRuntimeServiceOptions,
+	VaultHealthStageRepairInput,
+} from "./vault-health-runtime-service";

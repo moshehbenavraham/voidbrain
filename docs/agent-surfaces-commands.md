@@ -26,7 +26,7 @@ is the source of truth; this document is the human-readable companion.
 |------------|--------|--------|---------|--------------|-------------------|
 | `voidbrain.ingest-source` | Preview and stage approved source content as vault-ready artifacts. | implemented | local-first | staged changes | source path, source record, citation IDs, generated note paths, staged-change IDs |
 | `voidbrain.chat-with-vault` | Answer from indexed vault evidence with citations. | implemented | explicit provider review | no direct writes | cited retrieval paths and headings |
-| `voidbrain.health-check` | Report plugin, provider, index, and fixture safety state. | planned | local-first | read-only | status summary and failing checks |
+| `voidbrain.health-check` | Scan local vault notes and index freshness, export redacted reports, and stage safe repairs. | implemented | local-first | staged changes | report ID, affected paths, finding evidence, validation output, staged-change IDs |
 | `voidbrain.stage-change` | Review and confirmed apply workflow for staged note mutations. | implemented | local-first | staged changes | staged-change ID, before/after diff, target path, backup path intent, validation output |
 | `voidbrain.recover-session` | Reconstruct recoverable command context from logs and staged files. | planned | local-first | read-only by default | recovery log path and staged-change IDs |
 | `voidbrain.validate-agent-surfaces` | Validate command IDs, safety phrases, and fixture-safe examples. | scaffolded | local-first | read-only | validation result list |
@@ -46,7 +46,7 @@ Status labels are intentionally conservative:
 |------------|-----------------|---------|
 | `voidbrain.ingest-source` | approved markdown path, text path, pasted content, or approved URL source record | staged-change IDs, generated target paths, source links, citation IDs, and recovery details |
 | `voidbrain.chat-with-vault` | user question and fresh retrieval evidence | cited answer with retrieval paths, headings, and source records |
-| `voidbrain.health-check` | optional bounded scope | pass/fail status with failing checks |
+| `voidbrain.health-check` | local markdown notes and index freshness from the active Obsidian vault | grouped health report, redacted markdown export, report-only findings, optional staged repair IDs, and recovery details |
 | `voidbrain.stage-change` | staged-change ID and confirmation text when required | per-record apply, reject, retry, dismiss, conflict, or failed outcome with audit and recovery details |
 | `voidbrain.recover-session` | recoverable session or staged-change ID | recovery summary with retry or discard options |
 | `voidbrain.validate-agent-surfaces` | known surface paths from the repository root | deterministic validation issues or pass status |
@@ -70,6 +70,27 @@ Apply behavior is not part of ingestion staging. Review and apply controls stay
 in the staged-change workflow and require explicit confirmation before vault
 mutation.
 
+## Vault Health Runtime
+
+`voidbrain.health-check` opens an implemented local-first health workflow. It
+reads markdown notes through Obsidian vault APIs, combines them with current
+index freshness, and reports orphan notes, broken wikilinks, stale indexes,
+missing citations, and content gaps. Findings are grouped by severity, kind,
+and affected path with bounded evidence, remediation text, report ID, generated
+time, and scanned path count.
+
+Markdown export writes a redacted support report under `.voidbrain/reports/`.
+The export includes paths, evidence summaries, remediation, command IDs, and
+recovery details, but not raw note bodies, provider secrets, authorization
+headers, raw hidden provider state, or private diagnostics.
+
+Safe repair staging is intentionally narrow. Deterministic missing-citation
+repairs can create staged changes with before/after diffs, target paths,
+staged-change IDs, and validation output. Broken links, broad orphans, stale
+indexes, and content gaps remain report-only because the correct repair can be
+ambiguous. No health workflow applies note mutations directly; review and apply
+remain under `voidbrain.stage-change`.
+
 ## Staged Change And Health Primitives
 
 `voidbrain.stage-change` now opens a staged-change review workflow for proposed
@@ -88,11 +109,9 @@ path, staged-change ID, backup path intent, validation output, and failed apply
 messages. Index refresh is triggered after successful apply; refresh failures
 are visible and retryable without hiding completed vault mutations.
 
-`voidbrain.health-check` now has fixture-safe report primitives for parsed
-notes and index freshness snapshots. Reports can identify orphan notes, broken
-wikilinks, stale indexes, and missing citations with deterministic evidence.
-The command runtime remains planned, and health findings are report-only unless
-a later workflow stages a repair for review.
+Vault health findings use the same staged-change safety boundary as source
+ingestion. Report export is a support artifact, while note repairs are staged
+for review and preserve recovery metadata before any user vault mutation.
 
 ## Validation Workflow
 

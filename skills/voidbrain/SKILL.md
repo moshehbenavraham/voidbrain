@@ -29,7 +29,7 @@ behavior, and recovery context.
 |------------|--------|-----|
 | `voidbrain.ingest-source` | implemented | Preview approved fixture-safe sources and stage generated source, entity, concept, and summary notes with citations and recovery details. |
 | `voidbrain.chat-with-vault` | implemented | Run cited vault chat with explicit provider review before cloud use. |
-| `voidbrain.health-check` | planned | Plan read-only plugin, provider, index, fixture, and doc status checks. |
+| `voidbrain.health-check` | implemented | Scan local vault notes and index freshness, export redacted markdown reports, and stage only deterministic safe repairs as staged changes with recovery details. |
 | `voidbrain.stage-change` | implemented | Review, confirm, apply, reject, retry, or dismiss staged changes with diffs, backups, audit records, and recovery details. |
 | `voidbrain.recover-session` | planned | Plan recovery from logs and staged files with redacted diagnostics. |
 | `voidbrain.validate-agent-surfaces` | scaffolded | Run bounded command surface validation for stale IDs and safety phrases. |
@@ -64,6 +64,17 @@ Validation:
 bun run validate:agent-surfaces
 bun run validate:fixture-safety
 bun run validate:agent-docs
+```
+
+Vault health report export:
+
+```json
+{
+  "command": "voidbrain.health-check",
+  "reportPath": ".voidbrain/reports/vault-health-demo.md",
+  "writePolicy": "staged changes",
+  "requiredEvidence": ["report ID", "affected paths", "validation output", "staged-change IDs"]
+}
 ```
 
 ## Recovery

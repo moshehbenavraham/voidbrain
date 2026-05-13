@@ -221,9 +221,9 @@ describe("SourceIngestionModal", () => {
 		checkbox.checked = true;
 		checkbox.dispatchEvent(new Event("change", { bubbles: true }));
 		modal.contentEl.querySelector("form")?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
-		await flushPromises();
+		await waitForCondition(() => store.getState().status === "ready");
 		getButton(modal.contentEl, "Stage").click();
-		await flushPromises();
+		await waitForCondition(() => stageSource.mock.calls.length === 1);
 
 		expect(stageSource).toHaveBeenCalledTimes(1);
 		expect(store.getState()).toMatchObject({

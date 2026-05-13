@@ -359,11 +359,20 @@ const healthStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
 			label: "Vault health",
 			severity: "missing",
 			summary: "No vault health report has been generated yet.",
-			details: ["Health scan execution is planned for a later session."],
+			details: ["Run voidbrain.health-check to scan local vault notes and index freshness."],
 			paths: [],
 			count: 0,
 		};
 	}
+
+	const affectedPaths = limitedPaths(report.findings.flatMap((finding) => finding.affectedPaths));
+	const details = [
+		`Report ${report.reportId} generated at ${report.generatedAt}.`,
+		`${report.scannedPaths.length} scanned path(s), ${report.groups.length} group(s), ${report.summary.totalFindings} finding(s).`,
+		`${report.summary.errorCount} error, ${report.summary.warningCount} warning, ${report.summary.infoCount} info.`,
+		...affectedPaths.map((path) => `Affected path sample: ${path}.`),
+		"Repairs remain staged changes and require review before apply.",
+	];
 
 	if (report.summary.errorCount > 0) {
 		return {
@@ -372,8 +381,8 @@ const healthStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
 			label: "Vault health",
 			severity: "error",
 			summary: "Vault health has error findings.",
-			details: [`${report.summary.errorCount} error finding(s).`],
-			paths: limitedPaths(report.findings.flatMap((finding) => finding.affectedPaths)),
+			details,
+			paths: affectedPaths,
 			count: report.summary.totalFindings,
 		};
 	}
@@ -385,8 +394,8 @@ const healthStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
 			label: "Vault health",
 			severity: "warning",
 			summary: "Vault health has warning findings.",
-			details: [`${report.summary.warningCount} warning finding(s).`],
-			paths: limitedPaths(report.findings.flatMap((finding) => finding.affectedPaths)),
+			details,
+			paths: affectedPaths,
 			count: report.summary.totalFindings,
 		};
 	}
@@ -397,7 +406,7 @@ const healthStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
 		label: "Vault health",
 		severity: "ready",
 		summary: "Vault health report has no findings.",
-		details: [`Report ${report.reportId} scanned ${report.scannedPaths.length} path(s).`],
+		details,
 		paths: [],
 		count: report.summary.totalFindings,
 	};

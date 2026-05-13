@@ -4,7 +4,8 @@
 **Sessions**: 8
 **Estimated Duration**: 8-12 days
 
-**Progress**: 6/8 sessions (75%)
+**Progress**: 7/8 sessions (88%)
+**Last Completed Session**: Session 07 - Vault Health Check and Repair Staging (2026-05-13)
 
 ---
 
@@ -26,7 +27,7 @@ The phase preserves the vault as user-owned data. Provider calls require explici
 | 04 | Grounded Vault Chat | Complete | ~12-25 | PASS |
 | 05 | Source Ingestion Staging | Complete | ~12-25 | PASS |
 | 06 | Staged Change Review and Apply | Complete | ~12-25 | PASS |
-| 07 | Vault Health Check and Repair Staging | Not Started | ~12-25 | - |
+| 07 | Vault Health Check and Repair Staging | Complete | ~12-25 | PASS |
 | 08 | Hot Cache and MVP Integration Validation | Not Started | ~12-25 | - |
 
 ---
@@ -39,12 +40,12 @@ The phase preserves the vault as user-owned data. Provider calls require explici
 - `phase01-session04-grounded-vault-chat`
 - `phase01-session05-source-ingestion-staging`
 - `phase01-session06-staged-change-review-apply`
+- `phase01-session07-vault-health-repair-staging`
 
 ---
 
 ## Upcoming Sessions
 
-- Session 07: Vault Health Check and Repair Staging
 - Session 08: Hot Cache and MVP Integration Validation
 
 ---
@@ -107,7 +108,7 @@ Phase complete when:
 - [ ] User can ask a vault question and receive cited results grounded in vault paths, headings, and source records.
 - [ ] User can ingest approved source material into staged notes with source links and citation evidence.
 - [ ] User can review, explicitly apply, reject, or recover staged changes without uncontrolled note mutation.
-- [ ] User can run a health check and inspect report-only or staged-repair findings.
+- [x] User can run a health check and inspect report-only or staged-repair findings.
 - [ ] Hot cache and recent thread state are recoverable from local, readable files.
 - [ ] `bun run validate:agent-surfaces`, `bun run validate:fixture-safety`, `bun run validate:agent-docs`, and `bun run validate` pass.
 

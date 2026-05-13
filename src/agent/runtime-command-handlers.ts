@@ -27,12 +27,18 @@ export interface StagedReviewRuntimeCommandExecutionOptions {
 	readonly canOpenStagedChangeReview?: () => boolean;
 }
 
+export interface HealthRuntimeCommandExecutionOptions {
+	readonly openHealthCheck: () => Promise<void> | void;
+	readonly canOpenHealthCheck?: () => boolean;
+}
+
 export interface RuntimeCommandHandlerOptions {
 	readonly getSettings: () => VoidbrainPluginSettings;
 	readonly getStatusSnapshot: () => RuntimeStatusSnapshot;
 	readonly chat?: ChatRuntimeCommandExecutionOptions;
 	readonly ingestion?: IngestionRuntimeCommandExecutionOptions;
 	readonly stagedReview?: StagedReviewRuntimeCommandExecutionOptions;
+	readonly health?: HealthRuntimeCommandExecutionOptions;
 }
 
 export class RuntimeCommandRegistrationError extends Error {
@@ -49,8 +55,7 @@ const plannedWorkflowMessages: Readonly<Record<AgentCommandId, string>> = {
 	"voidbrain.ingest-source": "Source ingestion staging is unavailable. No generated notes were applied to the vault.",
 	"voidbrain.chat-with-vault":
 		"Grounded vault chat is not ready yet. Retrieval readiness must be ready, and vault content will not be sent to a provider before explicit provider review exists.",
-	"voidbrain.health-check":
-		"Runtime health checks are not ready yet. This command is currently a local-first readiness placeholder.",
+	"voidbrain.health-check": "Vault health reporting is unavailable. No vault notes were changed.",
 	"voidbrain.stage-change":
 		"Staged-change review and confirmed apply are unavailable. Direct note writes remain disabled.",
 	"voidbrain.recover-session":
@@ -66,7 +71,7 @@ const recoveryHints: Readonly<Record<AgentCommandId, string>> = {
 		"Retry from an approved markdown, text, pasted, or URL source record and inspect staged-change IDs before apply.",
 	"voidbrain.chat-with-vault":
 		"Build or refresh the lexical index and configure providers first; chat remains blocked until retrieval and provider preflight are ready.",
-	"voidbrain.health-check": "Use the repository validation commands until runtime health checks are implemented.",
+	"voidbrain.health-check": "Reload the plugin and retry the local health scan; repairs remain staged changes only.",
 	"voidbrain.stage-change":
 		"Review staged-change IDs, confirmation requirements, backup intent, validation output, and recovery details before apply.",
 	"voidbrain.recover-session": "Keep command IDs and staged-change IDs available for later recovery workflows.",
@@ -201,6 +206,50 @@ const buildStagedReviewCommandOutcome = (
 	};
 };
 
+const buildHealthCommandOutcome = (
+	context: RuntimeCommandContext,
+	health: HealthRuntimeCommandExecutionOptions | undefined,
+	inFlightCommandIds: Set<AgentCommandId>,
+): RuntimeCommandOutcome => {
+	if (context.command.id !== "voidbrain.health-check" || context.command.status !== "implemented") {
+		return buildCommandOutcome(context);
+	}
+
+	if (health === undefined || health.canOpenHealthCheck?.() === false) {
+		return {
+			commandId: context.command.id,
+			kind: "not-ready",
+			severity: "error",
+			userMessage: "Vault health runtime is unavailable. No vault notes were changed.",
+			recoveryHint: "Reload the plugin and inspect command ID voidbrain.health-check recovery details.",
+		};
+	}
+
+	if (inFlightCommandIds.has(context.command.id)) {
+		return {
+			commandId: context.command.id,
+			kind: "not-ready",
+			severity: "warning",
+			userMessage: "Vault health is already opening. No duplicate scan was started.",
+			recoveryHint: "Wait for the current health flow to finish before retrying.",
+		};
+	}
+
+	inFlightCommandIds.add(context.command.id);
+	Promise.resolve(health.openHealthCheck())
+		.catch(() => undefined)
+		.finally(() => {
+			inFlightCommandIds.delete(context.command.id);
+		});
+	return {
+		commandId: context.command.id,
+		kind: "opened",
+		severity: "ready",
+		userMessage: "Vault health opened with local scanning, markdown export, and staged repair gates.",
+		recoveryHint: "Inspect report ID, target paths, staged-change IDs, and validation output before apply.",
+	};
+};
+
 export const mapRuntimeCommandError = (command: AgentCommand, error: unknown): RuntimeCommandOutcome => ({
 	commandId: command.id,
 	kind: "error",
@@ -217,6 +266,8 @@ export const createRuntimeCommandHandlers = (
 	if (!validation.ok) {
 		throw new RuntimeCommandRegistrationError(validation.issues);
 	}
+
+	const inFlightCommandIds = new Set<AgentCommandId>();
 
 	return sortAgentCommandsDeterministically(commands).map((command) => ({
 		command,
@@ -235,6 +286,9 @@ export const createRuntimeCommandHandlers = (
 				}
 				if (command.id === "voidbrain.chat-with-vault") {
 					return buildChatCommandOutcome(context, options.chat);
+				}
+				if (command.id === "voidbrain.health-check") {
+					return buildHealthCommandOutcome(context, options.health, inFlightCommandIds);
 				}
 
 				return buildCommandOutcome(context);

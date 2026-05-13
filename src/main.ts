@@ -5,6 +5,7 @@ import {
 	SourceIngestionIntakeService,
 	SourceIngestionStagingService,
 	StagedChangeReviewService,
+	VaultHealthRuntimeService,
 	createRuntimeCommandHandlers,
 	createRuntimeStatusSnapshot,
 } from "./agent";
@@ -23,6 +24,13 @@ import {
 } from "./stores/ingestion-staging-store";
 import { type RuntimeStatusStore, createRuntimeStatusStore } from "./stores/runtime-status-store";
 import { type StagedChangeReviewStore, createStagedChangeReviewStore } from "./stores/staged-change-review-store";
+import { type VaultHealthStore, createVaultHealthStore } from "./stores/vault-health-store";
+import type {
+	VaultHealthExportResult,
+	VaultHealthRepairStageResult,
+	VaultHealthReport,
+	VaultHealthRuntimeScanResult,
+} from "./types/health";
 import type { IndexingRuntimeState } from "./types/indexing-runtime";
 import { DEFAULT_PLUGIN_SETTINGS, SHOW_STATUS_COMMAND_ID, type VoidbrainPluginSettings } from "./types/plugin";
 import type { RuntimeCommandOutcome, RuntimeStatusSnapshot } from "./types/runtime";
@@ -50,6 +58,7 @@ import { VoidbrainSettingsTab } from "./views/settings-tab";
 import { SourceIngestionModal } from "./views/source-ingestion-modal";
 import { StagedChangeReviewModal } from "./views/staged-change-review-modal";
 import { VOIDBRAIN_STATUS_VIEW_TYPE, VoidbrainStatusView } from "./views/status-view";
+import { VaultHealthModal } from "./views/vault-health-modal";
 
 type CleanupCallback = () => void;
 
@@ -85,6 +94,9 @@ export default class VoidbrainPlugin extends Plugin {
 	private stagedChangeReviewService: StagedChangeReviewService | null = null;
 	private stagedChangeReviewStore: StagedChangeReviewStore | null = null;
 	private readonly stagedReviewAuditEntries: StagedReviewAuditEntry[] = [];
+	private healthService: VaultHealthRuntimeService | null = null;
+	private healthStore: VaultHealthStore | null = null;
+	private latestHealthReport: VaultHealthReport | null = null;
 	private ribbonActionCount = 0;
 	private settingsTabCount = 0;
 	private runtimeStatusSnapshot: RuntimeStatusSnapshot = createRuntimeStatusSnapshot({
@@ -103,6 +115,7 @@ export default class VoidbrainPlugin extends Plugin {
 		this.createChatRuntime();
 		this.createIngestionRuntime();
 		this.createStagedReviewRuntime();
+		this.createHealthRuntime();
 		this.refreshRuntimeStatusSnapshot();
 		this.isRuntimeLoaded = true;
 
@@ -133,6 +146,10 @@ export default class VoidbrainPlugin extends Plugin {
 			this.stagedChangeReviewStore?.clear();
 			this.stagedChangeReviewStore = null;
 			this.stagedChangeReviewService = null;
+			this.healthStore?.clear();
+			this.healthStore = null;
+			this.healthService = null;
+			this.latestHealthReport = null;
 			this.stagedReviewAuditEntries.splice(0, this.stagedReviewAuditEntries.length);
 			this.ingestionStagedChanges.splice(0, this.ingestionStagedChanges.length);
 			this.isRuntimeLoaded = false;
@@ -196,6 +213,7 @@ export default class VoidbrainPlugin extends Plugin {
 				? {}
 				: { recentIndexFailures: lexicalReport.failedPaths }),
 			stagedChanges: this.ingestionStagedChanges,
+			healthReport: this.latestHealthReport,
 		});
 		this.runtimeStatusStore.setSnapshot(this.runtimeStatusSnapshot);
 
@@ -257,6 +275,11 @@ export default class VoidbrainPlugin extends Plugin {
 		this.stagedChangeReviewStore = createStagedChangeReviewStore();
 	}
 
+	private createHealthRuntime(): void {
+		this.healthService = new VaultHealthRuntimeService();
+		this.healthStore = createVaultHealthStore();
+	}
+
 	private startIndexingOnStartup(): void {
 		if (!this.settings.indexing.shouldIndexOnStartup || this.indexingRuntime === null) {
 			return;
@@ -310,6 +333,10 @@ export default class VoidbrainPlugin extends Plugin {
 				openStagedChangeReview: () => this.openStagedChangeReviewModal(),
 				canOpenStagedChangeReview: () =>
 					this.stagedChangeReviewService !== null && this.stagedChangeReviewStore !== null,
+			},
+			health: {
+				openHealthCheck: () => this.openVaultHealthModal(),
+				canOpenHealthCheck: () => this.healthService !== null && this.healthStore !== null,
 			},
 		});
 
@@ -526,6 +553,95 @@ export default class VoidbrainPlugin extends Plugin {
 				}
 			},
 		}).open();
+	}
+
+	private async openVaultHealthModal(): Promise<void> {
+		const service = this.healthService;
+		const store = this.healthStore;
+		if (service === null || store === null) {
+			if (this.settings.shouldShowStatusNotices) {
+				new Notice("Voidbrain vault health is unavailable. No vault files were changed.", 7000);
+			}
+			return;
+		}
+
+		new VaultHealthModal(this.app, {
+			store,
+			runScan: () => this.runVaultHealthScan(service),
+			exportReport: (report) => this.exportVaultHealthReport(service, report),
+			stageRepair: (findingId, report) => this.stageVaultHealthRepair(service, report, findingId),
+			isOnline: () => this.isRuntimeLoaded,
+			onNotice: (message) => {
+				if (this.settings.shouldShowStatusNotices) {
+					new Notice(message, 7000);
+				}
+			},
+		}).open();
+	}
+
+	private async runVaultHealthScan(service: VaultHealthRuntimeService): Promise<VaultHealthRuntimeScanResult> {
+		const source = createObsidianMarkdownIndexSource({
+			vault: {
+				getFiles: () => this.app.vault.getFiles(),
+				read: (file) => this.app.vault.read(file as TFile),
+			},
+			metadataCache: {
+				getFileCache: (file) => this.app.metadataCache.getFileCache(file as TFile),
+			},
+		});
+		const sourceRead = await source.readMarkdownNotes({
+			preferences: this.settings.indexing,
+		});
+		const lexicalFreshness = this.indexingRuntime?.getState().lexicalReport.freshness ?? null;
+		const result = service.scanMarkdownNotes({
+			notes: sourceRead.notes,
+			knownPaths: sourceRead.knownPaths,
+			pathAliases: sourceRead.pathAliases,
+			...(lexicalFreshness === null ? {} : { freshnessSnapshots: [lexicalFreshness] }),
+		});
+		if (result.ok) {
+			this.latestHealthReport = result.report;
+			this.refreshRuntimeStatusSnapshot();
+		}
+
+		return result;
+	}
+
+	private async exportVaultHealthReport(
+		service: VaultHealthRuntimeService,
+		report: VaultHealthReport,
+	): Promise<VaultHealthExportResult> {
+		const result = await service.exportMarkdownReport({
+			report,
+			adapter: {
+				exists: (path) => this.app.vault.adapter.exists(path),
+				write: async (path, content) => {
+					await this.ensureHealthReportFolder();
+					await this.app.vault.adapter.write(path, content);
+				},
+			},
+		});
+		this.refreshRuntimeStatusSnapshot();
+		return result;
+	}
+
+	private async stageVaultHealthRepair(
+		service: VaultHealthRuntimeService,
+		report: VaultHealthReport,
+		findingId: string,
+	): Promise<VaultHealthRepairStageResult> {
+		const result = await service.stageSafeRepair({
+			report,
+			findingId,
+			existingNotes: await this.getExistingMarkdownNotesWithContent(),
+			existingStagedChanges: this.ingestionStagedChanges,
+		});
+		if (result.ok) {
+			this.ingestionStagedChanges.push(result.stagedChange);
+			this.refreshRuntimeStatusSnapshot();
+		}
+
+		return result;
 	}
 
 	private async applySelectedStagedChanges(request: StagedReviewActionRequest): Promise<StagedReviewApplyOutcome> {
@@ -810,6 +926,37 @@ export default class VoidbrainPlugin extends Plugin {
 				path: file.path,
 				content: "",
 			}));
+	}
+
+	private async getExistingMarkdownNotesWithContent(): Promise<
+		readonly { readonly path: string; readonly content: string }[]
+	> {
+		const notes: Array<{ readonly path: string; readonly content: string }> = [];
+		for (const file of this.app.vault.getFiles().filter((candidate) => candidate.path.endsWith(".md"))) {
+			try {
+				notes.push({
+					path: file.path,
+					content: await this.app.vault.read(file as TFile),
+				});
+			} catch {}
+		}
+
+		return notes;
+	}
+
+	private async ensureHealthReportFolder(): Promise<void> {
+		const adapter = this.app.vault.adapter as typeof this.app.vault.adapter & {
+			readonly mkdir?: (path: string) => Promise<void>;
+		};
+		if (typeof adapter.mkdir !== "function") {
+			return;
+		}
+
+		for (const path of [".voidbrain", ".voidbrain/reports"]) {
+			if ((await adapter.exists(path)) === false) {
+				await adapter.mkdir(path);
+			}
+		}
 	}
 
 	private getActiveVaultPath() {

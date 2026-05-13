@@ -28,7 +28,7 @@ inspectable, provider-aware, and recoverable.
 |------------|--------|----------------|
 | `voidbrain.ingest-source` | implemented | Preview approved markdown, text, pasted content, or URL source records; stage generated artifacts with citations and recovery details only. |
 | `voidbrain.chat-with-vault` | implemented | Require retrieval citations and explicit provider review before any cloud call. |
-| `voidbrain.health-check` | planned | Report plugin, provider, index, fixture, and documentation status without mutating files. |
+| `voidbrain.health-check` | implemented | Scan local vault notes and index freshness, export redacted reports, and stage only deterministic safe repairs through staged changes with recovery details. |
 | `voidbrain.stage-change` | implemented | Review, confirm, apply, reject, retry, or dismiss staged changes with before/after diffs, backup intent, audit records, and recovery details. |
 | `voidbrain.recover-session` | planned | Read recoverable logs and staged files; redact provider secrets in diagnostics. |
 | `voidbrain.validate-agent-surfaces` | scaffolded | Check markdown command IDs, safety phrases, and fixture-safe examples from bounded repository paths. |

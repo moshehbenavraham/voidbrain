@@ -1,7 +1,9 @@
 import type {
 	VaultHealthEvidence,
 	VaultHealthFinding,
+	VaultHealthFindingGroup,
 	VaultHealthFindingKind,
+	VaultHealthRepairSafety,
 	VaultHealthReport,
 	VaultHealthScanResult,
 	VaultHealthSeverity,
@@ -24,6 +26,7 @@ const findingKindOrder: Readonly<Record<VaultHealthFindingKind, number>> = {
 	"missing-citation": 1,
 	"orphan-note": 2,
 	"stale-index": 3,
+	"content-gap": 4,
 };
 
 const severityOrder: Readonly<Record<VaultHealthSeverity, number>> = {
@@ -47,6 +50,24 @@ const stableIdPart = (value: string): string =>
 		.replaceAll(/[^a-z0-9]+/g, "-")
 		.replaceAll(/^-|-$/g, "")
 		.slice(0, 96);
+
+const boundedText = (value: string, maxLength = 240): string => {
+	const normalized = value.replaceAll(/\s+/g, " ").trim();
+	if (normalized.length <= maxLength) {
+		return normalized;
+	}
+
+	return `${normalized.slice(0, maxLength - 3).trim()}...`;
+};
+
+const redactHealthText = (value: string): string =>
+	boundedText(value)
+		.replaceAll(/authorization\s*:\s*[^\s,;]+/gi, "authorization: [redacted]")
+		.replaceAll(/bearer\s+[a-z0-9._~-]+/gi, "bearer [redacted]")
+		.replaceAll(/(api[-_ ]?key|token|password|secret)\s*[:=]\s*[^\s,;]+/gi, "$1=[redacted]");
+
+const sourcePathCitationId = (sourcePath: NormalizedVaultPath): string =>
+	`vault:${sourcePath.replaceAll(/[^a-zA-Z0-9./_-]+/g, "-")}`;
 
 const artifactKindOf = (note: ParsedMarkdownNote): string | undefined => {
 	const value = note.frontmatter["artifact-kind"];
@@ -103,6 +124,7 @@ export const summarizeHealthFindings = (findings: readonly VaultHealthFinding[])
 		"broken-wikilink": 0,
 		"stale-index": 0,
 		"missing-citation": 0,
+		"content-gap": 0,
 	};
 
 	let errorCount = 0;
@@ -137,6 +159,65 @@ export const summarizeHealthFindings = (findings: readonly VaultHealthFinding[])
 	};
 };
 
+const groupIdFor = (
+	severity: VaultHealthSeverity,
+	kind: VaultHealthFindingKind,
+	affectedPath: NormalizedVaultPath | null,
+): string => [severity, kind, affectedPath ?? "vault"].join("__").replaceAll(/[^a-zA-Z0-9._-]+/g, "-");
+
+export const groupHealthFindings = (findings: readonly VaultHealthFinding[]): readonly VaultHealthFindingGroup[] => {
+	const grouped = new Map<string, VaultHealthFinding[]>();
+	for (const finding of sortHealthFindings(findings)) {
+		const affectedPath = finding.affectedPaths[0] ?? null;
+		const groupId = groupIdFor(finding.severity, finding.kind, affectedPath);
+		const group = grouped.get(groupId) ?? [];
+		group.push(finding);
+		grouped.set(groupId, group);
+	}
+
+	return [...grouped.entries()]
+		.map(([groupId, groupFindings]) => {
+			const firstFinding = groupFindings[0];
+			if (firstFinding === undefined) {
+				throw new Error("Vault health finding group cannot be empty.");
+			}
+
+			const key = {
+				severity: firstFinding.severity,
+				kind: firstFinding.kind,
+				affectedPath: firstFinding.affectedPaths[0] ?? null,
+			};
+			const stageableFindings = groupFindings.filter(
+				(finding) => finding.remediation.kind === "stage-change",
+			).length;
+
+			return {
+				groupId,
+				key,
+				findingIds: groupFindings.map((finding) => finding.id),
+				findings: groupFindings,
+				totalFindings: groupFindings.length,
+				stageableFindings,
+				reportOnlyFindings: groupFindings.length - stageableFindings,
+			};
+		})
+		.sort((left, right) => {
+			const severityComparison = severityOrder[left.key.severity] - severityOrder[right.key.severity];
+			if (severityComparison !== 0) {
+				return severityComparison;
+			}
+
+			const kindComparison = findingKindOrder[left.key.kind] - findingKindOrder[right.key.kind];
+			if (kindComparison !== 0) {
+				return kindComparison;
+			}
+
+			return (left.key.affectedPath ?? "").localeCompare(right.key.affectedPath ?? "", "en", {
+				sensitivity: "base",
+			});
+		});
+};
+
 export const createVaultHealthReport = (
 	input: VaultHealthScannerInput,
 	findings: readonly VaultHealthFinding[] = [],
@@ -156,6 +237,7 @@ export const createVaultHealthReport = (
 		scannedPaths: sortedNotes.map((note) => note.path),
 		indexStates,
 		findings: sortedFindings,
+		groups: groupHealthFindings(sortedFindings),
 		summary: summarizeHealthFindings(sortedFindings),
 	};
 };
@@ -252,7 +334,9 @@ const findBrokenWikilinks = (notes: readonly ParsedMarkdownNote[]): readonly Vau
 						detail: `Wikilink [[${wikilink.raw}]] does not resolve to a known fixture note.`,
 					},
 				],
-				remediation: stageChange("Stage a note link update or create the missing target note after review."),
+				remediation: reportOnly(
+					"Broken wikilinks are ambiguous; review the target before staging any note edit.",
+				),
 			});
 		}
 	}
@@ -297,11 +381,49 @@ const findOrphanNotes = (
 					detail: "Generated note is disconnected from parsed fixture notes and source-path frontmatter.",
 				},
 			],
-			remediation: stageChange("Stage a source trace or link update instead of editing the note directly."),
+			remediation: reportOnly("Orphan repairs are ambiguous; add a source trace or link only after user review."),
 		});
 	}
 
 	return { findings, issues };
+};
+
+const contentGapArtifactKinds = new Set(["summary", "entity", "concept", "conversation"]);
+
+const findContentGaps = (notes: readonly ParsedMarkdownNote[]): readonly VaultHealthFinding[] => {
+	const findings: VaultHealthFinding[] = [];
+
+	for (const note of sortParsedNotesByPath(notes)) {
+		const artifactKind = artifactKindOf(note);
+		if (artifactKind === undefined || !contentGapArtifactKinds.has(artifactKind)) {
+			continue;
+		}
+
+		const hasHeading = note.headings.length > 0;
+		const contentLength = note.chunks.reduce((total, chunk) => total + chunk.text.length, 0);
+		if (hasHeading && contentLength >= 32) {
+			continue;
+		}
+
+		findings.push({
+			id: `content-gap-${stableIdPart(note.path)}`,
+			kind: "content-gap",
+			severity: "warning",
+			message: `${note.path} appears to have incomplete generated note content.`,
+			affectedPaths: [note.path],
+			evidence: [
+				{
+					path: note.path,
+					expected: "heading and at least 32 characters of parsed body text",
+					actual: `${note.headings.length} heading(s), ${contentLength} parsed character(s)`,
+					detail: "Generated note content is too sparse to trust as a complete artifact.",
+				},
+			],
+			remediation: reportOnly("Content gaps need source review; no deterministic repair is staged."),
+		});
+	}
+
+	return findings;
 };
 
 const fingerprintEvidence = (
@@ -423,6 +545,7 @@ export const scanVaultHealth = (input: VaultHealthScannerInput): VaultHealthScan
 		...orphanResult.findings,
 		...findStaleIndexes(input.freshnessSnapshots),
 		...missingCitationResult.findings,
+		...findContentGaps(sortedNotes),
 	];
 
 	return {
@@ -430,3 +553,110 @@ export const scanVaultHealth = (input: VaultHealthScannerInput): VaultHealthScan
 		report: createVaultHealthReport(input, findings),
 	};
 };
+
+export const classifyHealthRepairSafety = (finding: VaultHealthFinding): VaultHealthRepairSafety => {
+	if (finding.kind !== "missing-citation") {
+		return {
+			findingId: finding.id,
+			kind: "report-only",
+			reason: `${finding.kind} findings are report-only because the correct repair is ambiguous.`,
+		};
+	}
+
+	const targetPath = finding.affectedPaths[0];
+	const sourcePaths = finding.evidence.flatMap((evidence) =>
+		evidence.sourcePath === undefined ? [] : [evidence.sourcePath],
+	);
+	if (targetPath === undefined || sourcePaths.length === 0) {
+		return {
+			findingId: finding.id,
+			kind: "report-only",
+			reason: "Missing-citation findings require a target path and source-path evidence before staging.",
+		};
+	}
+
+	return {
+		findingId: finding.id,
+		kind: "safe-stage-change",
+		reason: "Citation IDs can be derived deterministically from existing source-path evidence.",
+		targetPath,
+		commandId: "voidbrain.health-check",
+	};
+};
+
+const markdownList = (values: readonly string[]): readonly string[] =>
+	values.length === 0 ? ["- None"] : values.map((value) => `- ${redactHealthText(value)}`);
+
+const renderEvidence = (evidence: VaultHealthEvidence): readonly string[] => [
+	...(evidence.path === undefined ? [] : [`  - Path: \`${evidence.path}\``]),
+	...(evidence.sourcePath === undefined ? [] : [`  - Source path: \`${evidence.sourcePath}\``]),
+	...(evidence.targetPath === undefined ? [] : [`  - Target path: \`${evidence.targetPath}\``]),
+	...(evidence.indexId === undefined ? [] : [`  - Index: \`${redactHealthText(evidence.indexId)}\``]),
+	...(evidence.line === undefined ? [] : [`  - Line: ${evidence.line}`]),
+	...(evidence.expected === undefined ? [] : [`  - Expected: ${redactHealthText(evidence.expected)}`]),
+	...(evidence.actual === undefined ? [] : [`  - Actual: ${redactHealthText(evidence.actual)}`]),
+	`  - Detail: ${redactHealthText(evidence.detail)}`,
+];
+
+export const renderVaultHealthMarkdownReport = (report: VaultHealthReport): string =>
+	[
+		"# Vault Health Report",
+		"",
+		`Report ID: \`${redactHealthText(report.reportId)}\``,
+		`Generated: ${report.generatedAt}`,
+		`Scanned paths: ${report.scannedPaths.length}`,
+		`Findings: ${report.summary.totalFindings}`,
+		`Errors: ${report.summary.errorCount}`,
+		`Warnings: ${report.summary.warningCount}`,
+		`Info: ${report.summary.infoCount}`,
+		"",
+		"## Scanned Paths",
+		"",
+		...markdownList(report.scannedPaths.map((path) => `\`${path}\``)),
+		"",
+		"## Index States",
+		"",
+		...markdownList(Object.entries(report.indexStates).map(([indexId, state]) => `\`${indexId}\`: ${state}`)),
+		"",
+		"## Findings",
+		"",
+		...(report.groups.length === 0
+			? ["No findings."]
+			: report.groups.flatMap((group) => [
+					`### ${group.key.severity} ${group.key.kind} ${group.key.affectedPath ?? "vault"}`,
+					"",
+					`Group ID: \`${redactHealthText(group.groupId)}\``,
+					`Stageable findings: ${group.stageableFindings}`,
+					`Report-only findings: ${group.reportOnlyFindings}`,
+					"",
+					...group.findings.flatMap((finding) => [
+						`#### ${redactHealthText(finding.id)}`,
+						"",
+						`Message: ${redactHealthText(finding.message)}`,
+						`Affected paths: ${finding.affectedPaths.map((path) => `\`${path}\``).join(", ") || "None"}`,
+						`Remediation: ${finding.remediation.kind} - ${redactHealthText(finding.remediation.summary)}`,
+						...(finding.remediation.commandId === undefined
+							? []
+							: [`Command ID: \`${finding.remediation.commandId}\``]),
+						"",
+						"Evidence:",
+						...finding.evidence.flatMap(renderEvidence),
+						"",
+					]),
+				])),
+		"## Recovery",
+		"",
+		"- Command ID: `voidbrain.health-check`",
+		"- Safe repairs are staged changes only and require `voidbrain.stage-change` review before apply.",
+		"- Report-only findings did not create staged changes.",
+		"",
+	].join("\n");
+
+export const citationIdsForFinding = (finding: VaultHealthFinding): readonly string[] =>
+	[
+		...new Set(
+			finding.evidence.flatMap((evidence) =>
+				evidence.sourcePath === undefined ? [] : [sourcePathCitationId(evidence.sourcePath)],
+			),
+		),
+	].sort((left, right) => left.localeCompare(right));

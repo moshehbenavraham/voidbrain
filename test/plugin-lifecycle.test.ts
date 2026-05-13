@@ -31,6 +31,7 @@ import {
 	STAGED_REVIEW_UPDATE_TARGET,
 	createStagedReviewFixtureRecords,
 } from "./fixtures/vault/staged-change-review-fixtures";
+import { loadVaultHealthRuntimeFixtureNotes } from "./fixtures/vault/vault-health-runtime-fixtures";
 
 interface MockedPluginRuntime extends VoidbrainPlugin {
 	commands: Command[];
@@ -102,6 +103,12 @@ const applyVisibleReviewGroup = async (confirmationText?: string): Promise<void>
 	await waitForCondition(
 		() => document.body.querySelector<HTMLButtonElement>("[data-review-action='refresh']")?.disabled === false,
 	);
+};
+
+const configureVaultHealthFixtures = (app: MockApp): void => {
+	for (const note of loadVaultHealthRuntimeFixtureNotes()) {
+		app.vault.setReadContent(note.path, note.content);
+	}
 };
 
 describe("VoidbrainPlugin lifecycle", () => {
@@ -445,6 +452,51 @@ describe("VoidbrainPlugin lifecycle", () => {
 		expect(
 			plugin.getRuntimeStatusSnapshot().items.find((item) => item.id === "staged-change-readiness"),
 		).toBeDefined();
+	});
+
+	it("opens health command, exports report, stages safe repair, and avoids direct note writes", async () => {
+		const app = new MockApp();
+		configureVaultHealthFixtures(app);
+		const plugin = new VoidbrainPlugin(
+			app as unknown as App,
+			{
+				id: "voidbrain",
+				name: "voidbrain",
+				version: "0.1.0",
+			} as PluginManifest,
+		) as MockedPluginRuntime;
+		plugin.loadData.mockResolvedValue(undefined);
+
+		await plugin.onload();
+		const healthCommand = plugin.commands.find((command) => command.id === "voidbrain.health-check");
+		healthCommand?.callback?.();
+		await waitForCondition(() => document.body.textContent?.includes("Vault health") === true);
+		await waitForCondition(() => document.body.textContent?.includes("missing-citation") === true);
+
+		document.body.querySelector<HTMLButtonElement>("[data-health-action='export']")?.click();
+		await waitForCondition(() => document.body.textContent?.includes(".voidbrain/reports/") === true);
+		expect(app.vault.adapter.write).toHaveBeenCalledWith(
+			expect.stringContaining(".voidbrain/reports/"),
+			expect.stringContaining("# Vault Health Report"),
+		);
+
+		[...document.body.querySelectorAll<HTMLButtonElement>("[data-health-group-id]")]
+			.find((button) => button.textContent?.includes("missing-citation"))
+			?.click();
+		await flushPromises();
+		document.body.querySelector<HTMLButtonElement>("[data-health-stage-finding]")?.click();
+		await waitForCondition(() => document.body.textContent?.includes("Staged repair:") === true);
+
+		expect(app.vault.modify).not.toHaveBeenCalled();
+		expect(app.vault.create).not.toHaveBeenCalledWith(expect.stringContaining("summaries/"), expect.any(String));
+		expect(plugin.getRuntimeStatusSnapshot().items.find((item) => item.id === "health-readiness")).toMatchObject({
+			severity: "error",
+		});
+		expect(
+			plugin.getRuntimeStatusSnapshot().items.find((item) => item.id === "staged-change-readiness"),
+		).toMatchObject({
+			severity: "warning",
+		});
 	});
 
 	it("opens staged review command and applies a synthetic create with index refresh", async () => {

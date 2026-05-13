@@ -157,35 +157,51 @@ export const AGENT_COMMAND_CATALOG: readonly AgentCommand[] = [
 	{
 		id: "voidbrain.health-check",
 		name: "Health check",
-		intent: "Report plugin, provider, index, fixture, and documentation safety status.",
-		status: "planned",
+		intent: "Scan local vault notes and index freshness, show grouped health findings, export a redacted markdown report, and stage only deterministic safe repairs.",
+		status: "implemented",
 		privacyLevel: "local-first",
-		writePolicy: "read-only",
+		writePolicy: "staged-changes",
 		prerequisites: [
-			"Repository checks run from the project root.",
-			"Fixture scans stay inside repository-owned synthetic paths.",
+			"Health scans read local markdown notes and index freshness through Obsidian-owned runtime paths.",
+			"Markdown report export writes only redacted support records under .voidbrain/reports/.",
+			"Safe repairs become staged changes and require review before apply.",
 		],
 		inputs: [
 			{
-				name: "scope",
-				description: "Optional bounded repository check scope.",
+				name: "vaultNotes",
+				description: "Local markdown notes collected from the active Obsidian vault.",
 				required: false,
 			},
 		],
 		outputs: [
 			{
-				name: "status",
-				description: "Deterministic pass/fail status with failing checks and paths.",
+				name: "healthReport",
+				description:
+					"Grouped report with severity, kind, affected paths, evidence, remediation, and report ID.",
 				required: true,
 			},
+			{
+				name: "stagedRepairs",
+				description: "Reviewable staged-change IDs for deterministic low-risk repairs when requested.",
+				required: false,
+			},
 		],
-		requiredEvidence: ["status summary", "failing checks"],
+		requiredEvidence: ["report ID", "affected paths", "finding evidence", "validation output", "staged-change IDs"],
 		supportedSurfaces: ["agents-md", "claude-md", "gemini-md", "voidbrain-skill", "human-docs"],
-		requiredSafetyPhrases: ["local-first", "synthetic fixtures", "provider secrets", "recovery"],
-		recoveryBehavior: "Report failing path and check name so the user can rerun after repairs.",
+		requiredSafetyPhrases: [
+			"local-first",
+			"staged changes",
+			"synthetic fixtures",
+			"provider secrets",
+			"citations",
+			"recovery",
+		],
+		recoveryBehavior:
+			"Preserve command ID, report ID, export path, target path, staged-change ID, and validation output for retry or inspection.",
 		notes: [
-			"Fixture-safe health report primitives exist for parsed notes and index freshness snapshots.",
-			"Full Obsidian command runtime remains planned for a later session.",
+			"Runtime health checks are local-only and never call providers.",
+			"Broken links, broad orphans, stale indexes, and content gaps stay report-only because the correct repair can be ambiguous.",
+			"Deterministic missing-citation repairs can be staged, but never applied directly.",
 		],
 	},
 	{

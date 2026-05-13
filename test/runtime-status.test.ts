@@ -92,6 +92,7 @@ const healthReport = (errorCount: number, warningCount: number): VaultHealthRepo
 					},
 				]
 			: [],
+	groups: [],
 	summary: {
 		totalFindings: errorCount + warningCount,
 		errorCount,
@@ -99,6 +100,7 @@ const healthReport = (errorCount: number, warningCount: number): VaultHealthRepo
 		infoCount: 0,
 		findingCounts: {
 			"broken-wikilink": errorCount,
+			"content-gap": 0,
 			"missing-citation": 0,
 			"orphan-note": warningCount,
 			"stale-index": 0,

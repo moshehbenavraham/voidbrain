@@ -31,7 +31,8 @@
     "phase01-session03-indexing-runtime-retrieval-readiness",
     "phase01-session04-grounded-vault-chat",
     "phase01-session05-source-ingestion-staging",
-    "phase01-session06-staged-change-review-apply"
+    "phase01-session06-staged-change-review-apply",
+    "phase01-session07-vault-health-repair-staging"
   ],
   "next_session_history": [
     {
@@ -132,6 +133,16 @@
     {
       "date": "2026-05-13",
       "session": "phase01-session06-staged-change-review-apply",
+      "status": "completed"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase01-session07-vault-health-repair-staging",
+      "status": "planned"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase01-session07-vault-health-repair-staging",
       "status": "completed"
     }
   ]

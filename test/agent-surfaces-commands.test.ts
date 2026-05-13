@@ -43,13 +43,11 @@ describe("agent command catalog", () => {
 
 	it("exposes status labels, status queries, and supported surface mappings", () => {
 		expect(agentCommandStatusLabel("planned")).toBe("Planned");
-		expect(getAgentCommandsByStatus("planned").map((command) => command.id)).toEqual([
-			"voidbrain.health-check",
-			"voidbrain.recover-session",
-		]);
+		expect(getAgentCommandsByStatus("planned").map((command) => command.id)).toEqual(["voidbrain.recover-session"]);
 		expect(getAgentCommandsByStatus("implemented").map((command) => command.id)).toEqual([
 			"voidbrain.ingest-source",
 			"voidbrain.chat-with-vault",
+			"voidbrain.health-check",
 			"voidbrain.stage-change",
 		]);
 		expect(getAgentCommandsByStatus("scaffolded").map((command) => command.id)).toEqual([
