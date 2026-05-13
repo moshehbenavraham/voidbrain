@@ -14,10 +14,12 @@ import {
 	composeLexicalRetrievalResults,
 	createSemanticIndexAdapter,
 	evaluateIndexFreshness,
+	evaluateSemanticIndexCompatibility,
 	makeEmbeddingModelFamily,
 	parseMarkdownNote,
 	resetLexicalIndexForBuild,
 	searchLexicalIndex,
+	selectLexicalFallbackRetrieval,
 } from "../src/vectorstore";
 import {
 	INDEXING_FIXTURE_NOTE_MESSAGE,
@@ -25,6 +27,12 @@ import {
 	INDEXING_PARSE_OPTIONS,
 	loadIndexingFixtureNotes,
 } from "./fixtures/vault/indexing-fixtures";
+import {
+	SEMANTIC_COMPATIBILITY_DIMENSIONS,
+	SEMANTIC_COMPATIBILITY_FAMILY,
+	SEMANTIC_COMPATIBILITY_FIXED_DATE,
+	semanticReadinessFixture,
+} from "./fixtures/vault/semantic-index-compatibility-fixtures";
 
 const localFirstPolicy: ProviderPrivacyPolicy = {
 	areCloudProvidersEnabled: false,
@@ -168,6 +176,78 @@ describe("lexical indexing and retrieval", () => {
 		expect(searchLexicalIndex({ ...built.index, status: "stale" }, { query: "vault", limit: 3 })).toMatchObject({
 			ok: false,
 			code: "retrieval.index-not-ready",
+		});
+	});
+
+	it("selects bounded deterministic lexical fallback when semantic vectors are not eligible", () => {
+		const parsedNotes = parseFixtureNotes();
+		const built = buildLexicalIndex({
+			indexId: "lexical-fallback-fixture",
+			notes: parsedNotes,
+			builtAt: new Date("2026-05-12T00:00:00.000Z"),
+		});
+		if (!built.ok) {
+			throw new Error(built.message);
+		}
+
+		const compatibility = evaluateSemanticIndexCompatibility({
+			semanticReadiness: semanticReadinessFixture({
+				embeddingModelFamily: SEMANTIC_COMPATIBILITY_FAMILY,
+				dimensions: SEMANTIC_COMPATIBILITY_DIMENSIONS,
+			}),
+			semanticSnapshot: null,
+			currentSources: built.index.sources,
+			lexicalReadinessState: "ready",
+			checkedAt: SEMANTIC_COMPATIBILITY_FIXED_DATE,
+			activeEmbeddingModelFamily: SEMANTIC_COMPATIBILITY_FAMILY,
+			activeDimensions: SEMANTIC_COMPATIBILITY_DIMENSIONS,
+		});
+		const fallback = selectLexicalFallbackRetrieval({
+			lexicalIndex: built.index,
+			queryInput: {
+				query: "local vault support files",
+				limit: 99,
+			},
+			semanticCompatibility: compatibility,
+			options: {
+				maxResults: 2,
+			},
+		});
+
+		expect(fallback).toMatchObject({
+			ok: true,
+			fallback: {
+				mode: "lexical",
+				semanticCompatibilityCode: "missing-index",
+				resultLimit: 2,
+			},
+		});
+		if (!fallback.ok) {
+			throw new Error(fallback.message);
+		}
+		expect(fallback.results).toHaveLength(2);
+		expect(fallback.results.map((result) => result.score)).toEqual(
+			[...fallback.results.map((result) => result.score)].sort((left, right) => right - left),
+		);
+
+		expect(
+			selectLexicalFallbackRetrieval({
+				lexicalIndex: built.index,
+				queryInput: {
+					query: "local",
+					limit: 2,
+					filters: {
+						tags: ["fixture"],
+					},
+				},
+				semanticCompatibility: compatibility,
+			}),
+		).toMatchObject({
+			ok: false,
+			code: "retrieval.unsupported-filter",
+			fallback: {
+				semanticCompatibilityCode: "missing-index",
+			},
 		});
 	});
 });

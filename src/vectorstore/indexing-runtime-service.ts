@@ -19,6 +19,7 @@ import type {
 	IndexSourceFingerprint,
 	LexicalIndexSnapshot,
 	RetrievalReadinessState,
+	SemanticIndexSnapshot,
 } from "../types/retrieval";
 import { type IsoTimestamp, type NormalizedVaultPath, makeIsoTimestamp } from "../types/vault";
 import { compareVaultPaths } from "../utils/vault-paths";
@@ -28,6 +29,7 @@ import type { MarkdownParseOptions } from "./markdown-parser";
 import { parseMarkdownNote } from "./markdown-parser";
 import { type ObsidianMarkdownIndexSource, createEmptyObsidianMarkdownSourceReadResult } from "./obsidian-index-source";
 import { preflightSemanticIndexProvider } from "./semantic-index";
+import { evaluateSemanticIndexCompatibility } from "./semantic-index-compatibility";
 
 export const DEFAULT_RUNTIME_LEXICAL_INDEX_ID = "voidbrain-vault-lexical-index";
 export const SEMANTIC_INDEX_READINESS_WORKFLOW_ID = "voidbrain.semantic-index-readiness";
@@ -38,6 +40,7 @@ export interface IndexingRuntimeServiceOptions {
 	readonly getProviders?: () => readonly ProviderDefinition[];
 	readonly now?: () => Date;
 	readonly indexId?: string;
+	readonly getSemanticSnapshot?: () => SemanticIndexSnapshot | null;
 	readonly createIndexingService?: (parseOptions: MarkdownParseOptions) => FixtureIndexingService;
 }
 
@@ -86,7 +89,10 @@ const readinessStateForSemantic = (state: SemanticIndexReadinessState): Retrieva
 		case "capability-mismatch":
 		case "privacy-denied":
 		case "blocked":
+		case "offline":
 			return "blocked";
+		case "canceled":
+			return "canceled";
 		default: {
 			const exhaustive: never = state;
 			throw new Error(`Unhandled semantic readiness state: ${String(exhaustive)}`);
@@ -173,6 +179,8 @@ const semanticReadiness = (input: {
 	readonly message: string;
 	readonly diagnosticCode?: string;
 	readonly validationOutput?: readonly string[];
+	readonly embeddingModelFamily?: SemanticIndexReadiness["embeddingModelFamily"];
+	readonly dimensions?: SemanticIndexReadiness["dimensions"];
 }): SemanticIndexReadiness => ({
 	state: input.state,
 	readinessState: readinessStateForSemantic(input.state),
@@ -180,6 +188,8 @@ const semanticReadiness = (input: {
 	contentSensitivity: input.settings.defaultContentSensitivity,
 	providerId: input.settings.providerRoles.embedding.providerId,
 	modelId: input.settings.providerRoles.embedding.modelId,
+	embeddingModelFamily: input.embeddingModelFamily ?? null,
+	dimensions: input.dimensions ?? null,
 	sourcePathCount: input.sourcePaths.length,
 	message: input.message,
 	diagnosticCode: input.diagnosticCode ?? null,
@@ -216,10 +226,11 @@ export class IndexingRuntimeService {
 					parseOptions,
 				}));
 		const initialReport = emptyReport(this.indexId, this.now());
+		const semanticState = this.evaluateSemanticState(initialReport, null);
 		this.state = {
 			lexicalReport: initialReport,
 			lexicalIndex: null,
-			semanticReadiness: this.evaluateSemanticReadiness(initialReport),
+			...semanticState,
 		};
 	}
 
@@ -237,9 +248,10 @@ export class IndexingRuntimeService {
 	}
 
 	public refreshReadiness(): IndexingRuntimeActionResult {
+		const semanticState = this.evaluateSemanticState(this.state.lexicalReport, this.state.lexicalIndex);
 		this.setState({
 			...this.state,
-			semanticReadiness: this.evaluateSemanticReadiness(this.state.lexicalReport),
+			...semanticState,
 		});
 
 		return this.actionResult("refresh-readiness", true, "ready", "Indexing readiness was refreshed.");
@@ -260,10 +272,11 @@ export class IndexingRuntimeService {
 				message: "Lexical indexing is disabled in settings.",
 			});
 			this.lexicalIndex = null;
+			const semanticState = this.evaluateSemanticState(report, null);
 			this.setState({
 				lexicalReport: report,
 				lexicalIndex: null,
-				semanticReadiness: this.evaluateSemanticReadiness(report),
+				...semanticState,
 			});
 
 			return this.actionResult("reindex-lexical", false, "disabled", report.message);
@@ -375,10 +388,11 @@ export class IndexingRuntimeService {
 						? "Lexical index completed with no markdown notes."
 						: "Lexical index is ready.",
 			});
+			const semanticState = this.evaluateSemanticState(report, this.lexicalIndex);
 			this.setState({
 				lexicalReport: report,
 				lexicalIndex: this.lexicalIndex,
-				semanticReadiness: this.evaluateSemanticReadiness(report),
+				...semanticState,
 			});
 
 			return this.actionResult("reindex-lexical", true, report.status, report.message);
@@ -476,10 +490,11 @@ export class IndexingRuntimeService {
 			now: this.now(),
 			message: this.messageForFreshness(freshness),
 		});
+		const semanticState = this.evaluateSemanticState(report, this.lexicalIndex);
 		this.setState({
 			lexicalReport: report,
 			lexicalIndex: this.lexicalIndex,
-			semanticReadiness: this.evaluateSemanticReadiness(report),
+			...semanticState,
 		});
 
 		return this.actionResult("refresh-readiness", true, report.status, report.message);
@@ -498,6 +513,39 @@ export class IndexingRuntimeService {
 
 	private providerDefinitions(): readonly ProviderDefinition[] {
 		return this.options.getProviders?.() ?? buildProviderDefinitionsForSettings(this.options.getSettings());
+	}
+
+	private currentSourcesForSemanticCompatibility(
+		report: IndexingRuntimeReport,
+		lexicalIndex: LexicalIndexSnapshot | null,
+	): readonly IndexSourceFingerprint[] {
+		return report.freshness?.currentSources ?? lexicalIndex?.sources ?? [];
+	}
+
+	private semanticSnapshot(): SemanticIndexSnapshot | null {
+		return this.options.getSemanticSnapshot?.() ?? null;
+	}
+
+	private evaluateSemanticState(
+		report: IndexingRuntimeReport,
+		lexicalIndex: LexicalIndexSnapshot | null,
+	): Pick<IndexingRuntimeState, "semanticReadiness" | "semanticCompatibility"> {
+		const semanticReadiness = this.evaluateSemanticReadiness(report);
+		const semanticCompatibility = evaluateSemanticIndexCompatibility({
+			semanticReadiness,
+			semanticSnapshot: this.semanticSnapshot(),
+			currentSources: this.currentSourcesForSemanticCompatibility(report, lexicalIndex),
+			lexicalReadinessState: report.readinessState,
+			checkedAt: this.now(),
+			activeEmbeddingModelFamily: semanticReadiness.embeddingModelFamily ?? null,
+			activeDimensions: semanticReadiness.dimensions ?? null,
+			validationOutput: [semanticReadiness.diagnosticCode ?? semanticReadiness.state],
+		});
+
+		return {
+			semanticReadiness,
+			semanticCompatibility,
+		};
 	}
 
 	private evaluateSemanticReadiness(report: IndexingRuntimeReport): SemanticIndexReadiness {
@@ -583,6 +631,7 @@ export class IndexingRuntimeService {
 			sourcePaths,
 			message: "Semantic indexing preflight is ready for the selected embedding provider.",
 			validationOutput: ["semantic provider preflight ready"],
+			embeddingModelFamily: semanticDecision.embeddingModelFamily,
 		});
 	}
 
@@ -596,6 +645,8 @@ export class IndexingRuntimeService {
 				return "capability-mismatch";
 			case "privacy-denied":
 				return "privacy-denied";
+			case "local-readiness-not-ready":
+				return "offline";
 			default:
 				return "blocked";
 		}
@@ -618,10 +669,11 @@ export class IndexingRuntimeService {
 	}
 
 	private setLexicalReport(report: IndexingRuntimeReport): void {
+		const semanticState = this.evaluateSemanticState(report, this.lexicalIndex);
 		this.setState({
 			lexicalReport: report,
 			lexicalIndex: this.lexicalIndex,
-			semanticReadiness: this.evaluateSemanticReadiness(report),
+			...semanticState,
 		});
 	}
 

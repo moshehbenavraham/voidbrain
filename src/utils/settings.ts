@@ -598,6 +598,23 @@ const readVaultPathArray = (
 	return normalizedPaths.sort((left, right) => left.localeCompare(right, "en", { sensitivity: "base" }));
 };
 
+const RUNTIME_ONLY_INDEXING_FIELDS = [
+	"indexReports",
+	"semanticIndexReadiness",
+	"semanticIndexCompatibility",
+	"semanticCompatibility",
+	"hotCacheState",
+] as const;
+
+const omitRuntimeOnlyIndexingFields = (source: Record<string, unknown>): Record<string, unknown> => {
+	const sanitized = { ...source };
+	for (const field of RUNTIME_ONLY_INDEXING_FIELDS) {
+		delete sanitized[field];
+	}
+
+	return sanitized;
+};
+
 const readIndexingPreferences = (
 	source: Record<string, unknown>,
 	errors: SettingsValidationError[],
@@ -611,23 +628,29 @@ const readIndexingPreferences = (
 			excludedFolders: [...defaults.excludedFolders],
 		};
 	}
+	const persistedIndexing = omitRuntimeOnlyIndexingFields(rawIndexing);
 
 	return {
 		isLexicalIndexEnabled: readBoolean(
-			rawIndexing,
+			persistedIndexing,
 			"isLexicalIndexEnabled",
 			defaults.isLexicalIndexEnabled,
 			errors,
 		),
 		isSemanticIndexEnabled: readBoolean(
-			rawIndexing,
+			persistedIndexing,
 			"isSemanticIndexEnabled",
 			defaults.isSemanticIndexEnabled,
 			errors,
 		),
-		shouldIndexOnStartup: readBoolean(rawIndexing, "shouldIndexOnStartup", defaults.shouldIndexOnStartup, errors),
-		excludedFolders: readVaultPathArray(rawIndexing, "excludedFolders", errors),
-		maxNoteBytes: readPositiveInteger(rawIndexing, "maxNoteBytes", defaults.maxNoteBytes, errors, {
+		shouldIndexOnStartup: readBoolean(
+			persistedIndexing,
+			"shouldIndexOnStartup",
+			defaults.shouldIndexOnStartup,
+			errors,
+		),
+		excludedFolders: readVaultPathArray(persistedIndexing, "excludedFolders", errors),
+		maxNoteBytes: readPositiveInteger(persistedIndexing, "maxNoteBytes", defaults.maxNoteBytes, errors, {
 			minimum: 1000,
 			maximum: 5000000,
 		}),

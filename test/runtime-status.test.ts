@@ -11,7 +11,7 @@ import {
 import type { VaultHealthReport } from "../src/types/health";
 import type { IndexingRuntimeReport, SemanticIndexReadiness } from "../src/types/indexing-runtime";
 import { DEFAULT_PLUGIN_SETTINGS } from "../src/types/plugin";
-import type { IndexSourceFingerprint } from "../src/types/retrieval";
+import type { IndexSourceFingerprint, SemanticIndexCompatibility } from "../src/types/retrieval";
 import type { StagedChangeRecord, StagedChangeStatus } from "../src/types/vault";
 import { makeIsoTimestamp, makeNormalizedVaultPath } from "../src/types/vault";
 import { createProgressSnapshot, evaluateIndexFreshness } from "../src/vectorstore";
@@ -74,6 +74,56 @@ const semanticReadiness = (overrides: Partial<SemanticIndexReadiness> = {}): Sem
 	sourcePathCount: 0,
 	message: "Semantic indexing is disabled in settings.",
 	diagnosticCode: null,
+	...overrides,
+});
+
+const semanticCompatibility = (overrides: Partial<SemanticIndexCompatibility> = {}): SemanticIndexCompatibility => ({
+	state: "missing",
+	code: "missing-index",
+	semanticSearchEligible: false,
+	fallbackMode: "lexical",
+	checkedAt: fixedTimestamp,
+	indexId: "semantic-runtime-index",
+	providerId: LOCAL_FIXTURE_PROVIDER_ID,
+	modelId: makeProviderModelId("local-embedding-fixture"),
+	embeddingModelFamily: null,
+	dimensions: null,
+	snapshotBuiltAt: null,
+	sourcePathCounts: {
+		indexed: 0,
+		current: 1,
+		stale: 0,
+		missing: 1,
+		extra: 0,
+	},
+	staleSourcePaths: [],
+	missingSourcePaths: [makeNormalizedVaultPath("sources/demo-article.md")],
+	extraSourcePaths: [],
+	message: "Semantic index snapshot is missing; lexical fallback remains available when ready.",
+	guidance: {
+		action: "rebuild-semantic-index",
+		message: "Semantic index snapshot is missing; lexical fallback remains available when ready.",
+		providerId: LOCAL_FIXTURE_PROVIDER_ID,
+		modelId: makeProviderModelId("local-embedding-fixture"),
+		embeddingModelFamily: null,
+		dimensions: null,
+		indexId: "semantic-runtime-index",
+		sourcePathCount: 1,
+		readinessCode: null,
+		reportId: "semantic-runtime-report",
+		validationOutput: ["missing-index"],
+	},
+	recovery: {
+		commandId: "voidbrain.semantic-index-compatibility",
+		providerId: LOCAL_FIXTURE_PROVIDER_ID,
+		modelId: makeProviderModelId("local-embedding-fixture"),
+		indexId: "semantic-runtime-index",
+		reportId: "semantic-runtime-report",
+		readinessCode: null,
+		sourcePathCount: 1,
+		validationOutput: ["missing-index"],
+		fallbackMode: "lexical",
+	},
 	...overrides,
 });
 
@@ -395,6 +445,16 @@ describe("runtime status composition", () => {
 				message: "Cloud provider workflows are disabled.",
 				diagnosticCode: "cloud-disabled",
 			}),
+			semanticIndexCompatibility: semanticCompatibility({
+				state: "provider-blocked",
+				code: "provider-blocked",
+				message: "Cloud provider workflows are disabled.",
+				guidance: {
+					...semanticCompatibility().guidance,
+					action: "review-provider-setup",
+					message: "Cloud provider workflows are disabled.",
+				},
+			}),
 			now: fixedDate,
 		});
 		const indexItem = snapshot.items.find((item) => item.id === "index-readiness");
@@ -405,6 +465,8 @@ describe("runtime status composition", () => {
 		});
 		expect(indexItem?.details.join(" ")).toContain("1 skipped; 1 failed");
 		expect(indexItem?.details.join(" ")).toContain("Semantic indexing: blocked");
+		expect(indexItem?.details.join(" ")).toContain("Semantic compatibility: provider-blocked");
+		expect(indexItem?.details.join(" ")).toContain("fallback lexical");
 		expect(indexItem?.paths).toEqual(
 			expect.arrayContaining([
 				makeNormalizedVaultPath("archive/excluded-note.md"),

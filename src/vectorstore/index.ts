@@ -6,4 +6,5 @@ export * from "./lexical-index";
 export * from "./markdown-parser";
 export * from "./obsidian-index-source";
 export * from "./retrieval-service";
+export * from "./semantic-index-compatibility";
 export * from "./semantic-index";

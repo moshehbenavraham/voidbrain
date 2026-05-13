@@ -137,12 +137,19 @@ describe("Phase 01 plugin settings migration", () => {
 				semanticIndexReadiness: {
 					message: "Provider readiness is runtime-only.",
 				},
+				semanticIndexCompatibility: {
+					message: "Synthetic semantic compatibility runtime-only detail.",
+					recovery: {
+						validationOutput: ["runtime-only"],
+					},
+				},
 			},
 		});
 
 		expect(result.status).toBe("loaded");
 		expect(result.settings.indexing).toEqual(DEFAULT_PLUGIN_SETTINGS.indexing);
 		expect(JSON.stringify(result.settings)).not.toContain("Synthetic runtime note body");
+		expect(JSON.stringify(result.settings)).not.toContain("Synthetic semantic compatibility runtime-only detail");
 		expect(JSON.stringify(result.settings)).not.toContain("read-failure");
 	});
 

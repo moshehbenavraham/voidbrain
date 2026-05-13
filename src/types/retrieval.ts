@@ -43,6 +43,32 @@ export const SEMANTIC_COMPATIBILITY_CODES = [
 	"dimension-mismatch",
 	"missing-embedding-family",
 ] as const;
+export const SEMANTIC_INDEX_COMPATIBILITY_STATES = [
+	"ready",
+	"disabled",
+	"missing",
+	"stale",
+	"incompatible",
+	"canceled",
+	"provider-blocked",
+	"offline",
+] as const;
+export const SEMANTIC_INDEX_COMPATIBILITY_CODES = [
+	"compatible",
+	"semantic-disabled",
+	"missing-index",
+	"index-not-ready",
+	"missing-vectors",
+	"stale-source-fingerprints",
+	"family-mismatch",
+	"dimension-mismatch",
+	"missing-embedding-family",
+	"provider-blocked",
+	"provider-canceled",
+	"provider-offline",
+	"provider-not-ready",
+] as const;
+export const SEMANTIC_RETRIEVAL_FALLBACK_MODES = ["semantic", "lexical", "unavailable"] as const;
 
 export type MarkdownParseErrorCode = (typeof MARKDOWN_PARSE_ERROR_CODES)[number];
 export type WikilinkTargetStatus = (typeof WIKILINK_TARGET_STATUSES)[number];
@@ -54,6 +80,9 @@ export type IndexJobStatus = (typeof INDEX_JOB_STATUSES)[number];
 export type IndexFreshnessState = (typeof INDEX_FRESHNESS_STATES)[number];
 export type SemanticDistanceMetric = (typeof SEMANTIC_DISTANCE_METRICS)[number];
 export type SemanticCompatibilityCode = (typeof SEMANTIC_COMPATIBILITY_CODES)[number];
+export type SemanticIndexCompatibilityState = (typeof SEMANTIC_INDEX_COMPATIBILITY_STATES)[number];
+export type SemanticIndexCompatibilityCode = (typeof SEMANTIC_INDEX_COMPATIBILITY_CODES)[number];
+export type SemanticRetrievalFallbackMode = (typeof SEMANTIC_RETRIEVAL_FALLBACK_MODES)[number];
 export type EmbeddingModelFamily = string & { readonly __embeddingModelFamily: unique symbol };
 
 export type FrontmatterPrimitive = string | number | boolean | null;
@@ -262,6 +291,8 @@ export interface LexicalSearchHit {
 
 export interface SemanticIndexConfig {
 	readonly indexId: string;
+	readonly providerId?: ProviderId;
+	readonly modelId?: ProviderModelId;
 	readonly embeddingModelFamily: EmbeddingModelFamily;
 	readonly dimensions: number;
 	readonly distanceMetric: SemanticDistanceMetric;
@@ -284,6 +315,71 @@ export interface SemanticIndexSnapshot {
 	readonly builtAt?: IsoTimestamp;
 	readonly sources: readonly IndexSourceFingerprint[];
 	readonly entries: readonly SemanticVectorEntry[];
+}
+
+export interface SemanticIndexSourcePathCounts {
+	readonly indexed: number;
+	readonly current: number;
+	readonly stale: number;
+	readonly missing: number;
+	readonly extra: number;
+}
+
+export interface SemanticReindexGuidance {
+	readonly action: "none" | "rebuild-semantic-index" | "review-provider-setup" | "refresh-lexical-index";
+	readonly message: string;
+	readonly providerId: ProviderId | null;
+	readonly modelId: ProviderModelId | null;
+	readonly embeddingModelFamily: EmbeddingModelFamily | null;
+	readonly dimensions: number | null;
+	readonly indexId: string | null;
+	readonly sourcePathCount: number;
+	readonly readinessCode: string | null;
+	readonly reportId: string | null;
+	readonly validationOutput: readonly string[];
+}
+
+export interface SemanticIndexCompatibilityRecovery {
+	readonly commandId: string;
+	readonly providerId: ProviderId | null;
+	readonly modelId: ProviderModelId | null;
+	readonly indexId: string | null;
+	readonly reportId: string | null;
+	readonly readinessCode: string | null;
+	readonly sourcePathCount: number;
+	readonly validationOutput: readonly string[];
+	readonly fallbackMode: SemanticRetrievalFallbackMode;
+}
+
+export interface SemanticIndexCompatibility {
+	readonly state: SemanticIndexCompatibilityState;
+	readonly code: SemanticIndexCompatibilityCode;
+	readonly semanticSearchEligible: boolean;
+	readonly fallbackMode: SemanticRetrievalFallbackMode;
+	readonly checkedAt: IsoTimestamp;
+	readonly indexId: string | null;
+	readonly providerId: ProviderId | null;
+	readonly modelId: ProviderModelId | null;
+	readonly embeddingModelFamily: EmbeddingModelFamily | null;
+	readonly dimensions: number | null;
+	readonly snapshotBuiltAt: IsoTimestamp | null;
+	readonly sourcePathCounts: SemanticIndexSourcePathCounts;
+	readonly staleSourcePaths: readonly NormalizedVaultPath[];
+	readonly missingSourcePaths: readonly NormalizedVaultPath[];
+	readonly extraSourcePaths: readonly NormalizedVaultPath[];
+	readonly message: string;
+	readonly guidance: SemanticReindexGuidance;
+	readonly recovery: SemanticIndexCompatibilityRecovery;
+}
+
+export interface SemanticLexicalFallbackDecision {
+	readonly mode: SemanticRetrievalFallbackMode;
+	readonly semanticCompatibilityCode: SemanticIndexCompatibilityCode;
+	readonly semanticSearchEligible: boolean;
+	readonly resultLimit: number;
+	readonly message: string;
+	readonly validationOutput: readonly string[];
+	readonly guidance: SemanticReindexGuidance;
 }
 
 export interface SemanticCompatibilityAllowed {

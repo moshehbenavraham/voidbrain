@@ -6,7 +6,13 @@ import type {
 	ProviderInvocationRecoveryMetadata,
 } from "./provider-invocation";
 import type { ContentSensitivity, ProviderId, ProviderModelId, RedactedDiagnosticObject } from "./providers";
-import type { RetrievalQuery, RetrievalReadinessState, RetrievalResult } from "./retrieval";
+import type {
+	RetrievalQuery,
+	RetrievalReadinessState,
+	RetrievalResult,
+	SemanticIndexCompatibilityCode,
+	SemanticRetrievalFallbackMode,
+} from "./retrieval";
 import type { IsoTimestamp, NormalizedVaultPath } from "./vault";
 
 export const CHAT_COMMAND_ID = "voidbrain.chat-with-vault" satisfies AgentCommandId;
@@ -131,6 +137,16 @@ export interface ChatPersistedRetrievalRecord {
 	readonly matchedTokenCount: number;
 }
 
+export interface ChatRetrievalFallbackRecord {
+	readonly mode: SemanticRetrievalFallbackMode;
+	readonly semanticCompatibilityCode: SemanticIndexCompatibilityCode;
+	readonly semanticSearchEligible: boolean;
+	readonly resultLimit: number;
+	readonly sourcePathCount: number;
+	readonly message: string;
+	readonly validationOutput: readonly string[];
+}
+
 export interface ChatCitation {
 	readonly id: ChatCitationId;
 	readonly label: string;
@@ -226,6 +242,7 @@ export interface ChatTurn {
 	readonly retrievalQuery: RetrievalQuery | null;
 	readonly retrievalPreview: readonly ChatRetrievalPreviewItem[];
 	readonly persistedRetrieval: readonly ChatPersistedRetrievalRecord[];
+	readonly retrievalFallback?: ChatRetrievalFallbackRecord | null;
 	readonly citations: readonly ChatCitation[];
 	readonly answer: string | null;
 	readonly failure: ChatFailure | null;

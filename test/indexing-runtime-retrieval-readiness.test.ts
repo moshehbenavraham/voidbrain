@@ -6,7 +6,8 @@ import {
 	makeProviderModelId,
 } from "../src/providers";
 import { DEFAULT_PLUGIN_SETTINGS, type VoidbrainPluginSettings } from "../src/types/plugin";
-import { makeNormalizedVaultPath } from "../src/types/vault";
+import type { IndexSourceFingerprint, SemanticIndexSnapshot, SemanticVectorEntry } from "../src/types/retrieval";
+import { makeIsoTimestamp, makeNormalizedVaultPath } from "../src/types/vault";
 import { FixtureIndexingService, IndexingRuntimeService, createObsidianMarkdownIndexSource } from "../src/vectorstore";
 import { App as MockApp } from "./__mocks__/obsidian";
 import {
@@ -22,6 +23,11 @@ import {
 	type RuntimeIndexingFixtureFile,
 	createRuntimeFixtureFiles,
 } from "./fixtures/vault/runtime-indexing-fixtures";
+import {
+	SEMANTIC_COMPATIBILITY_DIMENSIONS,
+	SEMANTIC_COMPATIBILITY_FAMILY,
+	SEMANTIC_COMPATIBILITY_INDEX_ID,
+} from "./fixtures/vault/semantic-index-compatibility-fixtures";
 
 const fixedDate = new Date("2026-05-13T00:00:00.000Z");
 
@@ -61,6 +67,7 @@ const createRuntimeService = (
 		readonly app?: MockApp;
 		readonly settings?: VoidbrainPluginSettings;
 		readonly fixtures?: readonly RuntimeIndexingFixtureFile[];
+		readonly getSemanticSnapshot?: () => SemanticIndexSnapshot | null;
 		readonly createIndexingService?: ConstructorParameters<
 			typeof IndexingRuntimeService
 		>[0]["createIndexingService"];
@@ -77,11 +84,41 @@ const createRuntimeService = (
 		source,
 		getSettings: () => settings,
 		now: () => fixedDate,
+		...(input.getSemanticSnapshot === undefined ? {} : { getSemanticSnapshot: input.getSemanticSnapshot }),
 		...(input.createIndexingService === undefined ? {} : { createIndexingService: input.createIndexingService }),
 	});
 
 	return { app, service, settings };
 };
+
+const semanticEntriesForSources = (sources: readonly IndexSourceFingerprint[]): readonly SemanticVectorEntry[] =>
+	sources.map((source, index) => ({
+		id: `runtime-semantic-vector-${index + 1}`,
+		path: source.path,
+		chunkId: `runtime-semantic-chunk-${index + 1}`,
+		embeddingModelFamily: SEMANTIC_COMPATIBILITY_FAMILY,
+		dimensions: SEMANTIC_COMPATIBILITY_DIMENSIONS,
+		vector: [0.1 + index, 0.2 + index, 0.3 + index, 0.4 + index],
+		sourcePaths: [source.path],
+		contentFingerprint: source.contentFingerprint,
+	}));
+
+const semanticSnapshotForSources = (
+	sources: readonly IndexSourceFingerprint[],
+	overrides: Partial<SemanticIndexSnapshot> = {},
+): SemanticIndexSnapshot => ({
+	config: {
+		indexId: SEMANTIC_COMPATIBILITY_INDEX_ID,
+		embeddingModelFamily: SEMANTIC_COMPATIBILITY_FAMILY,
+		dimensions: SEMANTIC_COMPATIBILITY_DIMENSIONS,
+		distanceMetric: "cosine",
+	},
+	status: "ready",
+	builtAt: makeIsoTimestamp("2026-05-13T00:00:00.000Z"),
+	sources,
+	entries: semanticEntriesForSources(sources),
+	...overrides,
+});
 
 describe("Obsidian runtime indexing source", () => {
 	it("collects markdown notes through vault APIs with bounded diagnostics", async () => {
@@ -323,6 +360,111 @@ describe("IndexingRuntimeService semantic readiness gates", () => {
 			},
 		});
 		expect(JSON.stringify(localReady.getState().semanticReadiness)).not.toContain("Synthetic runtime source");
+	});
+
+	it("updates semantic compatibility for missing, stale, provider-blocked, and canceled snapshots", async () => {
+		const localSettings: VoidbrainPluginSettings = {
+			...DEFAULT_PLUGIN_SETTINGS,
+			indexing: {
+				...basePreferences,
+				isSemanticIndexEnabled: true,
+			},
+			providerRoles: {
+				...DEFAULT_PLUGIN_SETTINGS.providerRoles,
+				embedding: {
+					providerId: LOCAL_FIXTURE_PROVIDER_ID,
+					modelId: makeProviderModelId("local-embedding-fixture"),
+				},
+			},
+		};
+		let semanticSnapshot: SemanticIndexSnapshot | null = null;
+		const { app, service } = createRuntimeService({
+			settings: localSettings,
+			getSemanticSnapshot: () => semanticSnapshot,
+		});
+
+		await expect(service.reindexLexical()).resolves.toMatchObject({ status: "ready" });
+		expect(service.getState().semanticCompatibility).toMatchObject({
+			state: "missing",
+			code: "missing-index",
+			fallbackMode: "lexical",
+			guidance: {
+				action: "rebuild-semantic-index",
+			},
+		});
+
+		const indexedSources = service.getState().lexicalIndex?.sources ?? [];
+		semanticSnapshot = semanticSnapshotForSources(indexedSources);
+		service.refreshReadiness();
+		expect(service.getState().semanticCompatibility).toMatchObject({
+			state: "ready",
+			code: "compatible",
+			semanticSearchEligible: true,
+		});
+
+		app.vault.setReadContent(
+			"sources/runtime-source.md",
+			"# Runtime Source\n\nSynthetic semantic compatibility stale content.",
+		);
+		await expect(service.refreshLexicalFreshness()).resolves.toMatchObject({ status: "stale" });
+		expect(service.getState().semanticCompatibility).toMatchObject({
+			state: "stale",
+			code: "stale-source-fingerprints",
+			fallbackMode: "lexical",
+			sourcePathCounts: {
+				stale: 1,
+			},
+		});
+
+		semanticSnapshot = semanticSnapshotForSources(indexedSources, { status: "canceled" });
+		service.refreshReadiness();
+		expect(service.getState().semanticCompatibility).toMatchObject({
+			state: "canceled",
+			code: "provider-canceled",
+			fallbackMode: "lexical",
+		});
+
+		const blocked = createRuntimeService({
+			settings: {
+				...DEFAULT_PLUGIN_SETTINGS,
+				indexing: {
+					...basePreferences,
+					isSemanticIndexEnabled: true,
+				},
+				providerAuthStatuses: [
+					{
+						providerId: TRUSTED_CLOUD_FIXTURE_PROVIDER_ID,
+						status: "passed",
+						checkedAt: "2026-05-13T00:00:00.000Z",
+						statusCode: 200,
+						modelCount: 2,
+						durationMs: 1,
+						diagnostic: {},
+					},
+				],
+				providerRoles: {
+					...DEFAULT_PLUGIN_SETTINGS.providerRoles,
+					embedding: {
+						providerId: TRUSTED_CLOUD_FIXTURE_PROVIDER_ID,
+						modelId: makeProviderModelId("trusted-cloud-embedding-fixture"),
+					},
+				},
+			},
+			getSemanticSnapshot: () => semanticSnapshotForSources(indexedSources),
+		}).service;
+		await expect(blocked.reindexLexical()).resolves.toMatchObject({ status: "ready" });
+		expect(blocked.getState().semanticCompatibility).toMatchObject({
+			state: "provider-blocked",
+			code: "provider-blocked",
+			fallbackMode: "lexical",
+			guidance: {
+				action: "review-provider-setup",
+			},
+		});
+
+		expect(JSON.stringify(service.getState().semanticCompatibility)).not.toContain(
+			"Synthetic semantic compatibility stale content",
+		);
 	});
 
 	it("keeps embedding timeout and cancellation recovery metadata safe", async () => {

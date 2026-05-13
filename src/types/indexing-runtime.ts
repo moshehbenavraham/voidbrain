@@ -1,11 +1,13 @@
 import type { ProviderInvocationAttempt } from "./provider-invocation";
 import type { ContentSensitivity, ProviderId, ProviderModelId } from "./providers";
 import type {
+	EmbeddingModelFamily,
 	IndexFreshnessSnapshot,
 	IndexJobStatus,
 	IndexProgressSnapshot,
 	LexicalIndexSnapshot,
 	RetrievalReadinessState,
+	SemanticIndexCompatibility,
 } from "./retrieval";
 import type { IsoTimestamp, NormalizedVaultPath } from "./vault";
 
@@ -44,6 +46,8 @@ export const SEMANTIC_INDEX_READINESS_STATES = [
 	"capability-mismatch",
 	"privacy-denied",
 	"blocked",
+	"offline",
+	"canceled",
 ] as const;
 
 export type IndexingRuntimeAction = (typeof INDEXING_RUNTIME_ACTIONS)[number];
@@ -94,6 +98,7 @@ export interface SemanticIndexRecoveryRecord {
 	readonly modelId: ProviderModelId | null;
 	readonly sourcePathCount: number;
 	readonly readinessCode: string | null;
+	readonly reportId?: string;
 	readonly validationOutput: readonly string[];
 	readonly attempts?: readonly ProviderInvocationAttempt[];
 	readonly retryGuidance: string;
@@ -107,6 +112,8 @@ export interface SemanticIndexReadiness {
 	readonly contentSensitivity: ContentSensitivity;
 	readonly providerId: ProviderId | null;
 	readonly modelId: ProviderModelId | null;
+	readonly embeddingModelFamily?: EmbeddingModelFamily | null;
+	readonly dimensions?: number | null;
 	readonly sourcePathCount: number;
 	readonly message: string;
 	readonly diagnosticCode: string | null;
@@ -117,6 +124,7 @@ export interface IndexingRuntimeState {
 	readonly lexicalReport: IndexingRuntimeReport;
 	readonly lexicalIndex: LexicalIndexSnapshot | null;
 	readonly semanticReadiness: SemanticIndexReadiness;
+	readonly semanticCompatibility: SemanticIndexCompatibility;
 }
 
 export interface IndexingRuntimeActionResult {

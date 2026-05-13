@@ -1,6 +1,6 @@
 import { summarizeProviderRoleCapabilities, summarizeProviderSetup } from "../providers/provider-preflight";
 import type { IndexingPathDiagnostic, IndexingRuntimeReport, SemanticIndexReadiness } from "../types/indexing-runtime";
-import type { IndexFreshnessState, IndexJobStatus } from "../types/retrieval";
+import type { IndexFreshnessState, IndexJobStatus, SemanticIndexCompatibility } from "../types/retrieval";
 import type {
 	RuntimeStatusCounts,
 	RuntimeStatusInput,
@@ -184,6 +184,34 @@ const semanticSeverity = (readiness: SemanticIndexReadiness): RuntimeStatusSever
 	}
 };
 
+const semanticCompatibilitySeverity = (compatibility: SemanticIndexCompatibility): RuntimeStatusSeverity => {
+	if (compatibility.semanticSearchEligible || compatibility.state === "disabled") {
+		return "ready";
+	}
+
+	if (compatibility.fallbackMode === "lexical") {
+		return "warning";
+	}
+
+	switch (compatibility.state) {
+		case "missing":
+			return "missing";
+		case "stale":
+		case "canceled":
+			return "warning";
+		case "incompatible":
+		case "provider-blocked":
+		case "offline":
+			return "error";
+		case "ready":
+			return "ready";
+		default: {
+			const exhaustive: never = compatibility.state;
+			throw new Error(`Unhandled semantic compatibility state: ${String(exhaustive)}`);
+		}
+	}
+};
+
 const diagnosticPaths = (diagnostics: readonly IndexingPathDiagnostic[]): readonly NormalizedVaultPath[] =>
 	diagnostics.flatMap((diagnostic) => {
 		const normalized = normalizeVaultPath(diagnostic.path);
@@ -213,12 +241,14 @@ const indexStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
 	const progress = input.indexProgress ?? [];
 	const freshness = input.indexFreshness ?? [];
 	const semanticReadiness = input.semanticIndexReadiness ?? null;
+	const semanticCompatibility = input.semanticIndexCompatibility ?? null;
 	const recentFailures = input.recentIndexFailures ?? [];
 	const allSeverities = [
 		...reports.map(reportSeverity),
 		...progress.map((snapshot) => progressSeverity(snapshot.status)),
 		...freshness.map((snapshot) => freshnessSeverity(snapshot.state)),
 		...(semanticReadiness === null ? [] : [semanticSeverity(semanticReadiness)]),
+		...(semanticCompatibility === null ? [] : [semanticCompatibilitySeverity(semanticCompatibility)]),
 	];
 	const paths = limitedPaths([
 		...reportPaths(reports),
@@ -228,6 +258,13 @@ const indexStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
 			...snapshot.missingSourcePaths,
 			...snapshot.extraSourcePaths,
 		]),
+		...(semanticCompatibility === null
+			? []
+			: [
+					...semanticCompatibility.staleSourcePaths,
+					...semanticCompatibility.missingSourcePaths,
+					...semanticCompatibility.extraSourcePaths,
+				]),
 	]);
 
 	if (allSeverities.length === 0) {
@@ -250,6 +287,13 @@ const indexStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
 		...(semanticReadiness === null
 			? []
 			: [`Semantic indexing: ${semanticReadiness.readinessState}; ${semanticReadiness.message}`]),
+		...(semanticCompatibility === null
+			? []
+			: [
+					`Semantic compatibility: ${semanticCompatibility.state}; ${semanticCompatibility.code}; fallback ${semanticCompatibility.fallbackMode}.`,
+					`Semantic sources: ${semanticCompatibility.sourcePathCounts.current} current, ${semanticCompatibility.sourcePathCounts.indexed} indexed, ${semanticCompatibility.sourcePathCounts.stale} stale, ${semanticCompatibility.sourcePathCounts.missing} missing, ${semanticCompatibility.sourcePathCounts.extra} extra.`,
+					`Reindex guidance: ${semanticCompatibility.guidance.action}; ${semanticCompatibility.guidance.message}`,
+				]),
 		...(recentFailures.length === 0 ? [] : [`${recentFailures.length} recent failed path(s).`]),
 	];
 	const summary =
@@ -269,7 +313,12 @@ const indexStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
 		summary,
 		details,
 		paths,
-		count: reports.length + progress.length + freshness.length + (semanticReadiness === null ? 0 : 1),
+		count:
+			reports.length +
+			progress.length +
+			freshness.length +
+			(semanticReadiness === null ? 0 : 1) +
+			(semanticCompatibility === null ? 0 : 1),
 	};
 };
 

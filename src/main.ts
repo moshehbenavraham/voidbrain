@@ -252,7 +252,12 @@ export default class VoidbrainPlugin extends Plugin {
 			...(lexicalReport?.freshness === undefined || lexicalReport.freshness === null
 				? {}
 				: { indexFreshness: [lexicalReport.freshness] }),
-			...(indexingState === null ? {} : { semanticIndexReadiness: indexingState.semanticReadiness }),
+			...(indexingState === null
+				? {}
+				: {
+						semanticIndexReadiness: indexingState.semanticReadiness,
+						semanticIndexCompatibility: indexingState.semanticCompatibility,
+					}),
 			...(lexicalReport === null || lexicalReport.failedPaths.length === 0
 				? {}
 				: { recentIndexFailures: lexicalReport.failedPaths }),

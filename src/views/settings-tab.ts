@@ -505,6 +505,7 @@ export class VoidbrainSettingsTab extends PluginSettingTab {
 		const currentPath = report.currentPath === null ? "No current path." : `Current path: ${report.currentPath}.`;
 		const freshnessSummary =
 			report.freshness === null ? "Freshness has not been checked." : `Freshness: ${report.freshness.state}.`;
+		const semanticCompatibility = state.semanticCompatibility;
 		const pathSummary = [
 			`${report.skippedPaths.length} skipped`,
 			`${report.failedPaths.length} failed`,
@@ -524,6 +525,11 @@ export class VoidbrainSettingsTab extends PluginSettingTab {
 		new Setting(this.containerEl)
 			.setName("Semantic readiness")
 			.setDesc(`${state.semanticReadiness.readinessState}: ${state.semanticReadiness.message}`);
+		new Setting(this.containerEl)
+			.setName("Semantic compatibility")
+			.setDesc(
+				`${semanticCompatibility.state}: ${semanticCompatibility.code}; fallback ${semanticCompatibility.fallbackMode}. Sources ${semanticCompatibility.sourcePathCounts.current} current, ${semanticCompatibility.sourcePathCounts.indexed} indexed. Guidance: ${semanticCompatibility.guidance.action}.`,
+			);
 		new Setting(this.containerEl)
 			.setName("Index actions")
 			.addButton((button) =>

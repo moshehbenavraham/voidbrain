@@ -7,7 +7,7 @@ import type { MaintenanceRecommendationPlan } from "./maintenance";
 import type { VoidbrainPluginSettings } from "./plugin";
 import type { ProviderRoleCapabilitySummary, ProviderSetupSummary } from "./provider-setup";
 import type { ProviderDefinition } from "./providers";
-import type { IndexFreshnessSnapshot, IndexProgressSnapshot } from "./retrieval";
+import type { IndexFreshnessSnapshot, IndexProgressSnapshot, SemanticIndexCompatibility } from "./retrieval";
 import type { SimilarNoteSuggestionPlan } from "./suggestions";
 import type { IsoTimestamp, NormalizedVaultPath, StagedChangeRecord } from "./vault";
 
@@ -70,6 +70,7 @@ export interface RuntimeStatusInput {
 	readonly indexProgress?: readonly IndexProgressSnapshot[];
 	readonly indexFreshness?: readonly IndexFreshnessSnapshot[];
 	readonly semanticIndexReadiness?: SemanticIndexReadiness | null;
+	readonly semanticIndexCompatibility?: SemanticIndexCompatibility | null;
 	readonly recentIndexFailures?: readonly IndexingPathDiagnostic[];
 	readonly stagedChanges?: readonly StagedChangeRecord[];
 	readonly healthReport?: VaultHealthReport | null;

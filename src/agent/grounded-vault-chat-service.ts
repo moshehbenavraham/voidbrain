@@ -13,6 +13,7 @@ import type {
 	ChatProviderDecisionRecord,
 	ChatProviderRequest,
 	ChatQuestionInput,
+	ChatRetrievalFallbackRecord,
 	ChatRetrievalPreviewItem,
 	ChatRetryMetadata,
 	ChatThreadId,
@@ -33,11 +34,15 @@ import {
 import type { IndexingRuntimeState } from "../types/indexing-runtime";
 import type { VoidbrainPluginSettings } from "../types/plugin";
 import type { ProviderDefinition, ProviderId, ProviderModelId, RedactedDiagnosticObject } from "../types/providers";
-import type { RetrievalQuery, RetrievalResult, RetrievalSearchResult } from "../types/retrieval";
+import type {
+	RetrievalQuery,
+	RetrievalResult,
+	RetrievalSearchResult,
+	SemanticLexicalFallbackDecision,
+} from "../types/retrieval";
 import { type IsoTimestamp, type NormalizedVaultPath, makeIsoTimestamp } from "../types/vault";
 import { compareVaultPaths, normalizeVaultPath } from "../utils/vault-paths";
-import { searchLexicalIndex } from "../vectorstore/lexical-index";
-import { composeLexicalRetrievalResults } from "../vectorstore/retrieval-service";
+import { selectLexicalFallbackRetrieval } from "../vectorstore/retrieval-service";
 
 export interface GroundedVaultChatServiceOptions {
 	readonly getSettings: () => VoidbrainPluginSettings;
@@ -91,6 +96,7 @@ interface RetrievalSuccessResult {
 	readonly ok: true;
 	readonly turn: ChatTurn;
 	readonly query: RetrievalQuery;
+	readonly fallback: ChatRetrievalFallbackRecord;
 	readonly preview: readonly ChatRetrievalPreviewItem[];
 	readonly citations: readonly ChatCitation[];
 }
@@ -504,6 +510,7 @@ export class GroundedVaultChatService {
 	): EvidenceRetrievalResult {
 		const turn = this.createTurn(question, "retrieving", null, [], [], null);
 		const lexicalIndex = indexingState?.lexicalIndex;
+		const semanticCompatibility = indexingState?.semanticCompatibility;
 		if (lexicalIndex === undefined || lexicalIndex === null) {
 			const failure = this.createFailure({
 				code: "chat.retrieval-not-ready",
@@ -520,14 +527,35 @@ export class GroundedVaultChatService {
 				turn: this.withFailure(turn, failure, "failed"),
 			};
 		}
+		if (semanticCompatibility === undefined) {
+			const failure = this.createFailure({
+				code: "chat.retrieval-not-ready",
+				stage: "retrieval-readiness",
+				message: "Semantic compatibility state is not available.",
+				retryable: true,
+				threadId: question.threadId,
+				turnId: turn.id,
+				validationOutput: ["semantic compatibility state missing"],
+			});
+			return {
+				ok: false,
+				failure,
+				turn: this.withFailure(turn, failure, "failed"),
+			};
+		}
 
 		const query = this.createRetrievalQuery(question);
-		const search = searchLexicalIndex(lexicalIndex, query);
-		const retrieval = composeLexicalRetrievalResults(search, {
-			maxSnippetCharacters: defaultMaxSnippetCharacters,
+		const retrieval = selectLexicalFallbackRetrieval({
+			lexicalIndex,
+			queryInput: query,
+			semanticCompatibility,
+			options: {
+				maxSnippetCharacters: defaultMaxSnippetCharacters,
+				maxResults: this.maxRetrievalLimit,
+			},
 		});
 		if (!retrieval.ok) {
-			const failure = this.failureFromRetrieval(question, turn.id, retrieval);
+			const failure = this.failureFromRetrieval(question, turn.id, retrieval, retrieval.fallback);
 			return {
 				ok: false,
 				failure,
@@ -537,7 +565,16 @@ export class GroundedVaultChatService {
 
 		const preview = this.createRetrievalPreview(retrieval.results);
 		const citations = this.createCitations(preview);
-		const readyTurn = this.createTurn(question, "synthesizing", retrieval.query, preview, citations, null);
+		const fallback = this.createFallbackRecord(retrieval.fallback);
+		const readyTurn = this.createTurn(
+			question,
+			"synthesizing",
+			retrieval.query,
+			preview,
+			citations,
+			null,
+			fallback,
+		);
 
 		if (preview.length === 0 || !this.hasStrongRetrieval(preview)) {
 			const failure = this.createFailure({
@@ -554,6 +591,8 @@ export class GroundedVaultChatService {
 				diagnostic: {
 					resultCount: preview.length,
 					sourcePathCount: sourcePathsFromCitations(citations).length,
+					fallbackMode: fallback.mode,
+					semanticCompatibilityCode: fallback.semanticCompatibilityCode,
 				},
 			});
 			return {
@@ -584,6 +623,7 @@ export class GroundedVaultChatService {
 			ok: true,
 			turn: readyTurn,
 			query: retrieval.query,
+			fallback,
 			preview,
 			citations,
 		};
@@ -658,6 +698,7 @@ export class GroundedVaultChatService {
 		question: ValidatedChatQuestion,
 		turnId: ChatTurnId,
 		retrieval: Extract<RetrievalSearchResult, { readonly ok: false }>,
+		fallback?: ChatRetrievalFallbackRecord | { readonly mode: string; readonly semanticCompatibilityCode: string },
 	): ChatFailure {
 		return this.createFailure({
 			code: "chat.retrieval-failed",
@@ -670,6 +711,12 @@ export class GroundedVaultChatService {
 			diagnostic: {
 				retrievalCode: retrieval.code,
 				field: retrieval.field ?? null,
+				...(fallback === undefined
+					? {}
+					: {
+							fallbackMode: fallback.mode,
+							semanticCompatibilityCode: fallback.semanticCompatibilityCode,
+						}),
 			},
 		});
 	}
@@ -705,6 +752,18 @@ export class GroundedVaultChatService {
 	private hasStrongRetrieval(preview: readonly ChatRetrievalPreviewItem[]): boolean {
 		const topScore = preview[0]?.normalizedScore ?? 0;
 		return topScore >= this.minStrongNormalizedScore;
+	}
+
+	private createFallbackRecord(fallback: SemanticLexicalFallbackDecision): ChatRetrievalFallbackRecord {
+		return {
+			mode: fallback.mode,
+			semanticCompatibilityCode: fallback.semanticCompatibilityCode,
+			semanticSearchEligible: fallback.semanticSearchEligible,
+			resultLimit: fallback.resultLimit,
+			sourcePathCount: fallback.guidance.sourcePathCount,
+			message: fallback.message,
+			validationOutput: fallback.validationOutput,
+		};
 	}
 
 	private withFailure(
@@ -838,6 +897,7 @@ export class GroundedVaultChatService {
 		retrievalPreview: readonly ChatRetrievalPreviewItem[],
 		citations: readonly ChatCitation[],
 		answer: string | null,
+		retrievalFallback: ChatRetrievalFallbackRecord | null = null,
 	): ChatTurn {
 		const now = toIsoTimestamp(this.now());
 		const turnId = this.nextTurnId();
@@ -862,6 +922,7 @@ export class GroundedVaultChatService {
 				normalizedScore: item.normalizedScore,
 				matchedTokenCount: item.matchedTokens.length,
 			})),
+			retrievalFallback,
 			citations,
 			answer,
 			failure: null,

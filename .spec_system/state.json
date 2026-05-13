@@ -3,7 +3,7 @@
   "project_name": "voidbrain",
   "description": "Research-backed project for exploring and developing open-source Obsidian-style AI second-brain tooling, with local examples and requirements to be refined.",
   "current_phase": 3,
-  "current_session": null,
+  "current_session": "phase03-session04-offline-embeddings-index-compatibility",
   "monorepo": false,
   "phases": {
     "0": {
@@ -54,7 +54,8 @@
     "phase02-session06-batch-source-ingestion-queue",
     "phase02-session07-agentic-maintenance-integration-validation",
     "phase03-session01-local-runtime-provider-profiles",
-    "phase03-session02-openai-compatible-provider-profiles"
+    "phase03-session02-openai-compatible-provider-profiles",
+    "phase03-session03-provider-transport-invocation-boundaries"
   ],
   "next_session_history": [
     {
@@ -256,6 +257,11 @@
       "date": "2026-05-13",
       "session": "phase03-session03-provider-transport-invocation-boundaries",
       "status": "completed"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase03-session04-offline-embeddings-index-compatibility",
+      "status": "planned"
     }
   ]
 }

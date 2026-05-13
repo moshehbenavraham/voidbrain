@@ -15,6 +15,8 @@ bun run validate
 ## What To Read First
 
 - `README.md` for the quick project overview
+- `docs/provider-setup.md` for local Ollama, provider role, embedding, and
+  troubleshooting setup
 - `.spec_system/PRD/PRD.md` for product scope and phase status
 - `.spec_system/CONVENTIONS.md` for engineering and safety rules
 - `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md` for agent-facing workflow rules

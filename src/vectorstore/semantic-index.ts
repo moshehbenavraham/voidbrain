@@ -13,7 +13,7 @@ import {
 	makeEmbeddingModelFamily,
 } from "../types/retrieval";
 import type { IsoTimestamp } from "../types/vault";
-import { sortSourceFingerprints } from "./index-state";
+import { sortSemanticSourceFingerprints } from "./semantic-index-compatibility";
 
 export interface SemanticCompatibilityInput {
 	readonly expectedFamily: EmbeddingModelFamily;
@@ -124,6 +124,32 @@ export const checkSemanticEntryCompatibility = (
 		actualDimensions: entry.actualDimensions,
 	});
 
+export const checkSemanticVectorEntryCompatibility = (
+	config: SemanticIndexConfig,
+	entry: SemanticVectorEntry,
+): SemanticCompatibilityDecision => {
+	const compatibility = checkSemanticEntryCompatibility(config, {
+		expectedFamily: config.embeddingModelFamily,
+		actualFamily: entry.embeddingModelFamily,
+		expectedDimensions: config.dimensions,
+		actualDimensions: entry.dimensions,
+	});
+	if (!compatibility.ok) {
+		return compatibility;
+	}
+
+	if (entry.vector.length !== config.dimensions) {
+		return {
+			ok: false,
+			code: "dimension-mismatch",
+			message: `Expected vector length ${config.dimensions}, got ${entry.vector.length}.`,
+			field: "vector",
+		};
+	}
+
+	return compatibility;
+};
+
 export const preflightSemanticIndexProvider = (
 	providers: readonly ProviderDefinition[],
 	policy: ProviderPrivacyPolicy,
@@ -218,7 +244,7 @@ const createSemanticSnapshot = (
 	config,
 	status: "ready",
 	...(builtAt === undefined ? {} : { builtAt }),
-	sources: sortSourceFingerprints(
+	sources: sortSemanticSourceFingerprints(
 		entries.map((entry) => ({
 			path: entry.path,
 			contentFingerprint: entry.contentFingerprint,
@@ -263,21 +289,10 @@ export const createSemanticIndexAdapter = (config: SemanticIndexConfig): Semanti
 	},
 	prepareEmbeddingInvocation: (providers, policy, request, invocation) =>
 		prepareSemanticEmbeddingInvocation(config, providers, policy, request, invocation),
-	validateEntry: (entry) =>
-		checkSemanticCompatibility({
-			expectedFamily: config.embeddingModelFamily,
-			actualFamily: entry.embeddingModelFamily,
-			expectedDimensions: config.dimensions,
-			actualDimensions: entry.dimensions,
-		}),
+	validateEntry: (entry) => checkSemanticVectorEntryCompatibility(config, entry),
 	createSnapshot: (entries, builtAt) => {
 		for (const entry of entries) {
-			const compatibility = checkSemanticCompatibility({
-				expectedFamily: config.embeddingModelFamily,
-				actualFamily: entry.embeddingModelFamily,
-				expectedDimensions: config.dimensions,
-				actualDimensions: entry.dimensions,
-			});
+			const compatibility = checkSemanticVectorEntryCompatibility(config, entry);
 			if (!compatibility.ok) {
 				return compatibility;
 			}

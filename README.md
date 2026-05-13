@@ -52,6 +52,7 @@ bun run preview:framework-update
 - [Development Guide](docs/development.md)
 - [Environment Guide](docs/environments.md)
 - [Deployment Guide](docs/deployment.md)
+- [Provider Setup](docs/provider-setup.md)
 - [Agent Surfaces and Commands](docs/agent-surfaces-commands.md)
 - [Provider Privacy Boundaries](docs/provider-privacy-boundaries.md)
 - [Indexing and Retrieval Foundation](docs/indexing-retrieval-foundation.md)

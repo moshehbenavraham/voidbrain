@@ -5,9 +5,9 @@ import { LOCAL_FIXTURE_PROVIDER_ID, TRUSTED_CLOUD_FIXTURE_PROVIDER_ID, makeProvi
 import { makeChatThreadId, makeChatTurnId } from "../src/types/chat";
 import type { IndexingRuntimeState, SemanticIndexReadiness } from "../src/types/indexing-runtime";
 import { DEFAULT_PLUGIN_SETTINGS, type VoidbrainPluginSettings } from "../src/types/plugin";
-import type { LexicalIndexSnapshot } from "../src/types/retrieval";
+import type { LexicalIndexSnapshot, SemanticIndexCompatibility } from "../src/types/retrieval";
 import { makeIsoTimestamp } from "../src/types/vault";
-import { FixtureIndexingService } from "../src/vectorstore";
+import { FixtureIndexingService, evaluateSemanticIndexCompatibility } from "../src/vectorstore";
 import {
 	SYNTHETIC_INVOCATION_SOURCE_PATH,
 	SYNTHETIC_PRIVATE_CONTENT_PROBE,
@@ -38,6 +38,19 @@ const semanticDisabled = (): SemanticIndexReadiness => ({
 	message: "Semantic indexing is disabled in settings.",
 	diagnosticCode: null,
 });
+
+const semanticCompatibility = (
+	readiness: SemanticIndexReadiness,
+	index: LexicalIndexSnapshot | null,
+	readinessState: IndexingRuntimeState["lexicalReport"]["readinessState"],
+): SemanticIndexCompatibility =>
+	evaluateSemanticIndexCompatibility({
+		semanticReadiness: readiness,
+		semanticSnapshot: null,
+		currentSources: index?.sources ?? [],
+		lexicalReadinessState: readinessState,
+		checkedAt: fixedDate,
+	});
 
 const buildFixtureIndex = async (): Promise<LexicalIndexSnapshot> => {
 	const result = await new FixtureIndexingService().buildLexicalIndexJob({
@@ -74,6 +87,7 @@ const readyState = (index: LexicalIndexSnapshot): IndexingRuntimeState => ({
 		message: "Lexical index is ready.",
 	},
 	semanticReadiness: semanticDisabled(),
+	semanticCompatibility: semanticCompatibility(semanticDisabled(), index, "ready"),
 });
 
 const missingState = (): IndexingRuntimeState => ({
@@ -97,6 +111,7 @@ const missingState = (): IndexingRuntimeState => ({
 		message: "No lexical index has been built yet.",
 	},
 	semanticReadiness: semanticDisabled(),
+	semanticCompatibility: semanticCompatibility(semanticDisabled(), null, "missing"),
 });
 
 const localChatSettings = (): VoidbrainPluginSettings => ({
@@ -192,6 +207,11 @@ describe("GroundedVaultChatService", () => {
 			vaultPath: expectedCitation.vaultPath,
 			chunkId: expect.any(String),
 			score: expect.any(Number),
+		});
+		expect(turn?.retrievalFallback).toMatchObject({
+			mode: "lexical",
+			semanticCompatibilityCode: "semantic-disabled",
+			semanticSearchEligible: false,
 		});
 		expect(JSON.stringify(result)).not.toContain("runtime-value");
 		expect(CHAT_FIXTURE_MESSAGE).not.toContain("sk-");
