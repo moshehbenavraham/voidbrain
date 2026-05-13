@@ -14,6 +14,10 @@ import type { Command, PluginSettingTab, RibbonAction } from "./__mocks__/obsidi
 import { App as MockApp, TFile } from "./__mocks__/obsidian";
 import { notices, resetObsidianMockState } from "./__mocks__/obsidian";
 import {
+	cloudDisabledTroubleshootingScenario,
+	localOutageTroubleshootingScenario,
+} from "./fixtures/providers/provider-troubleshooting-fixtures";
+import {
 	HOT_CACHE_FIXTURE_SOURCE_MARKDOWN,
 	HOT_CACHE_FIXTURE_SOURCE_PATH,
 	createHotCacheStateFixture,
@@ -337,6 +341,73 @@ describe("VoidbrainPlugin lifecycle", () => {
 
 		expect(plugin.getIndexingRuntimeState()?.lexicalReport.status).toBe("ready");
 		expect(notices.at(-1)?.message).toContain("Lexical index");
+	});
+
+	it("prevents duplicate provider troubleshooting reset and refreshes runtime status", async () => {
+		const app = new MockApp();
+		const plugin = new VoidbrainPlugin(
+			app as unknown as App,
+			{
+				id: "voidbrain",
+				name: "voidbrain",
+				version: "0.1.0",
+			} as PluginManifest,
+		) as MockedPluginRuntime;
+		plugin.loadData.mockResolvedValue(localOutageTroubleshootingScenario().settings);
+		let releaseSave: (() => void) | undefined;
+		plugin.saveData.mockImplementation(
+			async () =>
+				new Promise<void>((resolve) => {
+					releaseSave = resolve;
+				}),
+		);
+
+		await plugin.onload();
+		const settingsTab = plugin.settingTabs[0];
+		settingsTab?.display();
+		const resetButton = [...(settingsTab?.containerEl.querySelectorAll("button") ?? [])].find(
+			(button) => button.textContent === "Reset",
+		);
+		resetButton?.click();
+		await flushPromises(1);
+		resetButton?.click();
+		await flushPromises(1);
+
+		expect(notices.some((notice) => notice.message.includes("already in progress"))).toBe(true);
+
+		releaseSave?.();
+		await flushPromises(10);
+
+		expect(plugin.getSettings().providerAuthStatuses).toEqual([]);
+		expect(notices.some((notice) => notice.message.includes("secret references were preserved"))).toBe(true);
+		expect(plugin.getRuntimeStatusSnapshot().items.find((item) => item.id === "provider-readiness")).toBeDefined();
+	});
+
+	it("keeps cloud disclosure review explicit from provider troubleshooting controls", async () => {
+		const app = new MockApp();
+		const plugin = new VoidbrainPlugin(
+			app as unknown as App,
+			{
+				id: "voidbrain",
+				name: "voidbrain",
+				version: "0.1.0",
+			} as PluginManifest,
+		) as MockedPluginRuntime;
+		plugin.loadData.mockResolvedValue(cloudDisabledTroubleshootingScenario().settings);
+
+		await plugin.onload();
+		const settingsTab = plugin.settingTabs[0];
+		settingsTab?.display();
+		const reviewButton = [...(settingsTab?.containerEl.querySelectorAll("button") ?? [])].find(
+			(button) => button.textContent === "Review",
+		);
+		reviewButton?.click();
+		await flushPromises();
+
+		expect(plugin.getSettings().areCloudProvidersEnabled).toBe(false);
+		expect(notices.some((notice) => notice.message.includes("no cloud workflow was enabled"))).toBe(true);
+		expect(app.vault.create).not.toHaveBeenCalled();
+		expect(app.vault.modify).not.toHaveBeenCalled();
 	});
 
 	it("cancels in-flight indexing and clears runtime state on unload", async () => {

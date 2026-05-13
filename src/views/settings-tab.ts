@@ -1,6 +1,7 @@
 import { type App, Notice, type Plugin, PluginSettingTab, Setting } from "obsidian";
 import {
 	buildProviderDefinitionsForSettings,
+	composeProviderTroubleshootingReport,
 	parseProviderProfile,
 	runProviderAuthTest,
 	summarizeProviderRoleCapabilities,
@@ -13,7 +14,14 @@ import type {
 	IndexingRuntimeUnsubscribe,
 } from "../types/indexing-runtime";
 import { DEFAULT_PLUGIN_SETTINGS, type VoidbrainPluginSettings } from "../types/plugin";
-import type { UserProviderProfile, UserProviderProfileKind } from "../types/provider-setup";
+import type {
+	ProviderAuthTestRecord,
+	ProviderTroubleshootingActionKind,
+	ProviderTroubleshootingActionOutcome,
+	ProviderTroubleshootingReport,
+	UserProviderProfile,
+	UserProviderProfileKind,
+} from "../types/provider-setup";
 import {
 	type ModelRole,
 	type ProviderDefinition,
@@ -29,6 +37,7 @@ export interface VoidbrainSettingsTabOptions {
 	readonly saveSettings: (settings: VoidbrainPluginSettings) => Promise<void>;
 	readonly secretStore?: ProviderSecretStore;
 	readonly indexingRuntime?: VoidbrainSettingsIndexingRuntimeControls;
+	readonly onProviderTroubleshootingAction?: (outcome: ProviderTroubleshootingActionOutcome) => void;
 }
 
 export interface VoidbrainSettingsIndexingRuntimeControls {
@@ -171,10 +180,19 @@ export class VoidbrainSettingsTab extends PluginSettingTab {
 		const providers = buildProviderDefinitionsForSettings(settings);
 		const setupSummary = summarizeProviderSetup(settings, providers);
 		const roleSummaries = summarizeProviderRoleCapabilities(settings, providers);
+		const troubleshooting = composeProviderTroubleshootingReport({
+			settings,
+			providers,
+			providerSetup: setupSummary,
+			providerRoleCapabilities: roleSummaries,
+			semanticCompatibility: this.options.indexingRuntime?.getState().semanticCompatibility ?? null,
+			reportId: "settings-provider-troubleshooting",
+		});
 		new Setting(this.containerEl).setName("Providers").setHeading();
 		new Setting(this.containerEl)
 			.setName("Provider setup readiness")
 			.setDesc(`${setupSummary.severity}: ${setupSummary.details.join(" ")}`);
+		this.addProviderTroubleshootingControls(settings, troubleshooting);
 
 		this.addProviderProfileControls(settings);
 		this.addCloudTrustControls(settings, providers);
@@ -222,6 +240,167 @@ export class VoidbrainSettingsTab extends PluginSettingTab {
 					}),
 			);
 		}
+	}
+
+	private addProviderTroubleshootingControls(
+		settings: VoidbrainPluginSettings,
+		report: ProviderTroubleshootingReport,
+	): void {
+		const isProviderActionInFlight = this.inFlightProviderActions.size > 0;
+		const isIndexingActionInFlight = this.inFlightIndexingActions.size > 0;
+		const hasProfiles = settings.providerProfiles.length > 0;
+		const stateText = isProviderActionInFlight
+			? "loading"
+			: report.diagnostics.length === 0 && !hasProfiles
+				? "empty"
+				: report.diagnostics.some((diagnostic) => diagnostic.readinessCode === "offline")
+					? "offline"
+					: report.severity;
+		const diagnosticText =
+			report.diagnostics.length === 0
+				? hasProfiles
+					? "No troubleshooting diagnostics are blocking selected provider roles."
+					: "No provider profiles have been added yet."
+				: report.diagnostics
+						.slice(0, 4)
+						.map((diagnostic) => `${diagnostic.kind}: ${diagnostic.readinessCode ?? "ready"}`)
+						.join("; ");
+		const availableActions = new Set(report.actions.map((action) => action.kind));
+
+		new Setting(this.containerEl)
+			.setName("Provider troubleshooting")
+			.setDesc(`${stateText}: ${report.summary} ${diagnosticText}.`);
+		new Setting(this.containerEl)
+			.setName("Recovery fields")
+			.setDesc(
+				`${report.recovery.commandId}; report ${report.recovery.reportId ?? "none"}; source count ${report.recovery.sourcePathCount}.`,
+			);
+		new Setting(this.containerEl)
+			.setName("Provider recovery actions")
+			.addButton((button) =>
+				button
+					.setButtonText("Retest")
+					.setDisabled(!hasProfiles || isProviderActionInFlight)
+					.onClick(() => {
+						void this.runProviderTroubleshootingAction(
+							"retest-auth",
+							"troubleshooting:retest",
+							null,
+							async () => {
+								const testedCount = await this.retestProviderProfiles();
+								this.reportProviderTroubleshootingOutcome({
+									action: "retest-auth",
+									accepted: true,
+									message: `Provider auth retest completed for ${testedCount} profile(s).`,
+									providerId: null,
+									reportId: report.reportId,
+								});
+							},
+						);
+					}),
+			)
+			.addButton((button) =>
+				button
+					.setButtonText("Retry")
+					.setDisabled(
+						isProviderActionInFlight ||
+							(!availableActions.has("retry-provider-setup") && report.severity === "ready"),
+					)
+					.onClick(() => {
+						void this.runProviderTroubleshootingAction(
+							"retry-provider-setup",
+							"troubleshooting:retry",
+							null,
+							async () => {
+								this.options.indexingRuntime?.refreshReadiness();
+								this.display();
+								this.reportProviderTroubleshootingOutcome({
+									action: "retry-provider-setup",
+									accepted: true,
+									message: "Provider setup was rechecked from current settings.",
+									providerId: null,
+									reportId: report.reportId,
+								});
+							},
+						);
+					}),
+			)
+			.addButton((button) =>
+				button
+					.setButtonText("Reset")
+					.setDisabled(isProviderActionInFlight || settings.providerAuthStatuses.length === 0)
+					.onClick(() => {
+						void this.runProviderTroubleshootingAction(
+							"reset-provider-state",
+							"troubleshooting:reset",
+							null,
+							async () => {
+								await this.persist((current) => ({
+									...current,
+									providerAuthStatuses: [],
+									providerRoles: resetAllRoleModels(current.providerRoles),
+								}));
+								this.display();
+								this.reportProviderTroubleshootingOutcome({
+									action: "reset-provider-state",
+									accepted: true,
+									message:
+										"Provider auth and selected model state were reset; secret references were preserved.",
+									providerId: null,
+									reportId: report.reportId,
+								});
+							},
+						);
+					}),
+			)
+			.addButton((button) =>
+				button
+					.setButtonText("Review")
+					.setDisabled(isProviderActionInFlight || !report.cloudDisclosureRequired)
+					.onClick(() => {
+						void this.runProviderTroubleshootingAction(
+							"review-disclosure",
+							"troubleshooting:review-disclosure",
+							null,
+							async () => {
+								this.reportProviderTroubleshootingOutcome({
+									action: "review-disclosure",
+									accepted: true,
+									message: "Cloud disclosure review remains explicit; no cloud workflow was enabled.",
+									providerId: null,
+									reportId: report.reportId,
+								});
+							},
+						);
+					}),
+			)
+			.addButton((button) =>
+				button
+					.setButtonText("Refresh")
+					.setDisabled(
+						isProviderActionInFlight ||
+							isIndexingActionInFlight ||
+							this.options.indexingRuntime === undefined,
+					)
+					.onClick(() => {
+						void this.runProviderTroubleshootingAction(
+							"refresh-index",
+							"troubleshooting:refresh-index",
+							null,
+							async () => {
+								this.options.indexingRuntime?.refreshReadiness();
+								this.display();
+								this.reportProviderTroubleshootingOutcome({
+									action: "refresh-index",
+									accepted: true,
+									message: "Provider and index readiness were refreshed.",
+									providerId: null,
+									reportId: report.reportId,
+								});
+							},
+						);
+					}),
+			);
 	}
 
 	private addProviderProfileControls(settings: VoidbrainPluginSettings): void {
@@ -742,6 +921,72 @@ export class VoidbrainSettingsTab extends PluginSettingTab {
 		}
 	}
 
+	private async runProviderTroubleshootingAction(
+		actionKind: ProviderTroubleshootingActionKind,
+		actionKey: string,
+		providerId: ProviderId | null,
+		action: () => Promise<void>,
+	): Promise<void> {
+		if (this.inFlightProviderActions.size > 0 || this.inFlightProviderActions.has(actionKey)) {
+			this.reportProviderTroubleshootingOutcome({
+				action: actionKind,
+				accepted: false,
+				message: "Provider troubleshooting action is already in progress.",
+				providerId,
+				reportId: null,
+			});
+			return;
+		}
+
+		this.inFlightProviderActions.add(actionKey);
+		this.redrawIfRendered();
+		try {
+			await action();
+		} catch {
+			this.reportProviderTroubleshootingOutcome({
+				action: actionKind,
+				accepted: false,
+				message: "Provider troubleshooting action failed. No vault files were changed.",
+				providerId,
+				reportId: null,
+			});
+		} finally {
+			this.inFlightProviderActions.delete(actionKey);
+			this.redrawIfRendered();
+		}
+	}
+
+	private async retestProviderProfiles(): Promise<number> {
+		const settings = this.options.getSettings();
+		const authRecords: ProviderAuthTestRecord[] = [];
+
+		for (const profile of settings.providerProfiles) {
+			authRecords.push(
+				await runProviderAuthTest(profile, {
+					...(this.options.secretStore === undefined ? {} : { secretStore: this.options.secretStore }),
+					useLocalRuntimeReadiness: profile.providerKind === "local",
+				}),
+			);
+		}
+
+		await this.persist((current) => ({
+			...current,
+			providerAuthStatuses: replaceAuthStatuses(current.providerAuthStatuses, authRecords),
+		}));
+		this.display();
+
+		return authRecords.length;
+	}
+
+	private reportProviderTroubleshootingOutcome(outcome: ProviderTroubleshootingActionOutcome): void {
+		if (this.options.onProviderTroubleshootingAction !== undefined) {
+			this.options.onProviderTroubleshootingAction(outcome);
+			return;
+		}
+
+		new Notice(outcome.message, outcome.accepted ? 5000 : 7000);
+	}
+
 	private async runIndexingAction(
 		actionKey: string,
 		action: () => Promise<IndexingRuntimeActionResult> | IndexingRuntimeActionResult,
@@ -805,6 +1050,18 @@ const replaceAuthStatus = (
 		(left, right) => left.providerId.localeCompare(right.providerId, "en", { sensitivity: "base" }),
 	);
 
+const replaceAuthStatuses = (
+	statuses: VoidbrainPluginSettings["providerAuthStatuses"],
+	nextStatuses: readonly VoidbrainPluginSettings["providerAuthStatuses"][number][],
+): VoidbrainPluginSettings["providerAuthStatuses"] => {
+	let merged = [...statuses];
+	for (const status of nextStatuses) {
+		merged = [...merged.filter((currentStatus) => currentStatus.providerId !== status.providerId), status];
+	}
+
+	return merged.sort((left, right) => left.providerId.localeCompare(right.providerId, "en", { sensitivity: "base" }));
+};
+
 const addProviderId = (providerIds: readonly ProviderId[], providerId: ProviderId): readonly ProviderId[] =>
 	[...new Set([...providerIds, providerId])].sort((left, right) =>
 		left.localeCompare(right, "en", { sensitivity: "base" }),
@@ -842,4 +1099,12 @@ const resetRoleProvider = (
 	chat: roles.chat.providerId === providerId ? { providerId: null, modelId: null } : { ...roles.chat },
 	embedding: roles.embedding.providerId === providerId ? { providerId: null, modelId: null } : { ...roles.embedding },
 	utility: roles.utility.providerId === providerId ? { providerId: null, modelId: null } : { ...roles.utility },
+});
+
+const resetAllRoleModels = (
+	roles: VoidbrainPluginSettings["providerRoles"],
+): VoidbrainPluginSettings["providerRoles"] => ({
+	chat: { providerId: roles.chat.providerId, modelId: null },
+	embedding: { providerId: roles.embedding.providerId, modelId: null },
+	utility: { providerId: roles.utility.providerId, modelId: null },
 });

@@ -55,7 +55,9 @@
     "phase02-session07-agentic-maintenance-integration-validation",
     "phase03-session01-local-runtime-provider-profiles",
     "phase03-session02-openai-compatible-provider-profiles",
-    "phase03-session03-provider-transport-invocation-boundaries"
+    "phase03-session03-provider-transport-invocation-boundaries",
+    "phase03-session04-offline-embeddings-index-compatibility",
+    "phase03-session05-provider-troubleshooting-recovery-ux"
   ],
   "next_session_history": [
     {
@@ -266,6 +268,11 @@
     {
       "date": "2026-05-13",
       "session": "phase03-session04-offline-embeddings-index-compatibility",
+      "status": "completed"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase03-session05-provider-troubleshooting-recovery-ux",
       "status": "completed"
     }
   ]

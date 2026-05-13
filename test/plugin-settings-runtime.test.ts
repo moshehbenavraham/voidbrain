@@ -153,6 +153,31 @@ describe("Phase 01 plugin settings migration", () => {
 		expect(JSON.stringify(result.settings)).not.toContain("read-failure");
 	});
 
+	it("ignores provider troubleshooting reports and diagnostics inside persisted settings", () => {
+		const result = parsePluginSettings({
+			...DEFAULT_PLUGIN_SETTINGS,
+			providerTroubleshooting: {
+				reportId: "runtime-only-provider-report",
+				diagnostics: [
+					{
+						message: "Synthetic runtime-only provider diagnostic.",
+						hiddenProviderState: "hidden-runtime-state",
+					},
+				],
+				recovery: {
+					commandId: "voidbrain.provider-troubleshooting",
+					validationOutput: ["runtime-only-provider-diagnostic"],
+				},
+			},
+			providerProfiles: [SYNTHETIC_LOCAL_PROFILE_INPUT],
+		});
+
+		expect(result.status).toBe("loaded");
+		expect(JSON.stringify(result.settings)).not.toContain("runtime-only-provider-report");
+		expect(JSON.stringify(result.settings)).not.toContain("hidden-runtime-state");
+		expect(JSON.stringify(result.settings)).not.toContain("runtime-only-provider-diagnostic");
+	});
+
 	it("migrates provider profiles and opaque secret references without raw runtime values", () => {
 		const result = parsePluginSettings({
 			schemaVersion: SETTINGS_SCHEMA_VERSION,

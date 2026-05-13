@@ -60,6 +60,20 @@ const refresh = (): void => {
 							</ul>
 						{/if}
 					{/if}
+					{#if item.area === "provider" && item.providerTroubleshooting !== undefined}
+						<div class="voidbrain-status-surface__provider-report" aria-label="Provider troubleshooting">
+							<span>{item.providerTroubleshooting.diagnostics.length} diagnostic(s)</span>
+							<span>{item.providerTroubleshooting.actions.length} action(s)</span>
+							<span>{item.providerTroubleshooting.recovery.commandId}</span>
+						</div>
+						{#if item.providerTroubleshooting.actions.length > 0}
+							<ul class="voidbrain-status-surface__actions" aria-label="Provider troubleshooting actions">
+								{#each item.providerTroubleshooting.actions.slice(0, 4) as action}
+									<li>{action.label}</li>
+								{/each}
+							</ul>
+						{/if}
+					{/if}
 					{#if item.details.length > 0}
 						<p class="voidbrain-status-surface__details">{item.details.join(" ")}</p>
 					{/if}

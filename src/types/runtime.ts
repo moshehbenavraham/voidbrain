@@ -5,7 +5,11 @@ import type { IndexingPathDiagnostic, IndexingRuntimeReport, SemanticIndexReadin
 import type { SourceIngestionQueueStatusInput } from "./ingestion-queue";
 import type { MaintenanceRecommendationPlan } from "./maintenance";
 import type { VoidbrainPluginSettings } from "./plugin";
-import type { ProviderRoleCapabilitySummary, ProviderSetupSummary } from "./provider-setup";
+import type {
+	ProviderRoleCapabilitySummary,
+	ProviderSetupSummary,
+	ProviderTroubleshootingReport,
+} from "./provider-setup";
 import type { ProviderDefinition } from "./providers";
 import type { IndexFreshnessSnapshot, IndexProgressSnapshot, SemanticIndexCompatibility } from "./retrieval";
 import type { SimilarNoteSuggestionPlan } from "./suggestions";
@@ -43,6 +47,7 @@ export interface RuntimeStatusItem {
 	readonly details: readonly string[];
 	readonly paths: readonly NormalizedVaultPath[];
 	readonly count?: number;
+	readonly providerTroubleshooting?: ProviderTroubleshootingReport;
 }
 
 export interface RuntimeStatusSnapshot {
@@ -66,6 +71,7 @@ export interface RuntimeStatusInput {
 	readonly providers: readonly ProviderDefinition[];
 	readonly providerSetup?: ProviderSetupSummary;
 	readonly providerRoleCapabilities?: readonly ProviderRoleCapabilitySummary[];
+	readonly providerTroubleshooting?: ProviderTroubleshootingReport;
 	readonly indexReports?: readonly IndexingRuntimeReport[];
 	readonly indexProgress?: readonly IndexProgressSnapshot[];
 	readonly indexFreshness?: readonly IndexFreshnessSnapshot[];

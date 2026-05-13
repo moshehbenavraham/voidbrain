@@ -1,6 +1,6 @@
 import { ItemView, type WorkspaceLeaf } from "obsidian";
 import type { RuntimeStatusSubscriber, RuntimeStatusUnsubscribe } from "../stores/runtime-status-store";
-import type { RuntimeStatusSnapshot } from "../types/runtime";
+import type { RuntimeStatusItem, RuntimeStatusSnapshot } from "../types/runtime";
 
 export const VOIDBRAIN_STATUS_VIEW_TYPE = "voidbrain-status";
 export const VOIDBRAIN_STATUS_VIEW_DISPLAY_TEXT = "Voidbrain status";
@@ -130,6 +130,7 @@ export class VoidbrainStatusView extends ItemView {
 			const article = document.createElement("article");
 			article.className = `voidbrain-status-card voidbrain-status-card--${item.severity}`;
 			article.setAttribute("aria-label", `${item.label}: ${item.severity}`);
+			article.tabIndex = 0;
 
 			const label = document.createElement("h3");
 			label.textContent = item.label;
@@ -153,6 +154,9 @@ export class VoidbrainStatusView extends ItemView {
 			}
 
 			article.append(label, meta, summary, details);
+			if (item.providerTroubleshooting !== undefined) {
+				article.append(this.createProviderTroubleshootingElement(item));
+			}
 			if (item.paths.length > 0) {
 				article.append(this.createPathList(item.paths));
 			}
@@ -161,6 +165,56 @@ export class VoidbrainStatusView extends ItemView {
 
 		root.append(list);
 		return root;
+	}
+
+	private createProviderTroubleshootingElement(item: RuntimeStatusItem): HTMLElement {
+		const report = item.providerTroubleshooting;
+		const section = document.createElement("section");
+		section.className = "voidbrain-status-card__provider-troubleshooting";
+		section.setAttribute("aria-label", "Provider troubleshooting");
+
+		if (report === undefined) {
+			section.textContent = "No provider troubleshooting report is available.";
+			return section;
+		}
+
+		const title = document.createElement("h4");
+		title.textContent = "Provider troubleshooting";
+
+		const summary = document.createElement("p");
+		summary.textContent = `${report.severity}: ${report.summary}`;
+
+		const diagnostics = document.createElement("ul");
+		diagnostics.setAttribute("aria-label", "Provider troubleshooting diagnostics");
+		for (const diagnostic of report.diagnostics.length === 0 ? [] : report.diagnostics.slice(0, 5)) {
+			const diagnosticItem = document.createElement("li");
+			diagnosticItem.textContent = `${diagnostic.kind}: ${diagnostic.readinessCode ?? "ready"}; ${diagnostic.message}`;
+			diagnostics.append(diagnosticItem);
+		}
+		if (report.diagnostics.length === 0) {
+			const diagnosticItem = document.createElement("li");
+			diagnosticItem.textContent = "No provider troubleshooting diagnostics reported.";
+			diagnostics.append(diagnosticItem);
+		}
+
+		const actions = document.createElement("ul");
+		actions.setAttribute("aria-label", "Provider troubleshooting actions");
+		for (const action of report.actions.length === 0 ? [] : report.actions.slice(0, 6)) {
+			const actionItem = document.createElement("li");
+			actionItem.textContent = `${action.label}: ${action.description}`;
+			actions.append(actionItem);
+		}
+		if (report.actions.length === 0) {
+			const actionItem = document.createElement("li");
+			actionItem.textContent = "No provider recovery action is currently needed.";
+			actions.append(actionItem);
+		}
+
+		const recovery = document.createElement("p");
+		recovery.textContent = `Recovery: ${report.recovery.commandId}; report ${report.recovery.reportId ?? "none"}; source count ${report.recovery.sourcePathCount}.`;
+
+		section.append(title, summary, diagnostics, actions, recovery);
+		return section;
 	}
 
 	private createStateElement(state: "empty" | "error" | "offline", message: string): HTMLElement {

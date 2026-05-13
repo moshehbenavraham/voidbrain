@@ -53,6 +53,7 @@ bun run preview:framework-update
 - [Environment Guide](docs/environments.md)
 - [Deployment Guide](docs/deployment.md)
 - [Provider Setup](docs/provider-setup.md)
+- [Provider Troubleshooting and Recovery](docs/provider-troubleshooting-recovery.md)
 - [Agent Surfaces and Commands](docs/agent-surfaces-commands.md)
 - [Provider Privacy Boundaries](docs/provider-privacy-boundaries.md)
 - [Indexing and Retrieval Foundation](docs/indexing-retrieval-foundation.md)
@@ -86,5 +87,6 @@ documentation set lives at the repository root and in `docs/`, with
 repository-specific workflow and architecture details kept alongside the phase
 and domain docs.
 
-Phase 03 offline and provider hardening is the next unfinished phase in the
-PRD.
+Phase 03 offline and provider hardening is in progress, including provider
+setup, invocation boundaries, offline embedding compatibility, and provider
+troubleshooting recovery surfaces.

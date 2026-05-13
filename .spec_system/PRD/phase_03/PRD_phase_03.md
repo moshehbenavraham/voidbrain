@@ -4,7 +4,7 @@
 **Sessions**: 6
 **Estimated Duration**: 6-9 days
 
-**Progress**: 4/6 sessions (67%)
+**Progress**: 5/6 sessions (83%)
 
 ---
 
@@ -32,7 +32,7 @@ written to markdown, logs, fixtures, screenshots, or generated examples.
 | 02 | OpenAI-Compatible Provider Profiles | Complete | ~12-25 | 2026-05-13 |
 | 03 | Provider Transport Invocation Boundaries | Complete | ~12-25 | 2026-05-13 |
 | 04 | Offline Embeddings and Index Compatibility | Complete | ~12-25 | 2026-05-13 |
-| 05 | Provider Troubleshooting and Recovery UX | Not Started | ~12-25 | - |
+| 05 | Provider Troubleshooting and Recovery UX | Complete | ~12-25 | 2026-05-13 |
 | 06 | Offline Provider Integration Validation | Not Started | ~12-25 | - |
 
 ---
@@ -43,13 +43,12 @@ written to markdown, logs, fixtures, screenshots, or generated examples.
 2. OpenAI-Compatible Provider Profiles
 3. Provider Transport Invocation Boundaries
 4. Offline Embeddings and Index Compatibility
+5. Provider Troubleshooting and Recovery UX
 
 ---
 
 ## Upcoming Sessions
 
-- Session 04: Offline Embeddings and Index Compatibility
-- Session 05: Provider Troubleshooting and Recovery UX
 - Session 06: Offline Provider Integration Validation
 
 ---

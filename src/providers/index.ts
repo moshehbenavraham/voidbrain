@@ -12,5 +12,6 @@ export * from "./provider-auth-test";
 export * from "./provider-preflight";
 export * from "./provider-profile-service";
 export * from "./provider-registry";
+export * from "./provider-troubleshooting";
 export * from "./redaction";
 export * from "./secret-store";

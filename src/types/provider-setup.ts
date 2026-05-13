@@ -11,7 +11,7 @@ import type {
 	RedactedDiagnosticObject,
 	SecretReference,
 } from "./providers";
-import type { NormalizedVaultPath } from "./vault";
+import type { IsoTimestamp, NormalizedVaultPath } from "./vault";
 
 export const USER_PROVIDER_PROFILE_KINDS = ["local", "openai-compatible"] as const;
 export const PROVIDER_AUTH_TEST_STATUSES = [
@@ -75,6 +75,24 @@ export const OPENAI_COMPATIBLE_READINESS_CODES = [
 	"capability-mismatch",
 	"unsafe-provider-state",
 ] as const;
+export const PROVIDER_TROUBLESHOOTING_DIAGNOSTIC_KINDS = [
+	"setup",
+	"auth",
+	"local-runtime",
+	"openai-compatible",
+	"role-capability",
+	"disclosure",
+	"semantic-compatibility",
+	"recovery",
+] as const;
+export const PROVIDER_TROUBLESHOOTING_ACTION_KINDS = [
+	"retest-auth",
+	"retry-provider-setup",
+	"reset-provider-state",
+	"review-disclosure",
+	"refresh-index",
+	"inspect-recovery",
+] as const;
 
 export type UserProviderProfileKind = (typeof USER_PROVIDER_PROFILE_KINDS)[number];
 export type ProviderAuthTestStatus = (typeof PROVIDER_AUTH_TEST_STATUSES)[number];
@@ -88,6 +106,9 @@ export type OpenAICompatibleEndpointClassification = (typeof OPENAI_COMPATIBLE_E
 export type OpenAICompatibleReadinessStatus = (typeof OPENAI_COMPATIBLE_READINESS_STATUSES)[number];
 export type OpenAICompatibleReadinessCode = (typeof OPENAI_COMPATIBLE_READINESS_CODES)[number];
 export type OpenAICompatibleReadinessDenialCode = Exclude<OpenAICompatibleReadinessCode, "ready">;
+export type ProviderTroubleshootingDiagnosticKind = (typeof PROVIDER_TROUBLESHOOTING_DIAGNOSTIC_KINDS)[number];
+export type ProviderTroubleshootingActionKind = (typeof PROVIDER_TROUBLESHOOTING_ACTION_KINDS)[number];
+export type ProviderTroubleshootingSeverity = ProviderSetupSeverity;
 
 export interface ProviderEndpointMetadata {
 	readonly baseUrl: string | null;
@@ -321,6 +342,75 @@ export interface ProviderRoleCapabilitySummary {
 	readonly message: string;
 }
 
+export interface ProviderTroubleshootingSafeDiagnostic {
+	readonly commandId: string;
+	readonly providerId: ProviderId | null;
+	readonly modelId: ProviderModelId | null;
+	readonly role: ModelRole | null;
+	readonly readinessCode: string | null;
+	readonly cachePath: NormalizedVaultPath | null;
+	readonly reportId: string | null;
+	readonly sourcePathCount: number;
+	readonly validationOutput: readonly string[];
+}
+
+export interface ProviderTroubleshootingDiagnostic {
+	readonly id: string;
+	readonly kind: ProviderTroubleshootingDiagnosticKind;
+	readonly severity: ProviderTroubleshootingSeverity;
+	readonly providerId: ProviderId | null;
+	readonly modelId: ProviderModelId | null;
+	readonly role: ModelRole | null;
+	readonly readinessCode: string | null;
+	readonly message: string;
+	readonly safeDiagnostic: ProviderTroubleshootingSafeDiagnostic;
+}
+
+export interface ProviderTroubleshootingAction {
+	readonly id: string;
+	readonly kind: ProviderTroubleshootingActionKind;
+	readonly severity: ProviderTroubleshootingSeverity;
+	readonly label: string;
+	readonly description: string;
+	readonly providerId: ProviderId | null;
+	readonly modelId: ProviderModelId | null;
+	readonly role: ModelRole | null;
+	readonly disabledReason?: string;
+}
+
+export interface ProviderTroubleshootingRecovery {
+	readonly commandId: string;
+	readonly providerId: ProviderId | null;
+	readonly modelId: ProviderModelId | null;
+	readonly readinessCode: string | null;
+	readonly cachePath: NormalizedVaultPath | null;
+	readonly reportId: string | null;
+	readonly sourcePathCount: number;
+	readonly validationOutput: readonly string[];
+}
+
+export interface ProviderTroubleshootingReport {
+	readonly reportId: string;
+	readonly generatedAt: IsoTimestamp;
+	readonly severity: ProviderTroubleshootingSeverity;
+	readonly summary: string;
+	readonly providerCount: number;
+	readonly roleProblemCount: number;
+	readonly cloudDisclosureRequired: boolean;
+	readonly isCloudProviderBlocked: boolean;
+	readonly diagnostics: readonly ProviderTroubleshootingDiagnostic[];
+	readonly actions: readonly ProviderTroubleshootingAction[];
+	readonly recovery: ProviderTroubleshootingRecovery;
+}
+
+export interface ProviderTroubleshootingActionOutcome {
+	readonly action: ProviderTroubleshootingActionKind;
+	readonly accepted: boolean;
+	readonly message: string;
+	readonly providerId: ProviderId | null;
+	readonly reportId: string | null;
+}
+
 export type ProviderSetupPreflightDenialCode =
 	| "role-not-selected"
 	| "auth-not-ready"
@@ -377,3 +467,7 @@ export const isOpenAICompatibleReadinessStatus = (value: unknown): value is Open
 
 export const isOpenAICompatibleReadinessCode = (value: unknown): value is OpenAICompatibleReadinessCode =>
 	typeof value === "string" && OPENAI_COMPATIBLE_READINESS_CODES.includes(value as OpenAICompatibleReadinessCode);
+
+export const isProviderTroubleshootingActionKind = (value: unknown): value is ProviderTroubleshootingActionKind =>
+	typeof value === "string" &&
+	PROVIDER_TROUBLESHOOTING_ACTION_KINDS.includes(value as ProviderTroubleshootingActionKind);

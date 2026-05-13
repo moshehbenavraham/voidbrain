@@ -5,6 +5,7 @@ import {
 	LOCAL_FIXTURE_PROVIDER_ID,
 	TRUSTED_CLOUD_FIXTURE_PROVIDER_ID,
 	buildProviderDefinitionsForSettings,
+	composeProviderTroubleshootingReport,
 	makeProviderModelId,
 	normalizeProviderProfiles,
 } from "../src/providers";
@@ -16,6 +17,12 @@ import type { StagedChangeRecord, StagedChangeStatus } from "../src/types/vault"
 import { makeIsoTimestamp, makeNormalizedVaultPath } from "../src/types/vault";
 import { createProgressSnapshot, evaluateIndexFreshness } from "../src/vectorstore";
 import { SYNTHETIC_CLOUD_PROFILE_INPUT } from "./fixtures/providers/provider-setup-fixtures";
+import {
+	PROVIDER_TROUBLESHOOTING_CACHE_PATH,
+	PROVIDER_TROUBLESHOOTING_FIXED_DATE,
+	PROVIDER_TROUBLESHOOTING_REPORT_ID,
+	missingSecretTroubleshootingScenario,
+} from "./fixtures/providers/provider-troubleshooting-fixtures";
 import { createHotCacheStateFixture } from "./fixtures/vault/hot-cache-fixtures";
 import {
 	createMaintenanceActiveStagedChange,
@@ -357,6 +364,30 @@ describe("runtime status composition", () => {
 		});
 		expect(JSON.stringify(providerItem)).not.toContain("inline-runtime-value");
 		expect(JSON.stringify(providerItem)).not.toContain("runtimeSecret");
+	});
+
+	it("includes bounded provider troubleshooting reports in provider status", () => {
+		const scenario = missingSecretTroubleshootingScenario();
+		const troubleshooting = composeProviderTroubleshootingReport({
+			settings: scenario.settings,
+			providers: scenario.providers,
+			cachePath: PROVIDER_TROUBLESHOOTING_CACHE_PATH,
+			reportId: PROVIDER_TROUBLESHOOTING_REPORT_ID,
+			now: PROVIDER_TROUBLESHOOTING_FIXED_DATE,
+		});
+		const snapshot = createRuntimeStatusSnapshot({
+			settings: scenario.settings,
+			providers: scenario.providers,
+			providerTroubleshooting: troubleshooting,
+			now: PROVIDER_TROUBLESHOOTING_FIXED_DATE,
+		});
+		const providerItem = snapshot.items.find((item) => item.id === "provider-readiness");
+
+		expect(providerItem?.providerTroubleshooting).toBeDefined();
+		expect(providerItem?.details.join(" ")).toContain("Troubleshooting report");
+		expect(providerItem?.details.join(" ")).toContain("missing-secret");
+		expect(JSON.stringify(providerItem)).not.toContain("runtimeSecret");
+		expect(JSON.stringify(providerItem)).not.toContain("authorization");
 	});
 
 	it("reports provider capability mismatches before workflow execution", () => {

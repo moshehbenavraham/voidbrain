@@ -17,6 +17,7 @@ import {
 } from "./agent";
 import {
 	buildProviderDefinitionsForSettings,
+	composeProviderTroubleshootingReport,
 	createInMemoryProviderSecretStore,
 	summarizeProviderRoleCapabilities,
 	summarizeProviderSetup,
@@ -48,6 +49,7 @@ import { HOT_CACHE_SESSION_SUMMARY_COMMAND_ID, type HotCacheSessionSummaryResult
 import type { IndexingRuntimeState } from "./types/indexing-runtime";
 import type { SourceIngestionQueueStatusInput, SourceIngestionQueueSummary } from "./types/ingestion-queue";
 import { DEFAULT_PLUGIN_SETTINGS, SHOW_STATUS_COMMAND_ID, type VoidbrainPluginSettings } from "./types/plugin";
+import type { ProviderTroubleshootingActionOutcome } from "./types/provider-setup";
 import type { RecoverySupportReadFailure } from "./types/recovery";
 import type { RuntimeCommandOutcome, RuntimeStatusSnapshot } from "./types/runtime";
 import type {
@@ -237,14 +239,26 @@ export default class VoidbrainPlugin extends Plugin {
 
 	private refreshRuntimeStatusSnapshot(): RuntimeStatusSnapshot {
 		const providers = buildProviderDefinitionsForSettings(this.settings, BASELINE_PROVIDERS);
+		const providerSetup = summarizeProviderSetup(this.settings, providers);
+		const providerRoleCapabilities = summarizeProviderRoleCapabilities(this.settings, providers);
 		const indexingState = this.indexingRuntime?.getState() ?? null;
 		const lexicalReport = indexingState?.lexicalReport ?? null;
 		const ingestionQueueStatus = this.getIngestionQueueStatusInput();
+		const providerTroubleshooting = composeProviderTroubleshootingReport({
+			settings: this.settings,
+			providers,
+			providerSetup,
+			providerRoleCapabilities,
+			semanticCompatibility: indexingState?.semanticCompatibility ?? null,
+			cachePath: HOT_CACHE_SUPPORT_PATH,
+			reportId: "runtime-provider-troubleshooting",
+		});
 		this.runtimeStatusSnapshot = createRuntimeStatusSnapshot({
 			settings: this.settings,
 			providers,
-			providerSetup: summarizeProviderSetup(this.settings, providers),
-			providerRoleCapabilities: summarizeProviderRoleCapabilities(this.settings, providers),
+			providerSetup,
+			providerRoleCapabilities,
+			providerTroubleshooting,
 			...(lexicalReport === null ? {} : { indexReports: [lexicalReport] }),
 			...(lexicalReport?.progress === undefined || lexicalReport.progress === null
 				? {}
@@ -607,6 +621,7 @@ export default class VoidbrainPlugin extends Plugin {
 							subscribe: (subscriber) => indexingRuntime.subscribe(subscriber),
 						},
 					}),
+			onProviderTroubleshootingAction: (outcome) => this.handleProviderTroubleshootingActionOutcome(outcome),
 		});
 
 		this.addSettingTab(settingsTab);
@@ -615,6 +630,13 @@ export default class VoidbrainPlugin extends Plugin {
 			this.settingsTabCount = Math.max(0, this.settingsTabCount - 1);
 			settingsTab.hide();
 		});
+	}
+
+	private handleProviderTroubleshootingActionOutcome(outcome: ProviderTroubleshootingActionOutcome): void {
+		this.refreshRuntimeStatusSnapshot();
+		if (this.settings.shouldShowStatusNotices) {
+			new Notice(outcome.message, outcome.accepted ? 5000 : 7000);
+		}
 	}
 
 	private async openStatusView(): Promise<void> {

@@ -44,6 +44,11 @@ After entering the profile:
 7. Leave `utility` provider as `Not selected` unless you have a model with the
    `attachments` capability.
 
+If the saved profile still reports a warning or error, open the provider
+troubleshooting section in the same settings tab. The troubleshooting report
+summarizes auth readiness, local runtime checks, role capability state, cloud
+disclosure blockers, semantic fallback, and safe recovery fields.
+
 ## Indexing Setup
 
 In `Settings -> Voidbrain -> Indexing`:
@@ -86,6 +91,9 @@ should only be entered through the settings UI.
 
 ## Troubleshooting
 
+For the full recovery workflow, see
+[Provider Troubleshooting and Recovery](provider-troubleshooting-recovery.md).
+
 `Provider setup has auth or capability issues.`
 
 - Confirm each selected role has a provider and model.
@@ -104,6 +112,21 @@ should only be entered through the settings UI.
 - Test the embedding provider.
 - Select an embedding model with the `embeddings` capability.
 - Turn off `Semantic index` until embedding readiness is green.
+
+`Provider troubleshooting found recoverable provider warnings.`
+
+- Use `Retest` to rerun saved provider profile checks.
+- Use `Reset` to clear stale auth and selected model state without deleting
+  opaque secret references.
+- Use `Refresh` after provider readiness changes so index compatibility is
+  recomputed.
+
+`Cloud provider workflows are disabled until explicit disclosure review is complete.`
+
+- Review the provider endpoint, trust level, credential boundary, and content
+  sensitivity before enabling cloud workflows.
+- Voidbrain does not silently fall back from local providers to cloud
+  providers.
 
 `Provider chat invocation is not configured.`
 

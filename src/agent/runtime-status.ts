@@ -1,4 +1,5 @@
 import { summarizeProviderRoleCapabilities, summarizeProviderSetup } from "../providers/provider-preflight";
+import { composeProviderTroubleshootingReport } from "../providers/provider-troubleshooting";
 import type { IndexingPathDiagnostic, IndexingRuntimeReport, SemanticIndexReadiness } from "../types/indexing-runtime";
 import type { IndexFreshnessState, IndexJobStatus, SemanticIndexCompatibility } from "../types/retrieval";
 import type {
@@ -58,6 +59,16 @@ const providerStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
 	const setupSummary = input.providerSetup ?? summarizeProviderSetup(input.settings, input.providers);
 	const roleSummaries =
 		input.providerRoleCapabilities ?? summarizeProviderRoleCapabilities(input.settings, input.providers);
+	const troubleshooting =
+		input.providerTroubleshooting ??
+		composeProviderTroubleshootingReport({
+			settings: input.settings,
+			providers: input.providers,
+			providerSetup: setupSummary,
+			providerRoleCapabilities: roleSummaries,
+			semanticCompatibility: input.semanticIndexCompatibility ?? null,
+			...(input.now === undefined ? {} : { now: input.now }),
+		});
 	const failedAuthStatuses = input.settings.providerAuthStatuses.filter(
 		(status) => status.status === "failed" || status.status === "timeout" || status.status === "missing-secret",
 	);
@@ -72,9 +83,16 @@ const providerStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
 		`${failedAuthStatuses.length} provider auth status(es) need attention.`,
 		`${capabilityProblems.length} role capability problem(s).`,
 		...roleSummaries.map((summary) => `${summary.role}: ${summary.message}`),
+		`Troubleshooting report ${troubleshooting.reportId}: ${troubleshooting.summary}`,
+		...troubleshooting.diagnostics
+			.slice(0, 5)
+			.map((diagnostic) => `${diagnostic.kind}: ${diagnostic.readinessCode ?? "ready"}; ${diagnostic.message}`),
+		...troubleshooting.actions.slice(0, 6).map((action) => `Action: ${action.label}; ${action.description}`),
+		`Recovery: ${troubleshooting.recovery.commandId}; report ${troubleshooting.recovery.reportId ?? "none"}; source count ${troubleshooting.recovery.sourcePathCount}.`,
 	];
-	const severity =
+	const preflightSeverity =
 		failedAuthStatuses.length > 0 ? "error" : capabilityProblems.length > 0 ? "error" : setupSummary.severity;
+	const severity = bySeverity(preflightSeverity, troubleshooting.severity);
 
 	const summary =
 		severity === "ready"
@@ -94,6 +112,7 @@ const providerStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
 		details,
 		paths: [],
 		count: setupSummary.providerCount,
+		providerTroubleshooting: troubleshooting,
 	};
 };
 
