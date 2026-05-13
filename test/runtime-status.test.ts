@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createRuntimeStatusSnapshot, planMaintenanceRecommendations } from "../src/agent";
+import { createRuntimeStatusSnapshot, planMaintenanceRecommendations, planSimilarNoteSuggestions } from "../src/agent";
 import {
 	BASELINE_PROVIDERS,
 	LOCAL_FIXTURE_PROVIDER_ID,
@@ -23,6 +23,12 @@ import {
 	createMaintenanceIndexFreshnessSnapshots,
 	createMaintenanceRetrievalResults,
 } from "./fixtures/vault/maintenance-recommendation-fixtures";
+import {
+	SIMILAR_CONCEPT_PATH,
+	SIMILAR_NOTE_FIXED_DATE,
+	createSimilarNoteRetrievalResults,
+	loadSimilarNoteFixtureNotes,
+} from "./fixtures/vault/similar-note-suggestion-fixtures";
 
 const fixedDate = new Date("2026-05-13T00:00:00.000Z");
 const fixedTimestamp = makeIsoTimestamp("2026-05-13T00:00:00.000Z");
@@ -495,5 +501,37 @@ describe("runtime status composition", () => {
 		);
 		expect(JSON.stringify(maintenanceItem)).not.toContain("Synthetic retrieval body text");
 		expect(JSON.stringify(maintenanceItem)).not.toContain("runtimeSecret");
+	});
+
+	it("reports similar-note suggestion summaries without exposing note bodies", () => {
+		const suggestionPlan = planSimilarNoteSuggestions({
+			notes: loadSimilarNoteFixtureNotes(),
+			retrievalResults: createSimilarNoteRetrievalResults(),
+			now: SIMILAR_NOTE_FIXED_DATE,
+		});
+		const snapshot = createRuntimeStatusSnapshot({
+			settings: readySettings,
+			providers: BASELINE_PROVIDERS,
+			similarNoteSuggestions: {
+				plan: suggestionPlan,
+			},
+			now: fixedDate,
+		});
+		const suggestionItem = snapshot.items.find((item) => item.id === "similar-note-suggestions");
+
+		expect(suggestionItem).toMatchObject({
+			area: "maintenance",
+			severity: "warning",
+			count: suggestionPlan.summary.totalSuggestions,
+		});
+		expect(suggestionItem?.details.join(" ")).toContain(`${suggestionPlan.summary.stageableCount} stageable`);
+		expect(suggestionItem?.details.join(" ")).toContain(`${suggestionPlan.summary.blockedCount} blocked`);
+		expect(suggestionItem?.details.join(" ")).toContain(
+			`${suggestionPlan.summary.lowConfidenceCount} low-confidence`,
+		);
+		expect(suggestionItem?.paths).toContain(SIMILAR_CONCEPT_PATH);
+		expect(JSON.stringify(suggestionItem)).not.toContain("Synthetic retrieval body text");
+		expect(JSON.stringify(suggestionItem)).not.toContain("Synthetic placement retrieval body text");
+		expect(JSON.stringify(suggestionItem)).not.toContain("runtimeSecret");
 	});
 });

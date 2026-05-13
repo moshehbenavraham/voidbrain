@@ -575,6 +575,55 @@ const maintenanceStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => 
 	};
 };
 
+const similarNoteSuggestionStatusItem = (input: RuntimeStatusInput): RuntimeStatusItem => {
+	const plan = input.similarNoteSuggestions?.plan ?? null;
+	if (plan === null) {
+		return {
+			id: "similar-note-suggestions",
+			area: "maintenance",
+			label: "Similar-note suggestions",
+			severity: "missing",
+			summary: "No similar-note suggestion plan has been generated yet.",
+			details: ["Suggestion planning has not received local note, retrieval, and staged-change evidence."],
+			paths: [],
+			count: 0,
+		};
+	}
+
+	const paths = limitedPaths(plan.summary.affectedPaths);
+	const details = [
+		`Plan generated at ${plan.generatedAt}.`,
+		`${plan.summary.totalSuggestions} suggestion(s).`,
+		`${plan.summary.stageableCount} stageable, ${plan.summary.reportOnlyCount} report-only, ${plan.summary.blockedCount} blocked.`,
+		`${plan.summary.highConfidenceCount} high-confidence, ${plan.summary.mediumConfidenceCount} medium-confidence, ${plan.summary.lowConfidenceCount} low-confidence.`,
+		...paths.map((path) => `Affected path sample: ${path}.`),
+		"Suggestion records do not include raw note bodies or provider state.",
+	];
+	const severity =
+		plan.summary.blockedCount > 0 || plan.summary.stageableCount > 0
+			? "warning"
+			: plan.summary.totalSuggestions === 0
+				? "ready"
+				: "ready";
+	const summary =
+		severity === "warning"
+			? "Similar-note suggestions need review or staged-change action."
+			: plan.summary.totalSuggestions === 0
+				? "No similar-note suggestions are currently queued."
+				: "Similar-note suggestions are informational.";
+
+	return {
+		id: "similar-note-suggestions",
+		area: "maintenance",
+		label: "Similar-note suggestions",
+		severity,
+		summary,
+		details,
+		paths,
+		count: plan.summary.totalSuggestions,
+	};
+};
+
 export const createRuntimeStatusSnapshot = (input: RuntimeStatusInput): RuntimeStatusSnapshot => {
 	const candidateItems = [
 		input.settings.status.shouldShowProviderStatus ? providerStatusItem(input) : undefined,
@@ -583,6 +632,7 @@ export const createRuntimeStatusSnapshot = (input: RuntimeStatusInput): RuntimeS
 		input.settings.status.shouldShowHealthStatus ? healthStatusItem(input) : undefined,
 		input.settings.status.shouldShowHotCacheStatus ? hotCacheStatusItem(input) : undefined,
 		input.maintenanceRecommendations === undefined ? undefined : maintenanceStatusItem(input),
+		input.similarNoteSuggestions === undefined ? undefined : similarNoteSuggestionStatusItem(input),
 	];
 	const items = candidateItems.filter((item): item is RuntimeStatusItem => item !== undefined);
 

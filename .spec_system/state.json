@@ -43,7 +43,8 @@
     "phase02-session01-recover-session-command",
     "phase02-session02-agent-surface-validation-hardening",
     "phase02-session03-framework-update-preview-planner",
-    "phase02-session04-maintenance-recommendation-planner"
+    "phase02-session04-maintenance-recommendation-planner",
+    "phase02-session05-similar-note-placement-suggestions"
   ],
   "next_session_history": [
     {
@@ -199,6 +200,16 @@
     {
       "date": "2026-05-13",
       "session": "phase02-session04-maintenance-recommendation-planner",
+      "status": "completed"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase02-session05-similar-note-placement-suggestions",
+      "status": "planned"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase02-session05-similar-note-placement-suggestions",
       "status": "completed"
     }
   ]

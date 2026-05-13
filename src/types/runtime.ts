@@ -7,6 +7,7 @@ import type { VoidbrainPluginSettings } from "./plugin";
 import type { ProviderRoleCapabilitySummary, ProviderSetupSummary } from "./provider-setup";
 import type { ProviderDefinition } from "./providers";
 import type { IndexFreshnessSnapshot, IndexProgressSnapshot } from "./retrieval";
+import type { SimilarNoteSuggestionPlan } from "./suggestions";
 import type { IsoTimestamp, NormalizedVaultPath, StagedChangeRecord } from "./vault";
 
 export const RUNTIME_STATUS_AREAS = [
@@ -54,6 +55,10 @@ export interface MaintenanceRecommendationStatusInput {
 	readonly plan: MaintenanceRecommendationPlan | null;
 }
 
+export interface SimilarNoteSuggestionStatusInput {
+	readonly plan: SimilarNoteSuggestionPlan | null;
+}
+
 export interface RuntimeStatusInput {
 	readonly settings: VoidbrainPluginSettings;
 	readonly providers: readonly ProviderDefinition[];
@@ -68,6 +73,7 @@ export interface RuntimeStatusInput {
 	readonly healthReport?: VaultHealthReport | null;
 	readonly hotCache?: HotCacheStatusInput | null;
 	readonly maintenanceRecommendations?: MaintenanceRecommendationStatusInput | null;
+	readonly similarNoteSuggestions?: SimilarNoteSuggestionStatusInput | null;
 	readonly now?: Date;
 }
 

@@ -59,6 +59,36 @@ export type {
 	MaintenanceRecommendationStageabilityKind,
 	MaintenanceRecommendationSummary,
 } from "../types/maintenance";
+export {
+	SIMILAR_NOTE_SUGGESTION_COMMAND_ID,
+	SimilarNoteSuggestionService,
+	createSimilarNoteSuggestionService,
+	planSimilarNoteSuggestions,
+} from "./similar-note-suggestion-service";
+export type {
+	SimilarNoteSuggestionPlannerInput,
+	SimilarNoteSuggestionServiceOptions,
+	SimilarNoteSuggestionStageInput,
+} from "./similar-note-suggestion-service";
+export type {
+	SimilarNoteCandidate,
+	SimilarNoteConfidence,
+	SimilarNoteSignalEvidence,
+	SimilarNoteSignalKind,
+	SimilarNoteSourceKind,
+	SimilarNoteSourceRecord,
+	SimilarNoteStageFailure,
+	SimilarNoteStageFailureReason,
+	SimilarNoteStageResult,
+	SimilarNoteStageSuccess,
+	SimilarNoteStageability,
+	SimilarNoteStageabilityKind,
+	SimilarNoteSuggestion,
+	SimilarNoteSuggestionKind,
+	SimilarNoteSuggestionPlan,
+	SimilarNoteSuggestionRecovery,
+	SimilarNoteSuggestionSummary,
+} from "../types/suggestions";
 export { RecoverSessionService, createRecoverSessionService } from "./recover-session-service";
 export type {
 	RecoverSessionInput,
