@@ -28,6 +28,7 @@ bun run build
 bun run check
 bun run lint
 bun run test
+bun run validate:release-artifacts
 bun run validate:agent-docs
 ```
 
@@ -52,6 +53,7 @@ bun run preview:framework-update
 - [Development Guide](docs/development.md)
 - [Environment Guide](docs/environments.md)
 - [Deployment Guide](docs/deployment.md)
+- [Release Artifact Validation](docs/release-artifacts.md)
 - [Provider Setup](docs/provider-setup.md)
 - [Provider Troubleshooting and Recovery](docs/provider-troubleshooting-recovery.md)
 - [Phase 03 Offline Provider Integration Validation](docs/phase03-offline-provider-integration-validation.md)
@@ -93,3 +95,7 @@ evidence recorded for local runtime profiles, OpenAI-compatible profiles,
 provider invocation boundaries, offline embedding compatibility, lexical
 fallback, provider troubleshooting recovery, and synchronized agent-surface
 safety checks.
+
+Phase 04 distribution work has started with local release artifact validation
+for package metadata, Obsidian manifest metadata, version maps, checksums,
+bounded diagnostics, and reproducible build output.
