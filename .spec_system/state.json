@@ -33,7 +33,7 @@
     "4": {
       "name": "Distribution and Ecosystem",
       "description": "Prepare Voidbrain for local-first release by hardening Obsidian packaging, install and update workflows, agent ecosystem packaging, onboarding, safe export boundaries, and distribution validation.",
-      "status": "in_progress",
+      "status": "complete",
       "session_count": 6
     }
   },
