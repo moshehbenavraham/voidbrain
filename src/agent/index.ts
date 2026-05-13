@@ -1,5 +1,6 @@
 export {
 	AGENT_COMMAND_CATALOG,
+	AGENT_SURFACES,
 	getAgentCommandById,
 	getAgentCommandsByStatus,
 	getSupportedAgentSurfaces,
@@ -118,6 +119,36 @@ export {
 	redactSensitiveValidationText,
 	sortAgentValidationIssues,
 } from "./agent-validation-reporting";
+export {
+	classifyAgentSurfacePackageEcosystem,
+	createAgentSurfacePackageChecksum,
+	createAgentSurfacePackageDiagnostic,
+	createAgentSurfacePackageManifest,
+	loadAgentSurfacePackageSurfaces,
+	planAgentSurfacePackage,
+	scanAgentSurfacePackageContentSafety,
+	scanLoadedAgentSurfaceFixtureSafetyForPackage,
+	validateAgentSurfacePackageCandidatePaths,
+	validateAgentSurfacePackageInput,
+	validateAgentSurfacePackageOutputPath,
+	validateLoadedAgentSurfaceForPackage,
+} from "./agent-surface-packaging";
+export type {
+	AgentSurfacePackageBlockedResult,
+	AgentSurfacePackageChecksum,
+	AgentSurfacePackageDiagnostic,
+	AgentSurfacePackageEcosystem,
+	AgentSurfacePackageEntry,
+	AgentSurfacePackageIssue,
+	AgentSurfacePackageIssueCode,
+	AgentSurfacePackageManifest,
+	AgentSurfacePackagePlanningInput,
+	AgentSurfacePackagePlanningResult,
+	AgentSurfacePackageReadyResult,
+	AgentSurfacePackageRecoveryDetails,
+	AgentSurfacePackageScriptId,
+	AgentSurfacePackageState,
+} from "../types/agent-surface-package";
 export {
 	normalizeRepositoryPath,
 	isRepositoryPathWithinRoot,

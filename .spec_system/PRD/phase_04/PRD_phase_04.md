@@ -4,7 +4,7 @@
 **Sessions**: 6
 **Estimated Duration**: 6-9 days
 
-**Progress**: 2/6 sessions (33%)
+**Progress**: 3/6 sessions (50%)
 
 ---
 
@@ -30,7 +30,7 @@ disclosure gates before private vault content can leave the local machine.
 |---------|------|--------|------------|-----------|
 | 01 | Release Metadata and Build Artifacts | Complete | ~12-25 | 2026-05-13 |
 | 02 | Obsidian Install and Update Workflow | Complete | ~12-25 | 2026-05-13 |
-| 03 | Agent Skill and Surface Packaging | Not Started | ~12-25 | - |
+| 03 | Agent Skill and Surface Packaging | Complete | ~12-25 | 2026-05-13 |
 | 04 | Onboarding and Provider Readiness Guides | Not Started | ~12-25 | - |
 | 05 | Ecosystem Export and Handoff Boundaries | Not Started | ~12-25 | - |
 | 06 | Distribution Integration Validation | Not Started | ~12-25 | - |
@@ -41,12 +41,13 @@ disclosure gates before private vault content can leave the local machine.
 
 1. Release Metadata and Build Artifacts
 2. Obsidian Install and Update Workflow
+3. Agent Skill and Surface Packaging
 
 ---
 
 ## Upcoming Sessions
 
-- Session 03: Agent Skill and Surface Packaging
+- Session 04: Onboarding and Provider Readiness Guides
 
 ---
 

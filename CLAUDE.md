@@ -44,6 +44,7 @@ Run these checks after editing agent surfaces or command-domain code:
 ```bash
 bun run validate:agent-surfaces
 bun run validate:fixture-safety
+bun run validate:agent-surface-package
 bun run validate:agent-docs
 ```
 
@@ -55,3 +56,14 @@ Phase 03 provider integration evidence lives in
 `docs/phase03-offline-provider-integration-validation.md`. Use it when changing
 provider setup, invocation boundaries, semantic fallback, troubleshooting, or
 agent surface language.
+
+## Packaging Reuse
+
+Agent surface packaging is repository-local validation, not hosted marketplace
+publishing. Validate reusable AGENTS, CLAUDE, GEMINI, `skills/voidbrain`, and
+human command docs with `bun run validate:agent-surface-package` before copying
+them into another framework-owned repository path. Use only synthetic examples
+such as `fixtures/demo-vault/`; do not package user vault notes, `.voidbrain`
+support records, provider secrets, authorization headers, prompt bodies, hidden
+provider state, private paths, or `EXAMPLES` inputs. Keep recovery output to
+surface ID, ecosystem, repository path, checksum, issue code, and remediation.

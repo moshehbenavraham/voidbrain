@@ -39,6 +39,7 @@ content is out of scope unless a later reviewed workflow supplies it.
 ```bash
 bun run validate:agent-surfaces
 bun run validate:fixture-safety
+bun run validate:agent-surface-package
 bun run validate:agent-docs
 bun run validate
 ```
@@ -53,3 +54,15 @@ Phase 03 provider integration evidence lives in
 sync with provider setup, invocation boundaries, semantic fallback,
 troubleshooting, staged changes, dry-run language, citations, synthetic
 fixtures, provider secrets redaction, and recovery records.
+
+## Packaging Reuse
+
+Reusable agent surfaces stay local and framework-owned. Run
+`bun run validate:agent-surface-package` before copying AGENTS, CLAUDE, GEMINI,
+`skills/voidbrain`, or the human command docs into a compatible tool setup. The
+package manifest should include target ecosystem, repository path, SHA-256
+checksum, command catalog status, issue codes, and recovery details. Do not
+include user vault content, `.voidbrain` support records, provider secrets,
+authorization headers, raw hidden provider state, prompt bodies, private paths,
+or `EXAMPLES` research input. Use `test/fixtures/vault/` or
+`fixtures/demo-vault/` examples only.

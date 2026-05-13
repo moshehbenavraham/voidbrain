@@ -69,6 +69,7 @@ Validation:
 ```bash
 bun run validate:agent-surfaces
 bun run validate:fixture-safety
+bun run validate:agent-surface-package
 bun run validate:agent-docs
 ```
 
@@ -105,6 +106,22 @@ Phase 03 provider closeout:
   "recoveryFields": ["command ID", "provider ID", "model ID", "cache path", "report ID", "validation output"]
 }
 ```
+
+Agent surface package reuse:
+
+```json
+{
+  "script": "validate-agent-surface-package",
+  "surfaces": ["AGENTS.md", "CLAUDE.md", "GEMINI.md", "skills/voidbrain/SKILL.md"],
+  "exampleTarget": "fixtures/demo-repo/",
+  "recoveryFields": ["surface ID", "target ecosystem", "path", "checksum", "issue code"]
+}
+```
+
+Package reuse is local framework validation only. Do not publish to hosted
+marketplaces from this skill, and do not package user vault notes, `.voidbrain`
+support records, provider secrets, authorization headers, prompt bodies, raw
+hidden provider state, private paths, or `EXAMPLES` research input.
 
 ## Recovery
 

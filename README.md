@@ -30,6 +30,7 @@ bun run lint
 bun run test
 bun run validate:release-artifacts
 bun run validate:agent-docs
+bun run validate:agent-surface-package
 ```
 
 Agent documentation checks:
@@ -37,6 +38,7 @@ Agent documentation checks:
 ```bash
 bun run validate:agent-surfaces
 bun run validate:fixture-safety
+bun run validate:agent-surface-package
 bun run preview:framework-update
 ```
 
@@ -67,6 +69,7 @@ building, copying, cleaning, backing up, or mutating vault files. See
 - [Deployment Guide](docs/deployment.md)
 - [Release Artifact Validation](docs/release-artifacts.md)
 - [Obsidian Install And Update Workflow](docs/obsidian-install-update.md)
+- [Agent Surface Packaging](docs/agent-surface-packaging.md)
 - [Provider Setup](docs/provider-setup.md)
 - [Provider Troubleshooting and Recovery](docs/provider-troubleshooting-recovery.md)
 - [Phase 03 Offline Provider Integration Validation](docs/phase03-offline-provider-integration-validation.md)
@@ -91,6 +94,13 @@ staged changes, provider secrets boundaries, synthetic fixtures, citations,
 hot cache support records, implemented dry-run framework update previews, and
 recovery expectations.
 
+Package readiness is checked with `bun run validate:agent-surface-package`.
+The package manifest stays local and records surface ID, ecosystem, path,
+checksum, command catalog status, validation issues, and recovery details
+without copying user vault content, `.voidbrain` support records, provider
+secrets, authorization headers, prompt bodies, hidden provider state, private
+paths, or `EXAMPLES` research input.
+
 ## Repository Policy
 
 `EXAMPLES/` is local research input and is intentionally ignored.
@@ -112,4 +122,5 @@ safety checks.
 Phase 04 distribution work has started with local release artifact validation
 for package metadata, Obsidian manifest metadata, version maps, checksums,
 bounded diagnostics, reproducible build output, and vault-safe Obsidian
-install/update planning.
+install/update planning. Agent surface packaging now validates local reusable
+instruction surfaces before they are copied into compatible tool setups.

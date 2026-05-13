@@ -51,14 +51,24 @@ Use these validation commands from the repository root:
 ```bash
 bun run validate:agent-surfaces
 bun run validate:fixture-safety
+bun run validate:agent-surface-package
 bun run validate:agent-docs
 bun run validate
 ```
 
-The first two commands are local read-only checks for agent documentation and
-synthetic fixtures. They must fail closed on stale command references, missing
-safety language, secret-like examples, private path hints, or credential-like
-values.
+The agent validation commands are local read-only checks for agent
+documentation, synthetic fixtures, and packageable instruction surfaces. They
+must fail closed on stale command references, missing safety language,
+secret-like examples, private path hints, credential-like values, unsupported
+package paths, prompt bodies, hidden provider state, or output paths outside
+framework-owned build, dist, or docs roots.
+
+Package AGENTS, CLAUDE, GEMINI, the Voidbrain skill, and human command docs
+only as local framework surfaces. Reuse guidance must point to
+`docs/agent-surface-packaging.md`, use synthetic paths such as
+`fixtures/demo-vault/`, and must not copy user vault notes, `.voidbrain`
+support records, provider secrets, authorization headers, raw hidden provider
+state, prompt bodies, or `EXAMPLES` research input into packages.
 
 Phase 03 provider integration evidence lives in
 `docs/phase03-offline-provider-integration-validation.md` and validates local

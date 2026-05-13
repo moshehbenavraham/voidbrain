@@ -170,6 +170,7 @@ Run the local checks from the repository root:
 ```bash
 bun run validate:agent-surfaces
 bun run validate:fixture-safety
+bun run validate:agent-surface-package
 bun run validate:agent-docs
 ```
 
@@ -183,6 +184,47 @@ available, line when available, command ID when relevant, issue code, redacted
 excerpt when useful, and remediation hint. Fixture safety checks also reject
 private path hints, credential-like values, unsupported candidate paths, and
 unreadable scan candidates.
+
+## Agent Surface Packaging
+
+Agent surface packaging validates reusable framework instructions for
+Codex-style AGENTS files, Claude Code, Gemini CLI, the Voidbrain skill, and the
+human command docs. It does not publish to hosted marketplaces, create runtime
+agent commands, mutate user vault notes, or apply framework updates.
+
+Run the local package readiness planner:
+
+```bash
+bun run validate:agent-surface-package
+bun run validate:agent-surface-package -- --json
+bun run validate:agent-surface-package -- --output build/agent-surfaces/manifest.json
+```
+
+The package manifest records surface ID, target ecosystem, repository-relative
+path, SHA-256 checksum, command catalog status, command IDs found in the
+surface, validation output, issue code, and recovery details. JSON diagnostics
+are bounded to metadata and do not include raw surface bodies.
+
+Package readiness fails closed when declared surfaces are missing, unreadable,
+outside allowed framework paths, stale against the command catalog, missing
+required safety language, or contain unsafe examples. It also rejects output
+paths outside framework-owned build, dist, or docs roots.
+
+Local reuse examples must stay synthetic:
+
+```bash
+mkdir -p fixtures/demo-repo/skills
+cp AGENTS.md fixtures/demo-repo/AGENTS.md
+cp CLAUDE.md fixtures/demo-repo/CLAUDE.md
+cp GEMINI.md fixtures/demo-repo/GEMINI.md
+cp -R skills/voidbrain fixtures/demo-repo/skills/voidbrain
+```
+
+Packageable surfaces must not include user vault content, `.voidbrain` support
+records, `EXAMPLES` research input, provider secrets, authorization headers,
+raw hidden provider state, prompt bodies, credential-like values, or private
+path hints. See [Agent Surface Packaging](agent-surface-packaging.md) for the
+local reuse guide.
 
 ## Framework Update Preview
 
