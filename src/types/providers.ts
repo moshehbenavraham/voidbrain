@@ -1,3 +1,8 @@
+import type {
+	OpenAICompatibleEndpointClassification,
+	OpenAICompatibleReadinessCode,
+	OpenAICompatibleReadinessStatus,
+} from "./provider-setup";
 import type { NormalizedVaultPath } from "./vault";
 
 export const PROVIDER_KINDS = ["local", "cloud"] as const;
@@ -58,6 +63,11 @@ export interface ProviderSetupSafeMetadata {
 	readonly hasCredentialReference: boolean;
 	readonly authState: ProviderAuthState;
 	readonly modelCount: number;
+	readonly localRuntime?: ProviderSetupSafeLocalRuntimeMetadata;
+	readonly localReadiness?: ProviderSetupSafeLocalReadinessEvidence;
+	readonly openaiCompatible?: ProviderSetupSafeOpenAICompatibleMetadata;
+	readonly authReadiness?: ProviderSetupSafeAuthReadinessEvidence;
+	readonly capabilityReadiness?: readonly ProviderSetupSafeCapabilityReadinessEvidence[];
 }
 
 export interface ProviderSetupSafeModelMetadata {
@@ -66,6 +76,55 @@ export interface ProviderSetupSafeModelMetadata {
 	readonly roles: readonly ModelRole[];
 	readonly capabilities: readonly ModelCapability[];
 	readonly embeddingFamily?: string;
+}
+
+export interface ProviderSetupSafeLocalRuntimeMetadata {
+	readonly runtimeFamily: string;
+	readonly endpointHost: string | null;
+	readonly chatModelCount: number;
+	readonly embeddingModelCount: number;
+}
+
+export interface ProviderSetupSafeLocalReadinessEvidence {
+	readonly status: string;
+	readonly code: string;
+	readonly checkedAt: string;
+	readonly durationMs: number;
+	readonly modelCount: number;
+	readonly chatModelCount: number;
+	readonly embeddingModelCount: number;
+}
+
+export interface ProviderSetupSafeOpenAICompatibleMetadata {
+	readonly endpointClassification: OpenAICompatibleEndpointClassification;
+	readonly endpointHost: string | null;
+	readonly isRemoteDisclosureRequired: boolean;
+	readonly isTrustRequired: boolean;
+	readonly isCredentialRequired: boolean;
+	readonly chatModelCount: number;
+	readonly streamingModelCount: number;
+	readonly embeddingModelCount: number;
+	readonly toolModelCount: number;
+	readonly attachmentModelCount: number;
+}
+
+export interface ProviderSetupSafeAuthReadinessEvidence {
+	readonly status: OpenAICompatibleReadinessStatus;
+	readonly code: OpenAICompatibleReadinessCode;
+	readonly endpointClassification: OpenAICompatibleEndpointClassification;
+	readonly checkedAt: string;
+	readonly durationMs: number;
+	readonly statusCode: number | null;
+	readonly modelCount: number;
+}
+
+export interface ProviderSetupSafeCapabilityReadinessEvidence {
+	readonly role: ModelRole;
+	readonly requiredCapability: ModelCapability;
+	readonly status: OpenAICompatibleReadinessStatus;
+	readonly code: OpenAICompatibleReadinessCode;
+	readonly modelId: ProviderModelId | null;
+	readonly modelCount: number;
 }
 
 export const makeProviderId = (id: string): ProviderId => id as ProviderId;

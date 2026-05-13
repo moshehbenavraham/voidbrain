@@ -11,10 +11,29 @@ import { REDACTED_VALUE } from "../src/providers/redaction";
 import { DEFAULT_PLUGIN_SETTINGS, type VoidbrainPluginSettings } from "../src/types/plugin";
 import type { ProviderAuthTestRecord, UserProviderProfile } from "../src/types/provider-setup";
 import {
+	OPENAI_COMPATIBLE_AUTH_FAILED_PROFILE_ID,
+	OPENAI_COMPATIBLE_AUTH_FAILED_PROFILE_INPUT,
+	OPENAI_COMPATIBLE_CAPABILITY_MISMATCH_PROFILE_ID,
+	OPENAI_COMPATIBLE_CAPABILITY_MISMATCH_PROFILE_INPUT,
+	OPENAI_COMPATIBLE_CUSTOM_REMOTE_PROFILE_ID,
+	OPENAI_COMPATIBLE_CUSTOM_REMOTE_PROFILE_INPUT,
+	OPENAI_COMPATIBLE_LOCAL_PROFILE_ID,
+	OPENAI_COMPATIBLE_LOCAL_PROFILE_INPUT,
+	OPENAI_COMPATIBLE_MISSING_SECRET_PROFILE_ID,
+	OPENAI_COMPATIBLE_MISSING_SECRET_PROFILE_INPUT,
+	OPENAI_COMPATIBLE_TRUSTED_CLOUD_PROFILE_ID,
+	OPENAI_COMPATIBLE_TRUSTED_CLOUD_PROFILE_INPUT,
+	OPENAI_COMPATIBLE_UNTRUSTED_CLOUD_PROFILE_ID,
+	OPENAI_COMPATIBLE_UNTRUSTED_CLOUD_PROFILE_INPUT,
 	SYNTHETIC_CLOUD_PROFILE_ID,
 	SYNTHETIC_CLOUD_PROFILE_INPUT,
 	SYNTHETIC_DUPLICATE_PROFILE_INPUTS,
+	SYNTHETIC_LOCAL_OFFLINE_READINESS_RECORD,
 	SYNTHETIC_LOCAL_PROFILE_INPUT,
+	SYNTHETIC_LOCAL_READY_READINESS_RECORD,
+	failedOpenAICompatibleAuthStatus,
+	fixedOpenAICompatibleCheckedAt,
+	passedOpenAICompatibleAuthStatus,
 } from "./fixtures/providers/provider-setup-fixtures";
 
 const fixedCheckedAt = "2026-05-13T00:00:00.000Z";
@@ -53,6 +72,86 @@ const settingsWithCloudProfile = (profile: UserProviderProfile): VoidbrainPlugin
 		chat: {
 			providerId: profile.id,
 			modelId: profile.models[0]?.id ?? null,
+		},
+	},
+});
+
+const settingsWithLocalProfile = (
+	profile: UserProviderProfile,
+	authStatus: ProviderAuthTestRecord,
+): VoidbrainPluginSettings => ({
+	...DEFAULT_PLUGIN_SETTINGS,
+	providerProfiles: [profile],
+	providerAuthStatuses: [authStatus],
+	providerRoles: {
+		...DEFAULT_PLUGIN_SETTINGS.providerRoles,
+		chat: {
+			providerId: profile.id,
+			modelId: profile.models[0]?.id ?? null,
+		},
+		embedding: {
+			providerId: profile.id,
+			modelId: profile.models[1]?.id ?? null,
+		},
+	},
+});
+
+const settingsWithOpenAICompatibleProfile = (
+	profile: UserProviderProfile,
+	authStatus: ProviderAuthTestRecord,
+	options: {
+		readonly areCloudProvidersEnabled?: boolean;
+		readonly trustedProviderIds?: readonly UserProviderProfile["id"][];
+		readonly modelIndex?: number;
+	} = {},
+): VoidbrainPluginSettings => {
+	const selectedModel =
+		options.modelIndex === undefined
+			? (profile.models.find((model) => model.roles.includes("chat")) ?? profile.models[0])
+			: profile.models[options.modelIndex];
+
+	return {
+		...DEFAULT_PLUGIN_SETTINGS,
+		areCloudProvidersEnabled: options.areCloudProvidersEnabled ?? false,
+		trustedProviderIds: options.trustedProviderIds ?? [],
+		providerProfiles: [profile],
+		providerAuthStatuses: [authStatus],
+		providerRoles: {
+			...DEFAULT_PLUGIN_SETTINGS.providerRoles,
+			chat: {
+				providerId: profile.id,
+				modelId: selectedModel?.id ?? null,
+			},
+		},
+	};
+};
+
+const missingSecretOpenAICompatibleAuthStatus = (
+	profile: UserProviderProfile,
+	endpointClassification: "trusted-cloud",
+): ProviderAuthTestRecord => ({
+	providerId: profile.id,
+	status: "missing-secret",
+	checkedAt: fixedOpenAICompatibleCheckedAt,
+	statusCode: null,
+	modelCount: profile.models.length,
+	durationMs: 0,
+	diagnostic: {
+		providerId: profile.id,
+		reason: "missing-runtime-reference",
+	},
+	openaiCompatibleReadiness: {
+		providerId: profile.id,
+		status: "not-ready",
+		code: "missing-secret",
+		endpointClassification,
+		checkedAt: fixedOpenAICompatibleCheckedAt,
+		durationMs: 0,
+		statusCode: null,
+		modelCount: profile.models.length,
+		diagnostic: {
+			providerId: profile.id,
+			reason: "missing-runtime-reference",
 		},
 	},
 });
@@ -207,6 +306,287 @@ describe("provider setup preflight", () => {
 			allowed: true,
 			provider: {
 				id: SYNTHETIC_CLOUD_PROFILE_ID,
+			},
+		});
+	});
+
+	it("allows selected local profiles only after local readiness is ready", () => {
+		const profile = expectFirstProfile(SYNTHETIC_LOCAL_PROFILE_INPUT);
+		const readyAuthStatus: ProviderAuthTestRecord = {
+			...passedAuthStatus(profile),
+			localRuntimeReadiness: SYNTHETIC_LOCAL_READY_READINESS_RECORD,
+		};
+		const settings = settingsWithLocalProfile(profile, readyAuthStatus);
+
+		expect(
+			preflightProviderSetup(
+				{ settings },
+				{
+					role: "chat",
+					contentSensitivity: "private-vault",
+					workflowId: "voidbrain.chat-with-vault",
+				},
+			),
+		).toMatchObject({
+			allowed: true,
+			provider: {
+				id: profile.id,
+			},
+		});
+	});
+
+	it("denies selected local profiles with missing or offline readiness", () => {
+		const profile = expectFirstProfile(SYNTHETIC_LOCAL_PROFILE_INPUT);
+		const missingReadinessSettings = settingsWithLocalProfile(profile, passedAuthStatus(profile));
+		const offlineSettings = settingsWithLocalProfile(profile, {
+			...passedAuthStatus(profile),
+			status: "failed",
+			localRuntimeReadiness: SYNTHETIC_LOCAL_OFFLINE_READINESS_RECORD,
+		});
+
+		expect(
+			preflightProviderSetup(
+				{ settings: missingReadinessSettings },
+				{
+					role: "chat",
+					contentSensitivity: "private-vault",
+					workflowId: "voidbrain.chat-with-vault",
+				},
+			),
+		).toMatchObject({
+			allowed: false,
+			code: "local-readiness-not-ready",
+			diagnostic: {
+				readinessCode: "not-checked",
+			},
+		});
+
+		expect(
+			preflightProviderSetup(
+				{ settings: offlineSettings },
+				{
+					role: "embedding",
+					contentSensitivity: "private-vault",
+					workflowId: "voidbrain.chat-with-vault",
+				},
+			),
+		).toMatchObject({
+			allowed: false,
+			code: "local-readiness-not-ready",
+			diagnostic: {
+				readinessCode: "offline",
+			},
+		});
+	});
+
+	it("allows OpenAI-compatible local-compatible and trusted cloud profiles after auth readiness passes", () => {
+		const localProfile = expectFirstProfile(OPENAI_COMPATIBLE_LOCAL_PROFILE_INPUT);
+		const trustedCloudProfile = expectFirstProfile(OPENAI_COMPATIBLE_TRUSTED_CLOUD_PROFILE_INPUT);
+		const localSettings = settingsWithOpenAICompatibleProfile(
+			localProfile,
+			passedOpenAICompatibleAuthStatus(OPENAI_COMPATIBLE_LOCAL_PROFILE_ID, "local-compatible", 2),
+		);
+		const trustedCloudSettings = settingsWithOpenAICompatibleProfile(
+			trustedCloudProfile,
+			passedOpenAICompatibleAuthStatus(OPENAI_COMPATIBLE_TRUSTED_CLOUD_PROFILE_ID, "trusted-cloud", 3),
+			{
+				areCloudProvidersEnabled: true,
+				trustedProviderIds: [OPENAI_COMPATIBLE_TRUSTED_CLOUD_PROFILE_ID],
+			},
+		);
+
+		expect(
+			preflightProviderSetup(
+				{ settings: localSettings },
+				{
+					role: "chat",
+					contentSensitivity: "private-vault",
+					workflowId: "voidbrain.chat-with-vault",
+				},
+			),
+		).toMatchObject({
+			allowed: true,
+			provider: {
+				id: OPENAI_COMPATIBLE_LOCAL_PROFILE_ID,
+			},
+			diagnostic: {
+				providerId: OPENAI_COMPATIBLE_LOCAL_PROFILE_ID,
+			},
+		});
+
+		expect(
+			preflightProviderSetup(
+				{ settings: trustedCloudSettings },
+				{
+					role: "chat",
+					contentSensitivity: "private-vault",
+					workflowId: "voidbrain.chat-with-vault",
+				},
+			),
+		).toMatchObject({
+			allowed: true,
+			provider: {
+				id: OPENAI_COMPATIBLE_TRUSTED_CLOUD_PROFILE_ID,
+			},
+		});
+	});
+
+	it("denies OpenAI-compatible untrusted cloud and custom remote profiles until trust settings allow disclosure", () => {
+		const untrustedProfile = expectFirstProfile(OPENAI_COMPATIBLE_UNTRUSTED_CLOUD_PROFILE_INPUT);
+		const customRemoteProfile = expectFirstProfile(OPENAI_COMPATIBLE_CUSTOM_REMOTE_PROFILE_INPUT);
+		const untrustedSettings = settingsWithOpenAICompatibleProfile(
+			untrustedProfile,
+			passedOpenAICompatibleAuthStatus(OPENAI_COMPATIBLE_UNTRUSTED_CLOUD_PROFILE_ID, "untrusted-cloud", 1),
+			{
+				areCloudProvidersEnabled: true,
+				trustedProviderIds: [OPENAI_COMPATIBLE_UNTRUSTED_CLOUD_PROFILE_ID],
+			},
+		);
+		const customRemoteWithoutTrust = settingsWithOpenAICompatibleProfile(
+			customRemoteProfile,
+			passedOpenAICompatibleAuthStatus(OPENAI_COMPATIBLE_CUSTOM_REMOTE_PROFILE_ID, "custom-remote", 2),
+			{
+				areCloudProvidersEnabled: true,
+			},
+		);
+		const customRemoteTrusted = settingsWithOpenAICompatibleProfile(
+			customRemoteProfile,
+			passedOpenAICompatibleAuthStatus(OPENAI_COMPATIBLE_CUSTOM_REMOTE_PROFILE_ID, "custom-remote", 2),
+			{
+				areCloudProvidersEnabled: true,
+				trustedProviderIds: [OPENAI_COMPATIBLE_CUSTOM_REMOTE_PROFILE_ID],
+			},
+		);
+
+		expect(
+			preflightProviderSetup(
+				{ settings: untrustedSettings },
+				{
+					role: "chat",
+					contentSensitivity: "private-vault",
+					workflowId: "voidbrain.chat-with-vault",
+				},
+			),
+		).toMatchObject({
+			allowed: false,
+			code: "privacy-denied",
+			diagnostic: {
+				endpointClassification: "untrusted-cloud",
+			},
+		});
+
+		expect(
+			preflightProviderSetup(
+				{ settings: customRemoteWithoutTrust },
+				{
+					role: "chat",
+					contentSensitivity: "private-vault",
+					workflowId: "voidbrain.chat-with-vault",
+				},
+			),
+		).toMatchObject({
+			allowed: false,
+			code: "privacy-denied",
+			diagnostic: {
+				endpointClassification: "custom-remote",
+			},
+		});
+
+		expect(
+			preflightProviderSetup(
+				{ settings: customRemoteTrusted },
+				{
+					role: "chat",
+					contentSensitivity: "private-vault",
+					workflowId: "voidbrain.chat-with-vault",
+				},
+			),
+		).toMatchObject({
+			allowed: true,
+			provider: {
+				id: OPENAI_COMPATIBLE_CUSTOM_REMOTE_PROFILE_ID,
+			},
+		});
+	});
+
+	it("denies OpenAI-compatible missing-secret, auth-failed, and capability mismatch states", () => {
+		const missingSecretProfile = expectFirstProfile(OPENAI_COMPATIBLE_MISSING_SECRET_PROFILE_INPUT);
+		const authFailedProfile = expectFirstProfile(OPENAI_COMPATIBLE_AUTH_FAILED_PROFILE_INPUT);
+		const capabilityMismatchProfile = expectFirstProfile(OPENAI_COMPATIBLE_CAPABILITY_MISMATCH_PROFILE_INPUT);
+		const missingSecretSettings = settingsWithOpenAICompatibleProfile(
+			missingSecretProfile,
+			missingSecretOpenAICompatibleAuthStatus(missingSecretProfile, "trusted-cloud"),
+			{
+				areCloudProvidersEnabled: true,
+				trustedProviderIds: [OPENAI_COMPATIBLE_MISSING_SECRET_PROFILE_ID],
+			},
+		);
+		const authFailedSettings = settingsWithOpenAICompatibleProfile(
+			authFailedProfile,
+			failedOpenAICompatibleAuthStatus(OPENAI_COMPATIBLE_AUTH_FAILED_PROFILE_ID, "trusted-cloud"),
+			{
+				areCloudProvidersEnabled: true,
+				trustedProviderIds: [OPENAI_COMPATIBLE_AUTH_FAILED_PROFILE_ID],
+			},
+		);
+		const capabilityMismatchSettings = settingsWithOpenAICompatibleProfile(
+			capabilityMismatchProfile,
+			passedOpenAICompatibleAuthStatus(OPENAI_COMPATIBLE_CAPABILITY_MISMATCH_PROFILE_ID, "trusted-cloud", 1),
+			{
+				areCloudProvidersEnabled: true,
+				trustedProviderIds: [OPENAI_COMPATIBLE_CAPABILITY_MISMATCH_PROFILE_ID],
+			},
+		);
+
+		expect(
+			preflightProviderSetup(
+				{ settings: missingSecretSettings },
+				{
+					role: "chat",
+					contentSensitivity: "private-vault",
+					workflowId: "voidbrain.chat-with-vault",
+				},
+			),
+		).toMatchObject({
+			allowed: false,
+			code: "auth-not-ready",
+			diagnostic: {
+				authReadinessCode: "missing-secret",
+			},
+		});
+
+		expect(
+			preflightProviderSetup(
+				{ settings: authFailedSettings },
+				{
+					role: "chat",
+					contentSensitivity: "private-vault",
+					workflowId: "voidbrain.chat-with-vault",
+				},
+			),
+		).toMatchObject({
+			allowed: false,
+			code: "auth-not-ready",
+			diagnostic: {
+				authReadinessCode: "auth-failed",
+			},
+		});
+
+		expect(
+			preflightProviderSetup(
+				{ settings: capabilityMismatchSettings },
+				{
+					role: "chat",
+					contentSensitivity: "private-vault",
+					workflowId: "voidbrain.chat-with-vault",
+				},
+			),
+		).toMatchObject({
+			allowed: false,
+			code: "capability-denied",
+			diagnostic: {
+				capabilityCode: "capability-unsupported",
+				endpointClassification: "trusted-cloud",
 			},
 		});
 	});

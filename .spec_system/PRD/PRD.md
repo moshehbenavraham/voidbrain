@@ -119,7 +119,7 @@ This system delivers the product via phases. Each phase is implemented via multi
 | 00 | Foundation | 6 | Complete |
 | 01 | Vault Intelligence MVP | 8 | Complete |
 | 02 | Agentic Maintenance | 7 | Complete |
-| 03 | Offline and Provider Hardening | TBD | Not Started |
+| 03 | Offline and Provider Hardening | 6 | In Progress |
 | 04 | Distribution and Ecosystem | TBD | Not Started |
 
 ## Phase 00: Foundation
@@ -194,6 +194,41 @@ and batch source ingestion.
 | 05 | Similar Note and Placement Suggestions | Suggest related notes, wikilinks, tags, folders, and frontmatter placement through staged review. |
 | 06 | Batch Source Ingestion Queue | Queue multiple approved markdown, text, pasted, or URL source records with provider review, citations, cancellation, retry, and recovery. |
 | 07 | Agentic Maintenance Integration Validation | Validate the complete Phase 02 workflow and synchronize docs, agent surfaces, phase records, and residual risk notes. |
+
+## Phase 03: Offline and Provider Hardening
+
+Phase 03 hardens local runtime and OpenAI-compatible provider workflows. It
+turns existing provider privacy, capability, auth, redaction, retrieval, and
+indexing contracts into inspectable provider profiles, invocation boundaries,
+offline embedding compatibility, troubleshooting, and closeout validation.
+
+Phase 03 is in progress. Session 01 is complete and the remaining sessions
+continue in the same phase.
+
+### Objectives
+
+1. Let users configure local runtime provider profiles for offline chat and
+   embeddings with inspectable readiness and no secret leakage.
+2. Harden OpenAI-compatible local, custom, and cloud provider profile handling
+   with explicit endpoint, credential, trust, and model capability checks.
+3. Route chat and embedding invocations through cancellable provider adapters
+   that fail closed, redact diagnostics, and avoid durable prompt or credential
+   storage.
+4. Keep semantic indexing and retrieval resilient when local runtimes are
+   offline, embedding model families change, or provider capability checks fail.
+5. Surface provider troubleshooting, retry, recovery, and validation evidence
+   without mutating user vault files or disclosing private content.
+
+### Sessions
+
+| Session | Name | Objective |
+|---------|------|-----------|
+| 01 | Local Runtime Provider Profiles | Harden local runtime provider profiles for offline chat and embedding readiness. |
+| 02 | OpenAI-Compatible Provider Profiles | Harden OpenAI-compatible endpoint, credential, trust, auth, and capability handling. |
+| 03 | Provider Transport Invocation Boundaries | Gate provider chat and embedding adapters behind preflight, cancellation, timeout, retry, and redaction behavior. |
+| 04 | Offline Embeddings and Index Compatibility | Keep semantic indexing and retrieval safe across local runtime outages and embedding model family changes. |
+| 05 | Provider Troubleshooting and Recovery UX | Surface provider readiness, troubleshooting, retry, recovery, and docs without leaking secrets or private content. |
+| 06 | Offline Provider Integration Validation | Validate Phase 03 workflows and synchronize docs, agent surfaces, security, phase records, and residual risks. |
 
 ## Technical Stack
 

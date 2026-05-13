@@ -4,10 +4,16 @@ import { DEFAULT_PLUGIN_SETTINGS, SETTINGS_SCHEMA_VERSION } from "../src/types/p
 import { makeNormalizedVaultPath } from "../src/types/vault";
 import { parsePluginSettings, savePluginSettings } from "../src/utils/settings";
 import {
+	OPENAI_COMPATIBLE_TRUSTED_CLOUD_PROFILE_ID,
+	OPENAI_COMPATIBLE_TRUSTED_CLOUD_PROFILE_INPUT,
+	OPENAI_COMPATIBLE_UNTRUSTED_CLOUD_PROFILE_ID,
 	SYNTHETIC_CLOUD_PROFILE_ID,
 	SYNTHETIC_CLOUD_PROFILE_INPUT,
+	SYNTHETIC_LOCAL_PROFILE_ID,
 	SYNTHETIC_LOCAL_PROFILE_INPUT,
+	SYNTHETIC_LOCAL_READY_READINESS_RECORD,
 	SYNTHETIC_PROFILE_REFERENCE,
+	passedOpenAICompatibleAuthStatus,
 } from "./fixtures/providers/provider-setup-fixtures";
 
 describe("Phase 01 plugin settings migration", () => {
@@ -229,5 +235,171 @@ describe("Phase 01 plugin settings migration", () => {
 
 		expect(result.status).toBe("loaded");
 		expect(JSON.stringify(result.settings)).not.toContain("hidden-runtime-state");
+	});
+
+	it("recovers local runtime readiness records with redacted diagnostics and deduplicated model IDs", () => {
+		const result = parsePluginSettings({
+			schemaVersion: SETTINGS_SCHEMA_VERSION,
+			providerProfiles: [SYNTHETIC_LOCAL_PROFILE_INPUT],
+			providerAuthStatuses: [
+				{
+					providerId: SYNTHETIC_LOCAL_PROFILE_ID,
+					status: "passed",
+					checkedAt: "2026-05-13T00:00:00.000Z",
+					statusCode: null,
+					modelCount: 2,
+					durationMs: 1,
+					diagnostic: {
+						providerId: SYNTHETIC_LOCAL_PROFILE_ID,
+					},
+					localRuntimeReadiness: {
+						...SYNTHETIC_LOCAL_READY_READINESS_RECORD,
+						modelIds: ["synthetic-local-chat", "synthetic-local-chat", "synthetic-local-embedding"],
+						diagnostic: {
+							runtimeSecret: "inline-runtime-value",
+							providerId: SYNTHETIC_LOCAL_PROFILE_ID,
+						},
+					},
+				},
+				{
+					providerId: SYNTHETIC_LOCAL_PROFILE_ID,
+					status: "failed",
+					checkedAt: "2026-05-13T00:00:00.000Z",
+					statusCode: null,
+					modelCount: 0,
+					durationMs: 1,
+					diagnostic: {},
+				},
+			],
+		});
+
+		expect(result.status).toBe("recovered");
+		expect(result.settings.providerAuthStatuses).toHaveLength(1);
+		expect(result.settings.providerAuthStatuses[0]?.localRuntimeReadiness).toMatchObject({
+			providerId: SYNTHETIC_LOCAL_PROFILE_ID,
+			status: "ready",
+			code: "ready",
+			diagnostic: {
+				runtimeSecret: "[REDACTED]",
+			},
+		});
+		expect(result.settings.providerAuthStatuses[0]?.localRuntimeReadiness?.modelIds).toEqual([
+			makeProviderModelId("synthetic-local-chat"),
+			makeProviderModelId("synthetic-local-embedding"),
+		]);
+		expect(result.errors.map((error) => error.field)).toEqual(
+			expect.arrayContaining(["providerAuthStatuses[1].providerId"]),
+		);
+		expect(JSON.stringify(result.settings)).not.toContain("inline-runtime-value");
+	});
+
+	it("drops local runtime readiness records that do not match the parent provider", () => {
+		const result = parsePluginSettings({
+			schemaVersion: SETTINGS_SCHEMA_VERSION,
+			providerProfiles: [SYNTHETIC_LOCAL_PROFILE_INPUT],
+			providerAuthStatuses: [
+				{
+					providerId: SYNTHETIC_LOCAL_PROFILE_ID,
+					status: "passed",
+					checkedAt: "2026-05-13T00:00:00.000Z",
+					statusCode: null,
+					modelCount: 2,
+					durationMs: 1,
+					diagnostic: {},
+					localRuntimeReadiness: {
+						...SYNTHETIC_LOCAL_READY_READINESS_RECORD,
+						providerId: SYNTHETIC_CLOUD_PROFILE_ID,
+					},
+				},
+			],
+		});
+
+		expect(result.status).toBe("recovered");
+		expect(result.settings.providerAuthStatuses[0]?.localRuntimeReadiness).toBeUndefined();
+		expect(result.errors.map((error) => error.field)).toEqual(
+			expect.arrayContaining(["providerAuthStatuses[0].localRuntimeReadiness.providerId"]),
+		);
+	});
+
+	it("recovers OpenAI-compatible readiness records with redacted diagnostics and duplicate auth cleanup", () => {
+		const authStatus = passedOpenAICompatibleAuthStatus(
+			OPENAI_COMPATIBLE_TRUSTED_CLOUD_PROFILE_ID,
+			"trusted-cloud",
+			3,
+		);
+		const result = parsePluginSettings({
+			schemaVersion: SETTINGS_SCHEMA_VERSION,
+			providerProfiles: [OPENAI_COMPATIBLE_TRUSTED_CLOUD_PROFILE_INPUT],
+			providerAuthStatuses: [
+				{
+					...authStatus,
+					diagnostic: {
+						runtimeSecret: "inline-runtime-value",
+						providerId: OPENAI_COMPATIBLE_TRUSTED_CLOUD_PROFILE_ID,
+					},
+					openaiCompatibleReadiness: {
+						...authStatus.openaiCompatibleReadiness,
+						diagnostic: {
+							runtimeSecret: "inline-runtime-value",
+							providerId: OPENAI_COMPATIBLE_TRUSTED_CLOUD_PROFILE_ID,
+						},
+					},
+				},
+				{
+					...authStatus,
+					status: "failed",
+				},
+			],
+			providerRoles: {
+				chat: {
+					providerId: OPENAI_COMPATIBLE_TRUSTED_CLOUD_PROFILE_ID,
+					modelId: "synthetic-openai-chat",
+				},
+			},
+			trustedProviderIds: [OPENAI_COMPATIBLE_TRUSTED_CLOUD_PROFILE_ID],
+		});
+
+		expect(result.status).toBe("recovered");
+		expect(result.settings.providerAuthStatuses).toHaveLength(1);
+		expect(result.settings.providerAuthStatuses[0]?.openaiCompatibleReadiness).toMatchObject({
+			providerId: OPENAI_COMPATIBLE_TRUSTED_CLOUD_PROFILE_ID,
+			status: "ready",
+			code: "ready",
+			endpointClassification: "trusted-cloud",
+			diagnostic: {
+				runtimeSecret: "[REDACTED]",
+			},
+		});
+		expect(result.errors.map((error) => error.field)).toEqual(
+			expect.arrayContaining(["providerAuthStatuses[1].providerId"]),
+		);
+		expect(JSON.stringify(result.settings)).not.toContain("inline-runtime-value");
+	});
+
+	it("drops OpenAI-compatible readiness records that do not match the parent provider", () => {
+		const authStatus = passedOpenAICompatibleAuthStatus(
+			OPENAI_COMPATIBLE_TRUSTED_CLOUD_PROFILE_ID,
+			"trusted-cloud",
+			3,
+		);
+		const result = parsePluginSettings({
+			schemaVersion: SETTINGS_SCHEMA_VERSION,
+			providerProfiles: [OPENAI_COMPATIBLE_TRUSTED_CLOUD_PROFILE_INPUT],
+			providerAuthStatuses: [
+				{
+					...authStatus,
+					openaiCompatibleReadiness: {
+						...authStatus.openaiCompatibleReadiness,
+						providerId: OPENAI_COMPATIBLE_UNTRUSTED_CLOUD_PROFILE_ID,
+					},
+				},
+			],
+		});
+
+		expect(result.status).toBe("recovered");
+		expect(result.settings.providerAuthStatuses[0]?.openaiCompatibleReadiness).toBeUndefined();
+		expect(result.errors.map((error) => error.field)).toEqual(
+			expect.arrayContaining(["providerAuthStatuses[0].openaiCompatibleReadiness.providerId"]),
+		);
 	});
 });

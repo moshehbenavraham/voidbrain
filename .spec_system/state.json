@@ -2,8 +2,8 @@
   "version": "2.0",
   "project_name": "voidbrain",
   "description": "Research-backed project for exploring and developing open-source Obsidian-style AI second-brain tooling, with local examples and requirements to be refined.",
-  "current_phase": 2,
-  "current_session": null,
+  "current_phase": 3,
+  "current_session": "phase03-session02-openai-compatible-provider-profiles",
   "monorepo": false,
   "phases": {
     "0": {
@@ -23,6 +23,12 @@
       "description": "Implement read-only recovery, hardened agent surface validation, dry-run framework update previews, reviewable maintenance recommendations, similar-note and placement suggestions, batch source ingestion, and integration validation.",
       "status": "complete",
       "session_count": 7
+    },
+    "3": {
+      "name": "Offline and Provider Hardening",
+      "description": "Harden local runtime and OpenAI-compatible provider profiles, provider invocation boundaries, offline embedding/index compatibility, troubleshooting, and integration validation while preserving local-first disclosure and redaction guarantees.",
+      "status": "in_progress",
+      "session_count": 6
     }
   },
   "completed_sessions": [
@@ -46,7 +52,8 @@
     "phase02-session04-maintenance-recommendation-planner",
     "phase02-session05-similar-note-placement-suggestions",
     "phase02-session06-batch-source-ingestion-queue",
-    "phase02-session07-agentic-maintenance-integration-validation"
+    "phase02-session07-agentic-maintenance-integration-validation",
+    "phase03-session01-local-runtime-provider-profiles"
   ],
   "next_session_history": [
     {
@@ -223,6 +230,21 @@
       "date": "2026-05-13",
       "session": "phase02-session07-agentic-maintenance-integration-validation",
       "status": "completed"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase03-session01-local-runtime-provider-profiles",
+      "status": "planned"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase03-session01-local-runtime-provider-profiles",
+      "status": "completed"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase03-session02-openai-compatible-provider-profiles",
+      "status": "planned"
     }
   ]
 }

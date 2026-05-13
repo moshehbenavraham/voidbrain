@@ -1,5 +1,7 @@
 import type { VoidbrainPluginSettings } from "../types/plugin";
 import type {
+	LocalRuntimeReadinessRecord,
+	OpenAICompatibleAuthReadinessRecord,
 	ProviderRoleCapabilitySummary,
 	ProviderSetupPreflightDecision,
 	ProviderSetupPreflightDenied,
@@ -17,6 +19,8 @@ import type {
 	RedactedDiagnosticObject,
 } from "../types/providers";
 import { findModel, findProvider, modelSupportsCapability } from "./capability-selection";
+import { isLocalRuntimeReadinessReady, isLocalRuntimeReadinessReadyForRole } from "./local-runtime-readiness";
+import { summarizeOpenAICompatibleCapabilityReadiness } from "./openai-compatible-profiles";
 import { preflightProviderInvocation } from "./privacy-guard";
 import { capabilityForRole, mergeProviderDefinitions } from "./provider-profile-service";
 import { BASELINE_PROVIDERS } from "./provider-registry";
@@ -76,11 +80,103 @@ const createAuthStateMap = (settings: VoidbrainPluginSettings): ReadonlyMap<Prov
 	return authStates;
 };
 
+const localRuntimeReadinessForProvider = (
+	settings: VoidbrainPluginSettings,
+	providerId: ProviderId,
+): LocalRuntimeReadinessRecord | undefined =>
+	settings.providerAuthStatuses.find((authStatus) => authStatus.providerId === providerId)?.localRuntimeReadiness;
+
+const openAICompatibleReadinessForProvider = (
+	settings: VoidbrainPluginSettings,
+	providerId: ProviderId,
+): OpenAICompatibleAuthReadinessRecord | undefined =>
+	settings.providerAuthStatuses.find((authStatus) => authStatus.providerId === providerId)?.openaiCompatibleReadiness;
+
+const localReadinessEvidence = (readiness: LocalRuntimeReadinessRecord) => ({
+	status: readiness.status,
+	code: readiness.code,
+	checkedAt: readiness.checkedAt,
+	durationMs: readiness.durationMs,
+	modelCount: readiness.modelCount,
+	chatModelCount: readiness.chatModelCount,
+	embeddingModelCount: readiness.embeddingModelCount,
+});
+
+const openAICompatibleAuthEvidence = (readiness: OpenAICompatibleAuthReadinessRecord) => ({
+	status: readiness.status,
+	code: readiness.code,
+	endpointClassification: readiness.endpointClassification,
+	checkedAt: readiness.checkedAt,
+	durationMs: readiness.durationMs,
+	statusCode: readiness.statusCode,
+	modelCount: readiness.modelCount,
+});
+
+const openAICompatibleCapabilityEvidence = (settings: VoidbrainPluginSettings, provider: ProviderDefinition) =>
+	providerRoles
+		.map((role) => {
+			const selection = settings.providerRoles[role];
+			if (selection.providerId !== provider.id) {
+				return undefined;
+			}
+
+			const readiness = summarizeOpenAICompatibleCapabilityReadiness(
+				provider,
+				role,
+				capabilityForRole(role),
+				selection.modelId,
+			);
+
+			if (readiness === undefined) {
+				return undefined;
+			}
+
+			return {
+				role: readiness.role,
+				requiredCapability: readiness.requiredCapability,
+				status: readiness.status,
+				code: readiness.code,
+				modelId: readiness.modelId,
+				modelCount: readiness.modelCount,
+			};
+		})
+		.filter((readiness): readiness is NonNullable<typeof readiness> => readiness !== undefined);
+
+const attachProviderReadinessEvidence = (
+	settings: VoidbrainPluginSettings,
+	providers: readonly ProviderDefinition[],
+): readonly ProviderDefinition[] =>
+	providers.map((provider) => {
+		const readiness = localRuntimeReadinessForProvider(settings, provider.id);
+		const authReadiness = openAICompatibleReadinessForProvider(settings, provider.id);
+		const capabilityReadiness = openAICompatibleCapabilityEvidence(settings, provider);
+
+		if (
+			provider.setupMetadata === undefined ||
+			(readiness === undefined && authReadiness === undefined && capabilityReadiness.length === 0)
+		) {
+			return provider;
+		}
+
+		return {
+			...provider,
+			setupMetadata: {
+				...provider.setupMetadata,
+				...(readiness === undefined ? {} : { localReadiness: localReadinessEvidence(readiness) }),
+				...(authReadiness === undefined ? {} : { authReadiness: openAICompatibleAuthEvidence(authReadiness) }),
+				...(capabilityReadiness.length === 0 ? {} : { capabilityReadiness }),
+			},
+		};
+	});
+
 export const buildProviderDefinitionsForSettings = (
 	settings: VoidbrainPluginSettings,
 	baselineProviders: readonly ProviderDefinition[] = BASELINE_PROVIDERS,
 ): readonly ProviderDefinition[] =>
-	mergeProviderDefinitions(baselineProviders, settings.providerProfiles, createAuthStateMap(settings)).providers;
+	attachProviderReadinessEvidence(
+		settings,
+		mergeProviderDefinitions(baselineProviders, settings.providerProfiles, createAuthStateMap(settings)).providers,
+	);
 
 export const buildProviderPrivacyPolicy = (settings: VoidbrainPluginSettings): ProviderPrivacyPolicy => ({
 	areCloudProvidersEnabled: settings.areCloudProvidersEnabled,
@@ -98,8 +194,16 @@ const authStateForProvider = (settings: VoidbrainPluginSettings, provider: Provi
 };
 
 const isProviderAuthReady = (settings: VoidbrainPluginSettings, provider: ProviderDefinition): boolean => {
-	if (provider.kind === "local") {
+	if (provider.kind === "local" && provider.setupMetadata?.source !== "user-profile") {
 		return true;
+	}
+
+	if (provider.setupMetadata?.openaiCompatible !== undefined) {
+		return authStateForProvider(settings, provider) === "passed";
+	}
+
+	if (provider.kind === "local") {
+		return isLocalRuntimeReadinessReady(localRuntimeReadinessForProvider(settings, provider.id));
 	}
 
 	return authStateForProvider(settings, provider) === "passed";
@@ -191,6 +295,38 @@ export const summarizeProviderRoleCapabilities = (
 			};
 		}
 
+		if (
+			provider.kind === "local" &&
+			provider.setupMetadata?.source === "user-profile" &&
+			provider.setupMetadata.openaiCompatible === undefined &&
+			!isLocalRuntimeReadinessReadyForRole(
+				localRuntimeReadinessForProvider(settings, provider.id),
+				role,
+				model.id,
+			)
+		) {
+			return {
+				role,
+				requiredCapability,
+				providerId: provider.id,
+				modelId: model.id,
+				status: "readiness-not-ready",
+				message: `${role} local runtime readiness is not ready.`,
+			};
+		}
+
+		if (provider.setupMetadata?.openaiCompatible !== undefined && !isProviderAuthReady(settings, provider)) {
+			const authReadiness = openAICompatibleReadinessForProvider(settings, provider.id);
+			return {
+				role,
+				requiredCapability,
+				providerId: provider.id,
+				modelId: model.id,
+				status: "readiness-not-ready",
+				message: `${role} OpenAI-compatible auth readiness is not ready (${authReadiness?.code ?? "not-checked"}).`,
+			};
+		}
+
 		return {
 			role,
 			requiredCapability,
@@ -212,11 +348,17 @@ export const summarizeProviderSetup = (
 		(provider) => provider.kind === "cloud" && trustedProviderIds.has(provider.id),
 	).length;
 	const authReadyCount = providers.filter((provider) => isProviderAuthReady(settings, provider)).length;
+	const localReadinessRecords = settings.providerAuthStatuses
+		.map((status) => status.localRuntimeReadiness)
+		.filter((readiness): readiness is LocalRuntimeReadinessRecord => readiness !== undefined);
+	const localReadinessReadyCount = localReadinessRecords.filter(isLocalRuntimeReadinessReady).length;
+	const localReadinessNotReadyCount = localReadinessRecords.length - localReadinessReadyCount;
 	const mismatchCount = roleSummaries.filter(
 		(summary) =>
 			summary.status === "provider-missing" ||
 			summary.status === "model-missing" ||
-			summary.status === "capability-mismatch",
+			summary.status === "capability-mismatch" ||
+			summary.status === "readiness-not-ready",
 	).length;
 	const selectedCloudProviderMissingAuth = providers.some(
 		(provider) =>
@@ -240,11 +382,14 @@ export const summarizeProviderSetup = (
 		configuredCredentialCount: settings.providerProfiles.filter((profile) => profile.credentialReference !== null)
 			.length,
 		passedAuthCount: settings.providerAuthStatuses.filter((status) => status.status === "passed").length,
+		localReadinessReadyCount,
+		localReadinessNotReadyCount,
 		trustedCloudCount,
 		roleSelectionCount: selectedProviderIds.size,
 		details: [
 			`${settings.providerProfiles.length} user provider profile(s).`,
 			`${authReadyCount} provider(s) auth-ready for selected workflow scope.`,
+			`${localReadinessReadyCount} local runtime readiness record(s) ready.`,
 			`${trustedCloudCount} trusted cloud provider(s).`,
 			`${roleSummaries.filter((summary) => summary.status === "ready").length} role capability selection(s) ready.`,
 		],
@@ -285,8 +430,35 @@ export const preflightProviderSetup = (
 		});
 	}
 
+	if (
+		provider.kind === "local" &&
+		provider.setupMetadata?.source === "user-profile" &&
+		provider.setupMetadata.openaiCompatible === undefined &&
+		!isLocalRuntimeReadinessReadyForRole(
+			localRuntimeReadinessForProvider(context.settings, provider.id),
+			request.role,
+			selection.modelId,
+		)
+	) {
+		const readiness = localRuntimeReadinessForProvider(context.settings, provider.id);
+		return denied(
+			"local-readiness-not-ready",
+			"Selected local runtime readiness is not ready.",
+			"Local runtime readiness must pass setup first.",
+			{
+				role: request.role,
+				providerId: provider.id,
+				readinessStatus: readiness?.status ?? "missing",
+				readinessCode: readiness?.code ?? "not-checked",
+				requiredCapability,
+				workflowId: request.workflowId ?? null,
+			},
+		);
+	}
+
 	if (!isProviderAuthReady(context.settings, provider)) {
 		const authState = authStateForProvider(context.settings, provider);
+		const authReadiness = openAICompatibleReadinessForProvider(context.settings, provider.id);
 		return denied(
 			"auth-not-ready",
 			"Selected provider auth is not ready.",
@@ -295,6 +467,9 @@ export const preflightProviderSetup = (
 				role: request.role,
 				providerId: provider.id,
 				authState,
+				endpointClassification: provider.setupMetadata?.openaiCompatible?.endpointClassification ?? null,
+				authReadinessStatus: authReadiness?.status ?? "missing",
+				authReadinessCode: authReadiness?.code ?? "not-checked",
 				requiredCapability,
 				workflowId: request.workflowId ?? null,
 			},

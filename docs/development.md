@@ -10,6 +10,7 @@ bun run check
 bun run lint
 bun run test
 bun run validate
+bun run health
 ```
 
 ## Validation Commands
@@ -28,6 +29,9 @@ surfaces, and unreadable surfaces.
 source contracts, and synthetic fixtures. It fails on secret-like examples,
 credential-like values, private path hints, unsupported scan paths, and
 unreadable candidates.
+
+`health` verifies the repository health probe, deployment posture, and CI
+workflow coverage for the local-first plugin release model.
 
 ## Source Layout
 

@@ -1,4 +1,5 @@
 import type {
+	LocalRuntimeReadinessProbe,
 	ProviderAuthTestProbe,
 	ProviderAuthTestProbeInput,
 	ProviderAuthTestProbeResult,
@@ -6,12 +7,16 @@ import type {
 	UserProviderProfile,
 } from "../types/provider-setup";
 import type { RedactedDiagnosticObject } from "../types/providers";
+import { localRuntimeReadinessToAuthRecord, runLocalRuntimeReadinessProbe } from "./local-runtime-readiness";
+import { createOpenAICompatibleAuthReadinessRecord } from "./openai-compatible-profiles";
 import { redactDiagnostic } from "./redaction";
 import type { ProviderSecretStore } from "./secret-store";
 
 export interface ProviderAuthTestRunnerOptions {
 	readonly secretStore?: ProviderSecretStore;
 	readonly probe?: ProviderAuthTestProbe;
+	readonly localRuntimeProbe?: LocalRuntimeReadinessProbe;
+	readonly useLocalRuntimeReadiness?: boolean;
 	readonly timeoutMs?: number;
 	readonly maxAttempts?: number;
 	readonly retryBackoffMs?: number;
@@ -95,15 +100,30 @@ const createRecord = (
 	statusCode: number | null,
 	modelCount: number,
 	diagnostic: unknown,
-): ProviderAuthTestRecord => ({
-	providerId: profile.id,
-	status,
-	checkedAt: checkedAt.toISOString(),
-	durationMs,
-	statusCode,
-	modelCount,
-	diagnostic: toDiagnosticObject(diagnostic),
-});
+): ProviderAuthTestRecord => {
+	const checkedAtIso = checkedAt.toISOString();
+	const redactedDiagnostic = toDiagnosticObject(diagnostic);
+	const openaiCompatibleReadiness = createOpenAICompatibleAuthReadinessRecord(
+		profile,
+		status,
+		checkedAtIso,
+		durationMs,
+		statusCode,
+		modelCount,
+		redactedDiagnostic,
+	);
+
+	return {
+		providerId: profile.id,
+		status,
+		checkedAt: checkedAtIso,
+		durationMs,
+		statusCode,
+		modelCount,
+		diagnostic: redactedDiagnostic,
+		...(openaiCompatibleReadiness === undefined ? {} : { openaiCompatibleReadiness }),
+	};
+};
 
 const runProbeWithTimeout = async (
 	probe: ProviderAuthTestProbe,
@@ -168,6 +188,16 @@ export const runProviderAuthTest = async (
 	const retryBackoffMs = Math.max(0, options.retryBackoffMs ?? defaultRetryBackoffMs);
 	const sleep = options.sleep ?? defaultSleep;
 	const probe = options.probe ?? defaultProbe;
+
+	if (profile.providerKind === "local" && options.useLocalRuntimeReadiness === true) {
+		const readiness = await runLocalRuntimeReadinessProbe(profile, {
+			...(options.localRuntimeProbe === undefined ? {} : { probe: options.localRuntimeProbe }),
+			timeoutMs,
+			now,
+		});
+
+		return localRuntimeReadinessToAuthRecord(profile, readiness);
+	}
 
 	let runtimeCredential: string | null = null;
 	if (profile.credentialReference !== null) {

@@ -1,4 +1,8 @@
 import type {
+	LocalRuntimeFamily,
+	LocalRuntimeProfileMetadata,
+	OpenAICompatibleEndpointClassification,
+	OpenAICompatibleProfileMetadata,
 	ProviderEndpointMetadata,
 	ProviderProfileNormalizationResult,
 	ProviderProfileParseFailure,
@@ -8,6 +12,7 @@ import type {
 	UserProviderProfile,
 	UserProviderProfileKind,
 } from "../types/provider-setup";
+import { isLocalRuntimeFamily, isOpenAICompatibleEndpointClassification } from "../types/provider-setup";
 import {
 	type ModelCapability,
 	type ModelRole,
@@ -26,6 +31,7 @@ import {
 	makeProviderId,
 	makeProviderModelId,
 } from "../types/providers";
+import { classifyOpenAICompatibleEndpoint, createOpenAICompatibleProfileMetadata } from "./openai-compatible-profiles";
 import { isSecretLikeKey } from "./redaction";
 
 type UnknownRecord = Record<string, unknown>;
@@ -142,11 +148,10 @@ const parseEndpoint = (
 
 	const baseUrl = input.baseUrl;
 	if (baseUrl === null && profileKind === "local") {
-		return {
-			baseUrl: null,
-			isCloudEndpoint: false,
-			hostname: null,
-		};
+		errors.push(
+			profileError("endpoint-invalid", "endpoint.baseUrl", "local runtime endpoint.baseUrl is required."),
+		);
+		return null;
 	}
 
 	if (typeof baseUrl !== "string" || baseUrl.trim().length === 0) {
@@ -174,7 +179,9 @@ const parseEndpoint = (
 
 	const isCloudEndpoint = !isLocalHost(parsed.hostname);
 	if (providerKind === "local" && isCloudEndpoint) {
-		errors.push(profileError("endpoint-invalid", "endpoint.baseUrl", "local providers must use a local endpoint."));
+		errors.push(
+			profileError("endpoint-non-local", "endpoint.baseUrl", "local providers must use a local endpoint."),
+		);
 	}
 
 	if (providerKind === "cloud" && !isCloudEndpoint) {
@@ -344,7 +351,7 @@ const parseModels = (
 
 		if (seenModelIds.has(model.id)) {
 			errors.push(
-				profileError("model-invalid", `models[${index}].id`, "model IDs must be unique within a profile."),
+				profileError("duplicate-model-id", `models[${index}].id`, "model IDs must be unique within a profile."),
 			);
 			continue;
 		}
@@ -355,6 +362,126 @@ const parseModels = (
 
 	return models.sort(compareById);
 };
+
+const parseLocalRuntimeFamily = (
+	input: UnknownRecord,
+	errors: ProviderProfileValidationError[],
+): LocalRuntimeFamily => {
+	const rawLocalRuntime = input.localRuntime;
+	const rawFamily = input.runtimeFamily ?? (isRecord(rawLocalRuntime) ? rawLocalRuntime.runtimeFamily : undefined);
+
+	if (rawFamily === undefined) {
+		return "generic-openai-compatible";
+	}
+
+	if (!isLocalRuntimeFamily(rawFamily)) {
+		errors.push(
+			profileError(
+				"runtime-family-invalid",
+				"runtimeFamily",
+				"runtimeFamily must be a supported local runtime family.",
+			),
+		);
+		return "generic-openai-compatible";
+	}
+
+	return rawFamily;
+};
+
+const parseOpenAICompatibleEndpointClassification = (
+	input: UnknownRecord,
+	errors: ProviderProfileValidationError[],
+): OpenAICompatibleEndpointClassification | undefined => {
+	const rawOpenAICompatible = input.openaiCompatible;
+	const rawClassification =
+		input.endpointClassification ??
+		(isRecord(rawOpenAICompatible) ? rawOpenAICompatible.endpointClassification : undefined);
+
+	if (rawClassification === undefined) {
+		return undefined;
+	}
+
+	if (isOpenAICompatibleEndpointClassification(rawClassification)) {
+		return rawClassification;
+	}
+
+	errors.push(
+		profileError(
+			"endpoint-classification-invalid",
+			"endpointClassification",
+			"endpointClassification must be local-compatible, custom-remote, trusted-cloud, or untrusted-cloud.",
+		),
+	);
+	return undefined;
+};
+
+const requiredCapabilityForRole = (role: ModelRole): ModelCapability => {
+	switch (role) {
+		case "chat":
+			return "chat";
+		case "embedding":
+			return "embeddings";
+		case "utility":
+			return "attachments";
+		default:
+			return assertNeverProviderValue(role);
+	}
+};
+
+const modelSupportsRequiredRole = (model: UserProviderModelProfile, role: ModelRole): boolean =>
+	model.roles.includes(role) && model.capabilities.includes(requiredCapabilityForRole(role));
+
+const validateModelRoleCapabilityContracts = (
+	models: readonly UserProviderModelProfile[],
+	errors: ProviderProfileValidationError[],
+): void => {
+	for (const [index, model] of models.entries()) {
+		for (const role of model.roles) {
+			if (!model.capabilities.includes(requiredCapabilityForRole(role))) {
+				errors.push(
+					profileError(
+						"model-capability-mismatch",
+						`models[${index}].capabilities`,
+						`${role} models must include ${requiredCapabilityForRole(role)} capability.`,
+					),
+				);
+			}
+		}
+	}
+};
+
+const validateLocalRuntimeModelContracts = (
+	models: readonly UserProviderModelProfile[],
+	errors: ProviderProfileValidationError[],
+): void => {
+	validateModelRoleCapabilityContracts(models, errors);
+
+	if (!models.some((model) => modelSupportsRequiredRole(model, "chat"))) {
+		errors.push(profileError("missing-chat-model", "models", "local runtime profiles must include a chat model."));
+	}
+
+	if (!models.some((model) => modelSupportsRequiredRole(model, "embedding"))) {
+		errors.push(
+			profileError(
+				"missing-embedding-model",
+				"models",
+				"local runtime profiles must include an embedding model.",
+			),
+		);
+	}
+};
+
+const createLocalRuntimeMetadata = (
+	runtimeFamily: LocalRuntimeFamily,
+	endpoint: ProviderEndpointMetadata,
+	models: readonly UserProviderModelProfile[],
+): LocalRuntimeProfileMetadata => ({
+	runtimeFamily,
+	endpoint,
+	modelCount: models.length,
+	chatModelCount: models.filter((model) => modelSupportsRequiredRole(model, "chat")).length,
+	embeddingModelCount: models.filter((model) => modelSupportsRequiredRole(model, "embedding")).length,
+});
 
 const parseProfileKind = (value: unknown, errors: ProviderProfileValidationError[]): UserProviderProfileKind | null => {
 	if (value === "local" || value === "openai-compatible") {
@@ -415,15 +542,12 @@ export const parseProviderProfile = (input: unknown): ProviderProfileValidationR
 	const endpoint = parseEndpoint(input.endpoint, profileKind, providerKind, errors);
 	const credentialReference = parseSecretReference(input.credentialReference, providerId, errors);
 	const models = parseModels(input.models, providerId, errors);
+	const localRuntimeFamily = profileKind === "local" ? parseLocalRuntimeFamily(input, errors) : null;
+	const declaredOpenAICompatibleClassification =
+		profileKind === "openai-compatible" ? parseOpenAICompatibleEndpointClassification(input, errors) : undefined;
 
 	if (profileKind === "local" && providerKind !== "local") {
 		errors.push(profileError("invalid-profile", "providerKind", "local profiles must use local provider kind."));
-	}
-
-	if (profileKind === "openai-compatible" && providerKind !== "cloud") {
-		errors.push(
-			profileError("invalid-profile", "providerKind", "openai-compatible profiles must use cloud provider kind."),
-		);
 	}
 
 	if (providerKind === "local" && trustLevel !== "local-runtime") {
@@ -438,9 +562,50 @@ export const parseProviderProfile = (input: unknown): ProviderProfileValidationR
 		);
 	}
 
+	if (profileKind === "local" && models.length > 0) {
+		validateLocalRuntimeModelContracts(models, errors);
+	}
+
+	let openaiCompatible: OpenAICompatibleProfileMetadata | undefined;
+	if (profileKind === "openai-compatible" && endpoint !== null) {
+		if (models.length > 0) {
+			validateModelRoleCapabilityContracts(models, errors);
+		}
+
+		const classification = classifyOpenAICompatibleEndpoint({
+			providerKind,
+			trustLevel,
+			endpoint,
+			...(declaredOpenAICompatibleClassification === undefined
+				? {}
+				: { declaredClassification: declaredOpenAICompatibleClassification }),
+		});
+
+		if (!classification.ok) {
+			errors.push(...classification.errors);
+		} else {
+			if (classification.isCredentialRequired && credentialReference === null) {
+				errors.push(
+					profileError(
+						"missing-credential-reference",
+						"credentialReference",
+						"Remote OpenAI-compatible profiles must use an opaque credentialReference.",
+					),
+				);
+			}
+
+			openaiCompatible = createOpenAICompatibleProfileMetadata(endpoint, classification, models);
+		}
+	}
+
 	if (endpoint === null || models.length === 0 || errors.length > 0) {
 		return failure(errors);
 	}
+
+	const localRuntime =
+		profileKind === "local"
+			? createLocalRuntimeMetadata(localRuntimeFamily ?? "generic-openai-compatible", endpoint, models)
+			: undefined;
 
 	return {
 		ok: true,
@@ -453,6 +618,8 @@ export const parseProviderProfile = (input: unknown): ProviderProfileValidationR
 			endpoint,
 			credentialReference,
 			models,
+			...(localRuntime === undefined ? {} : { localRuntime }),
+			...(openaiCompatible === undefined ? {} : { openaiCompatible }),
 		},
 	};
 };
@@ -529,6 +696,32 @@ export const providerProfileToDefinition = (
 		hasCredentialReference: profile.credentialReference !== null,
 		authState,
 		modelCount: profile.models.length,
+		...(profile.localRuntime === undefined
+			? {}
+			: {
+					localRuntime: {
+						runtimeFamily: profile.localRuntime.runtimeFamily,
+						endpointHost: profile.localRuntime.endpoint.hostname,
+						chatModelCount: profile.localRuntime.chatModelCount,
+						embeddingModelCount: profile.localRuntime.embeddingModelCount,
+					},
+				}),
+		...(profile.openaiCompatible === undefined
+			? {}
+			: {
+					openaiCompatible: {
+						endpointClassification: profile.openaiCompatible.endpointClassification,
+						endpointHost: profile.openaiCompatible.endpoint.hostname,
+						isRemoteDisclosureRequired: profile.openaiCompatible.isRemoteDisclosureRequired,
+						isTrustRequired: profile.openaiCompatible.isTrustRequired,
+						isCredentialRequired: profile.openaiCompatible.isCredentialRequired,
+						chatModelCount: profile.openaiCompatible.chatModelCount,
+						streamingModelCount: profile.openaiCompatible.streamingModelCount,
+						embeddingModelCount: profile.openaiCompatible.embeddingModelCount,
+						toolModelCount: profile.openaiCompatible.toolModelCount,
+						attachmentModelCount: profile.openaiCompatible.attachmentModelCount,
+					},
+				}),
 	},
 });
 

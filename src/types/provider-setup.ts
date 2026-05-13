@@ -29,12 +29,65 @@ export const PROVIDER_ROLE_CAPABILITY_STATUSES = [
 	"provider-missing",
 	"model-missing",
 	"capability-mismatch",
+	"readiness-not-ready",
+] as const;
+export const LOCAL_RUNTIME_FAMILIES = [
+	"ollama",
+	"lm-studio",
+	"llama-cpp",
+	"vllm",
+	"generic-openai-compatible",
+] as const;
+export const LOCAL_RUNTIME_READINESS_STATUSES = ["untested", "ready", "warning", "not-ready"] as const;
+export const LOCAL_RUNTIME_READINESS_CODES = [
+	"ready",
+	"not-checked",
+	"offline",
+	"timeout",
+	"aborted",
+	"probe-failed",
+	"malformed-model-metadata",
+	"duplicate-model-id",
+	"missing-chat-capability",
+	"missing-embedding-capability",
+	"capability-mismatch",
+	"invalid-profile",
+] as const;
+export const OPENAI_COMPATIBLE_ENDPOINT_CLASSIFICATIONS = [
+	"local-compatible",
+	"custom-remote",
+	"trusted-cloud",
+	"untrusted-cloud",
+] as const;
+export const OPENAI_COMPATIBLE_READINESS_STATUSES = ["ready", "warning", "not-ready", "untested"] as const;
+export const OPENAI_COMPATIBLE_READINESS_CODES = [
+	"ready",
+	"not-checked",
+	"endpoint-invalid",
+	"endpoint-classification-mismatch",
+	"missing-credential-reference",
+	"missing-secret",
+	"auth-failed",
+	"auth-timeout",
+	"provider-not-trusted",
+	"cloud-disabled",
+	"model-missing",
+	"capability-mismatch",
+	"unsafe-provider-state",
 ] as const;
 
 export type UserProviderProfileKind = (typeof USER_PROVIDER_PROFILE_KINDS)[number];
 export type ProviderAuthTestStatus = (typeof PROVIDER_AUTH_TEST_STATUSES)[number];
 export type ProviderSetupSeverity = (typeof PROVIDER_SETUP_SEVERITIES)[number];
 export type ProviderRoleCapabilityStatus = (typeof PROVIDER_ROLE_CAPABILITY_STATUSES)[number];
+export type LocalRuntimeFamily = (typeof LOCAL_RUNTIME_FAMILIES)[number];
+export type LocalRuntimeReadinessStatus = (typeof LOCAL_RUNTIME_READINESS_STATUSES)[number];
+export type LocalRuntimeReadinessCode = (typeof LOCAL_RUNTIME_READINESS_CODES)[number];
+export type LocalRuntimeReadinessDenialCode = Exclude<LocalRuntimeReadinessCode, "ready">;
+export type OpenAICompatibleEndpointClassification = (typeof OPENAI_COMPATIBLE_ENDPOINT_CLASSIFICATIONS)[number];
+export type OpenAICompatibleReadinessStatus = (typeof OPENAI_COMPATIBLE_READINESS_STATUSES)[number];
+export type OpenAICompatibleReadinessCode = (typeof OPENAI_COMPATIBLE_READINESS_CODES)[number];
+export type OpenAICompatibleReadinessDenialCode = Exclude<OpenAICompatibleReadinessCode, "ready">;
 
 export interface ProviderEndpointMetadata {
 	readonly baseUrl: string | null;
@@ -51,6 +104,28 @@ export interface UserProviderModelProfile {
 	readonly embeddingFamily?: string;
 }
 
+export interface LocalRuntimeProfileMetadata {
+	readonly runtimeFamily: LocalRuntimeFamily;
+	readonly endpoint: ProviderEndpointMetadata;
+	readonly modelCount: number;
+	readonly chatModelCount: number;
+	readonly embeddingModelCount: number;
+}
+
+export interface OpenAICompatibleProfileMetadata {
+	readonly endpointClassification: OpenAICompatibleEndpointClassification;
+	readonly endpoint: ProviderEndpointMetadata;
+	readonly isRemoteDisclosureRequired: boolean;
+	readonly isTrustRequired: boolean;
+	readonly isCredentialRequired: boolean;
+	readonly modelCount: number;
+	readonly chatModelCount: number;
+	readonly streamingModelCount: number;
+	readonly embeddingModelCount: number;
+	readonly toolModelCount: number;
+	readonly attachmentModelCount: number;
+}
+
 export interface UserProviderProfile {
 	readonly id: ProviderId;
 	readonly displayName: string;
@@ -60,6 +135,8 @@ export interface UserProviderProfile {
 	readonly endpoint: ProviderEndpointMetadata;
 	readonly credentialReference: SecretReference | null;
 	readonly models: readonly UserProviderModelProfile[];
+	readonly localRuntime?: LocalRuntimeProfileMetadata;
+	readonly openaiCompatible?: OpenAICompatibleProfileMetadata;
 }
 
 export type ProviderProfileValidationCode =
@@ -67,7 +144,16 @@ export type ProviderProfileValidationCode =
 	| "unsafe-provider-state"
 	| "duplicate-profile-id"
 	| "endpoint-invalid"
-	| "model-invalid";
+	| "endpoint-classification-invalid"
+	| "endpoint-classification-mismatch"
+	| "endpoint-non-local"
+	| "missing-credential-reference"
+	| "runtime-family-invalid"
+	| "model-invalid"
+	| "model-capability-mismatch"
+	| "duplicate-model-id"
+	| "missing-chat-model"
+	| "missing-embedding-model";
 
 export interface ProviderProfileValidationError {
 	readonly code: ProviderProfileValidationCode;
@@ -105,6 +191,8 @@ export interface ProviderAuthTestRecord {
 	readonly modelCount: number;
 	readonly durationMs: number;
 	readonly diagnostic: RedactedDiagnosticObject;
+	readonly localRuntimeReadiness?: LocalRuntimeReadinessRecord;
+	readonly openaiCompatibleReadiness?: OpenAICompatibleAuthReadinessRecord;
 }
 
 export interface ProviderAuthTestProbeInput {
@@ -130,12 +218,95 @@ export interface ProviderAuthTestProbeFailure {
 export type ProviderAuthTestProbeResult = ProviderAuthTestProbeSuccess | ProviderAuthTestProbeFailure;
 export type ProviderAuthTestProbe = (input: ProviderAuthTestProbeInput) => Promise<ProviderAuthTestProbeResult>;
 
+export interface LocalRuntimeModelMetadata {
+	readonly id: ProviderModelId;
+	readonly displayName: string;
+	readonly roles: readonly ModelRole[];
+	readonly capabilities: readonly ModelCapability[];
+	readonly embeddingFamily?: string;
+}
+
+export interface LocalRuntimeReadinessRecord {
+	readonly providerId: ProviderId;
+	readonly status: LocalRuntimeReadinessStatus;
+	readonly code: LocalRuntimeReadinessCode;
+	readonly checkedAt: string;
+	readonly durationMs: number;
+	readonly modelCount: number;
+	readonly chatModelCount: number;
+	readonly embeddingModelCount: number;
+	readonly modelIds: readonly ProviderModelId[];
+	readonly chatModelIds: readonly ProviderModelId[];
+	readonly embeddingModelIds: readonly ProviderModelId[];
+	readonly diagnostic: RedactedDiagnosticObject;
+}
+
+export interface OpenAICompatibleAuthReadinessRecord {
+	readonly providerId: ProviderId;
+	readonly status: OpenAICompatibleReadinessStatus;
+	readonly code: OpenAICompatibleReadinessCode;
+	readonly endpointClassification: OpenAICompatibleEndpointClassification;
+	readonly checkedAt: string;
+	readonly durationMs: number;
+	readonly statusCode: number | null;
+	readonly modelCount: number;
+	readonly diagnostic: RedactedDiagnosticObject;
+}
+
+export interface OpenAICompatibleCapabilityReadinessRecord {
+	readonly providerId: ProviderId;
+	readonly role: ModelRole;
+	readonly requiredCapability: ModelCapability;
+	readonly status: OpenAICompatibleReadinessStatus;
+	readonly code: OpenAICompatibleReadinessCode;
+	readonly modelId: ProviderModelId | null;
+	readonly modelCount: number;
+	readonly diagnostic: RedactedDiagnosticObject;
+}
+
+export interface LocalRuntimeReadinessProbeInput {
+	readonly profile: UserProviderProfile;
+	readonly signal: AbortSignal;
+}
+
+export interface LocalRuntimeReadinessProbeSuccess {
+	readonly ok: true;
+	readonly statusCode?: number;
+	readonly models: readonly unknown[];
+	readonly diagnostic?: unknown;
+}
+
+export interface LocalRuntimeReadinessProbeFailure {
+	readonly ok: false;
+	readonly statusCode?: number;
+	readonly code?: LocalRuntimeReadinessDenialCode;
+	readonly diagnostic?: unknown;
+}
+
+export type LocalRuntimeReadinessProbeResult = LocalRuntimeReadinessProbeSuccess | LocalRuntimeReadinessProbeFailure;
+
+export type LocalRuntimeReadinessProbe = (
+	input: LocalRuntimeReadinessProbeInput,
+) => Promise<LocalRuntimeReadinessProbeResult>;
+
+export interface LocalRuntimeCapabilityReadinessSummary {
+	readonly role: ModelRole;
+	readonly requiredCapability: ModelCapability;
+	readonly status: LocalRuntimeReadinessStatus;
+	readonly code: LocalRuntimeReadinessCode;
+	readonly modelCount: number;
+	readonly modelIds: readonly ProviderModelId[];
+	readonly message: string;
+}
+
 export interface ProviderSetupSummary {
 	readonly severity: ProviderSetupSeverity;
 	readonly providerCount: number;
 	readonly userProfileCount: number;
 	readonly configuredCredentialCount: number;
 	readonly passedAuthCount: number;
+	readonly localReadinessReadyCount: number;
+	readonly localReadinessNotReadyCount: number;
 	readonly trustedCloudCount: number;
 	readonly roleSelectionCount: number;
 	readonly details: readonly string[];
@@ -153,6 +324,7 @@ export interface ProviderRoleCapabilitySummary {
 export type ProviderSetupPreflightDenialCode =
 	| "role-not-selected"
 	| "auth-not-ready"
+	| "local-readiness-not-ready"
 	| "privacy-denied"
 	| "capability-denied"
 	| "invalid-preflight-request";
@@ -183,3 +355,25 @@ export interface ProviderSetupPreflightDenied {
 }
 
 export type ProviderSetupPreflightDecision = ProviderSetupPreflightAllowed | ProviderSetupPreflightDenied;
+
+export const isLocalRuntimeFamily = (value: unknown): value is LocalRuntimeFamily =>
+	typeof value === "string" && LOCAL_RUNTIME_FAMILIES.includes(value as LocalRuntimeFamily);
+
+export const isLocalRuntimeReadinessStatus = (value: unknown): value is LocalRuntimeReadinessStatus =>
+	typeof value === "string" && LOCAL_RUNTIME_READINESS_STATUSES.includes(value as LocalRuntimeReadinessStatus);
+
+export const isLocalRuntimeReadinessCode = (value: unknown): value is LocalRuntimeReadinessCode =>
+	typeof value === "string" && LOCAL_RUNTIME_READINESS_CODES.includes(value as LocalRuntimeReadinessCode);
+
+export const isOpenAICompatibleEndpointClassification = (
+	value: unknown,
+): value is OpenAICompatibleEndpointClassification =>
+	typeof value === "string" &&
+	OPENAI_COMPATIBLE_ENDPOINT_CLASSIFICATIONS.includes(value as OpenAICompatibleEndpointClassification);
+
+export const isOpenAICompatibleReadinessStatus = (value: unknown): value is OpenAICompatibleReadinessStatus =>
+	typeof value === "string" &&
+	OPENAI_COMPATIBLE_READINESS_STATUSES.includes(value as OpenAICompatibleReadinessStatus);
+
+export const isOpenAICompatibleReadinessCode = (value: unknown): value is OpenAICompatibleReadinessCode =>
+	typeof value === "string" && OPENAI_COMPATIBLE_READINESS_CODES.includes(value as OpenAICompatibleReadinessCode);

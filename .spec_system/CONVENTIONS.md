@@ -111,6 +111,7 @@
 | Linter | Biome | `biome.json` |
 | Type Safety | TypeScript, Svelte Check | `tsconfig.json`, `svelte.config.ts` |
 | Testing | Vitest | `vitest.config.ts`, integration config as needed |
+| Health | Bun + GitHub Actions | `bun run health` validates repository health, deployment posture, and CI workflow presence |
 | UI Framework | Svelte | `src/components`, `src/views` |
 | Runtime Host | Obsidian API | `manifest.json`, plugin entrypoint |
 | Retrieval | MiniSearch, local vector index | service-specific config |

@@ -2,6 +2,8 @@ export * from "../types/providers";
 export * from "../types/provider-setup";
 export * from "./capability-selection";
 export * from "./chat-provider";
+export * from "./local-runtime-readiness";
+export * from "./openai-compatible-profiles";
 export * from "./privacy-guard";
 export * from "./provider-auth-test";
 export * from "./provider-preflight";

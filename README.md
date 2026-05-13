@@ -80,8 +80,10 @@ recovery expectations.
 ## Documentation Status
 
 Phase 01 MVP implementation is complete through hot cache integration
-validation. The standard documentation set lives at the repository root and in
-`docs/`, with repository-specific workflow and architecture details kept
-alongside the phase and domain docs.
+validation. Phase 02 agentic maintenance is complete, and the standard
+documentation set lives at the repository root and in `docs/`, with
+repository-specific workflow and architecture details kept alongside the phase
+and domain docs.
 
-Phase 02 is the next unfinished phase in the PRD.
+Phase 03 offline and provider hardening is the next unfinished phase in the
+PRD.

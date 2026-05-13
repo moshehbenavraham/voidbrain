@@ -16,9 +16,16 @@ import {
 	type VoidbrainPluginSettings,
 } from "../types/plugin";
 import {
+	type LocalRuntimeReadinessRecord,
+	type OpenAICompatibleAuthReadinessRecord,
 	PROVIDER_AUTH_TEST_STATUSES,
 	type ProviderAuthTestRecord,
 	type ProviderProfileValidationError,
+	isLocalRuntimeReadinessCode,
+	isLocalRuntimeReadinessStatus,
+	isOpenAICompatibleEndpointClassification,
+	isOpenAICompatibleReadinessCode,
+	isOpenAICompatibleReadinessStatus,
 } from "../types/provider-setup";
 import {
 	type ModelRole,
@@ -808,6 +815,18 @@ const readProviderAuthStatus = (
 		redactedDiagnostic.ok && isRecord(redactedDiagnostic.value)
 			? (redactedDiagnostic.value as RedactedDiagnosticObject)
 			: {};
+	const localRuntimeReadiness = readLocalRuntimeReadiness(
+		value.localRuntimeReadiness,
+		`${field}.localRuntimeReadiness`,
+		providerId,
+		errors,
+	);
+	const openaiCompatibleReadiness = readOpenAICompatibleAuthReadiness(
+		value.openaiCompatibleReadiness,
+		`${field}.openaiCompatibleReadiness`,
+		providerId,
+		errors,
+	);
 
 	if (!redactedDiagnostic.ok || !isRecord(redactedDiagnostic.value)) {
 		errors.push(
@@ -827,7 +846,217 @@ const readProviderAuthStatus = (
 		modelCount,
 		durationMs,
 		diagnostic,
+		...(localRuntimeReadiness === undefined ? {} : { localRuntimeReadiness }),
+		...(openaiCompatibleReadiness === undefined ? {} : { openaiCompatibleReadiness }),
 	};
+};
+
+const readLocalRuntimeReadiness = (
+	value: unknown,
+	field: string,
+	providerId: ProviderId,
+	errors: SettingsValidationError[],
+): LocalRuntimeReadinessRecord | undefined => {
+	if (value === undefined) {
+		return undefined;
+	}
+
+	if (!isRecord(value)) {
+		errors.push(settingError("invalid-type", field, `${field} must be an object when present.`));
+		return undefined;
+	}
+
+	const readinessProviderId = readReadinessProviderId(value.providerId, `${field}.providerId`, providerId, errors);
+	if (readinessProviderId === null) {
+		return undefined;
+	}
+
+	if (!isLocalRuntimeReadinessStatus(value.status)) {
+		errors.push(settingError("unsupported-value", `${field}.status`, `${field}.status is not supported.`));
+		return undefined;
+	}
+
+	if (!isLocalRuntimeReadinessCode(value.code)) {
+		errors.push(settingError("unsupported-value", `${field}.code`, `${field}.code is not supported.`));
+		return undefined;
+	}
+
+	const checkedAt =
+		typeof value.checkedAt === "string" && value.checkedAt.trim().length > 0
+			? value.checkedAt.trim()
+			: "1970-01-01T00:00:00.000Z";
+	const durationMs = readNonNegativeInteger(value.durationMs, `${field}.durationMs`, errors);
+	const modelCount = readNonNegativeInteger(value.modelCount, `${field}.modelCount`, errors);
+	const chatModelCount = readNonNegativeInteger(value.chatModelCount, `${field}.chatModelCount`, errors);
+	const embeddingModelCount = readNonNegativeInteger(
+		value.embeddingModelCount,
+		`${field}.embeddingModelCount`,
+		errors,
+	);
+	const modelIds = readProviderModelIdArray(value.modelIds, `${field}.modelIds`, errors);
+	const chatModelIds = readProviderModelIdArray(value.chatModelIds, `${field}.chatModelIds`, errors);
+	const embeddingModelIds = readProviderModelIdArray(value.embeddingModelIds, `${field}.embeddingModelIds`, errors);
+	const redactedDiagnostic = redactDiagnostic(value.diagnostic ?? {});
+	const diagnostic =
+		redactedDiagnostic.ok && isRecord(redactedDiagnostic.value)
+			? (redactedDiagnostic.value as RedactedDiagnosticObject)
+			: {};
+
+	if (!redactedDiagnostic.ok || !isRecord(redactedDiagnostic.value)) {
+		errors.push(
+			settingError(
+				"unsupported-value",
+				`${field}.diagnostic`,
+				`${field}.diagnostic must be a redacted diagnostic object.`,
+			),
+		);
+	}
+
+	return {
+		providerId: readinessProviderId,
+		status: value.status,
+		code: value.code,
+		checkedAt,
+		durationMs,
+		modelCount,
+		chatModelCount,
+		embeddingModelCount,
+		modelIds,
+		chatModelIds,
+		embeddingModelIds,
+		diagnostic,
+	};
+};
+
+const readOpenAICompatibleAuthReadiness = (
+	value: unknown,
+	field: string,
+	providerId: ProviderId,
+	errors: SettingsValidationError[],
+): OpenAICompatibleAuthReadinessRecord | undefined => {
+	if (value === undefined) {
+		return undefined;
+	}
+
+	if (!isRecord(value)) {
+		errors.push(settingError("invalid-type", field, `${field} must be an object when present.`));
+		return undefined;
+	}
+
+	const readinessProviderId = readReadinessProviderId(value.providerId, `${field}.providerId`, providerId, errors);
+	if (readinessProviderId === null) {
+		return undefined;
+	}
+
+	if (!isOpenAICompatibleReadinessStatus(value.status)) {
+		errors.push(settingError("unsupported-value", `${field}.status`, `${field}.status is not supported.`));
+		return undefined;
+	}
+
+	if (!isOpenAICompatibleReadinessCode(value.code)) {
+		errors.push(settingError("unsupported-value", `${field}.code`, `${field}.code is not supported.`));
+		return undefined;
+	}
+
+	if (!isOpenAICompatibleEndpointClassification(value.endpointClassification)) {
+		errors.push(
+			settingError(
+				"unsupported-value",
+				`${field}.endpointClassification`,
+				`${field}.endpointClassification is not supported.`,
+			),
+		);
+		return undefined;
+	}
+
+	const checkedAt =
+		typeof value.checkedAt === "string" && value.checkedAt.trim().length > 0
+			? value.checkedAt.trim()
+			: "1970-01-01T00:00:00.000Z";
+	const durationMs = readNonNegativeInteger(value.durationMs, `${field}.durationMs`, errors);
+	const statusCode = readNullableStatusCode(value.statusCode, `${field}.statusCode`, errors);
+	const modelCount = readNonNegativeInteger(value.modelCount, `${field}.modelCount`, errors);
+	const redactedDiagnostic = redactDiagnostic(value.diagnostic ?? {});
+	const diagnostic =
+		redactedDiagnostic.ok && isRecord(redactedDiagnostic.value)
+			? (redactedDiagnostic.value as RedactedDiagnosticObject)
+			: {};
+
+	if (!redactedDiagnostic.ok || !isRecord(redactedDiagnostic.value)) {
+		errors.push(
+			settingError(
+				"unsupported-value",
+				`${field}.diagnostic`,
+				`${field}.diagnostic must be a redacted diagnostic object.`,
+			),
+		);
+	}
+
+	return {
+		providerId: readinessProviderId,
+		status: value.status,
+		code: value.code,
+		endpointClassification: value.endpointClassification,
+		checkedAt,
+		durationMs,
+		statusCode,
+		modelCount,
+		diagnostic,
+	};
+};
+
+const readReadinessProviderId = (
+	value: unknown,
+	field: string,
+	expectedProviderId: ProviderId,
+	errors: SettingsValidationError[],
+): ProviderId | null => {
+	if (typeof value !== "string" || value.trim().length === 0) {
+		errors.push(settingError("invalid-type", field, `${field} must match the auth status provider ID.`));
+		return null;
+	}
+
+	const providerId = makeProviderId(value.trim());
+	if (providerId !== expectedProviderId) {
+		errors.push(settingError("unsupported-value", field, `${field} must match the auth status provider ID.`));
+		return null;
+	}
+
+	return providerId;
+};
+
+const readProviderModelIdArray = (
+	value: unknown,
+	field: string,
+	errors: SettingsValidationError[],
+): readonly ProviderModelId[] => {
+	if (value === undefined) {
+		return [];
+	}
+
+	if (!Array.isArray(value)) {
+		errors.push(settingError("invalid-type", field, `${field} must be an array of provider model IDs.`));
+		return [];
+	}
+
+	const modelIds: ProviderModelId[] = [];
+	const seenModelIds = new Set<string>();
+	for (const [index, item] of value.entries()) {
+		if (typeof item !== "string" || item.trim().length === 0) {
+			errors.push(
+				settingError("invalid-type", `${field}[${index}]`, `${field} entries must be non-empty strings.`),
+			);
+			return [];
+		}
+
+		const modelId = item.trim();
+		if (!seenModelIds.has(modelId)) {
+			seenModelIds.add(modelId);
+			modelIds.push(makeProviderModelId(modelId));
+		}
+	}
+
+	return modelIds.sort((left, right) => left.localeCompare(right, "en", { sensitivity: "base" }));
 };
 
 const readNullableStatusCode = (value: unknown, field: string, errors: SettingsValidationError[]): number | null => {

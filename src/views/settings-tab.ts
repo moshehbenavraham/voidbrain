@@ -333,10 +333,12 @@ export class VoidbrainSettingsTab extends PluginSettingTab {
 					.setDisabled(this.inFlightProviderActions.has(`auth:${profile.id}`))
 					.onClick(() => {
 						void this.runProviderAction(`auth:${profile.id}`, async () => {
-							const authRecord = await runProviderAuthTest(
-								profile,
-								this.options.secretStore === undefined ? {} : { secretStore: this.options.secretStore },
-							);
+							const authRecord = await runProviderAuthTest(profile, {
+								...(this.options.secretStore === undefined
+									? {}
+									: { secretStore: this.options.secretStore }),
+								useLocalRuntimeReadiness: profile.providerKind === "local",
+							});
 							await this.persist((current) => ({
 								...current,
 								providerAuthStatuses: replaceAuthStatus(current.providerAuthStatuses, authRecord),
