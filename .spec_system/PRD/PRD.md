@@ -118,7 +118,7 @@ This system delivers the product via phases. Each phase is implemented via multi
 |-------|------|----------|--------|
 | 00 | Foundation | 6 | Complete |
 | 01 | Vault Intelligence MVP | 8 | Complete |
-| 02 | Agentic Maintenance | 7 | In Progress |
+| 02 | Agentic Maintenance | 7 | Complete |
 | 03 | Offline and Provider Hardening | TBD | Not Started |
 | 04 | Distribution and Ecosystem | TBD | Not Started |
 
@@ -170,7 +170,7 @@ Phase 01 turned the completed foundations into the first usable local-first Obsi
 
 ## Phase 02: Agentic Maintenance
 
-Phase 02 turns the completed MVP into an inspectable maintenance system. It
+Phase 02 is complete. It turns the completed MVP into an inspectable maintenance system. It
 implements recovery from local support records, hardens agent command surface
 validation, keeps framework updates dry-run and vault-safe, and adds reviewable
 maintenance recommendations for citations, links, related notes, note placement,

@@ -212,6 +212,27 @@ The CLI exits nonzero when typed issues or conflict actions require attention.
 It does not apply changes, rewrite notes, update fixture vault content, stage
 note mutations, call providers, or create a future apply plan automatically.
 
+## Phase 02 Integration Closeout
+
+Phase 02 closeout treats the implemented maintenance commands as one local
+system. Synthetic integration coverage exercises recovery, agent surface
+validation, dry-run framework previews, health-based recommendations,
+similar-note suggestions, staged-change handoff, and batch source ingestion
+without reading user vault content or calling providers.
+
+The closeout evidence is recorded in
+`docs/phase02-agentic-maintenance-integration-validation.md` and
+`.spec_system/specs/phase02-session07-agentic-maintenance-integration-validation/`.
+It verifies that implemented statuses in the command catalog match AGENTS,
+CLAUDE, GEMINI, the Voidbrain skill, and this human command reference.
+
+The shared policy remains unchanged: framework updates are dry-run previews,
+AI-generated note mutations are staged changes, provider review is required
+before any cloud disclosure, and recovery records preserve command IDs, target
+paths, cache paths, staged-change IDs, report IDs, validation output, and retry
+or discard guidance without exposing provider secrets or raw private note
+bodies.
+
 ## Deferred Behavior
 
 These surfaces do not implement autonomous web research, destructive framework

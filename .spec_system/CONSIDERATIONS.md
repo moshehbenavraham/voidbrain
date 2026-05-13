@@ -1,7 +1,7 @@
 # Considerations
 
 > Institutional memory for AI assistants. Updated between phases via carryforward.
-> **Line budget**: 600 max | **Last updated**: Phase 01 (2026-05-13)
+> **Line budget**: 600 max | **Last updated**: Phase 02 (2026-05-13)
 
 ---
 
@@ -11,8 +11,8 @@ Items requiring attention in upcoming phases. Review before each session.
 
 ### Technical Debt
 
-- [P01] **Recovery surface gap**: `recover-session` is still planned, so hot cache and support records must stay detailed enough to reconstruct failures without raw vault content.
-- [P01] **Workflow drift risk**: phase tracking, command docs, and phase artifacts still need synchronized updates whenever session or phase state changes.
+- [P02] **Workflow drift risk**: phase tracking, command docs, and phase artifacts still need synchronized updates whenever session or phase state changes.
+- [P02] **Spec script parity**: project-local `.spec_system/scripts/` has `analyze-project.sh` but lacks `check-prereqs.sh`; bundled fallback worked, but local script parity should be restored in a workflow update.
 
 ### External Dependencies
 
@@ -49,6 +49,10 @@ Proven patterns and anti-patterns. Reference during implementation.
 - [P01] **Local analyzer fallback**: Shipping a repo-local analyzer made validation and carryforward independent of missing bundled scripts.
 - [P01] **Command-surface sync**: Updating AGENTS, CLAUDE, GEMINI, docs, and skills alongside code reduced drift.
 - [P01] **Hot cache as support state**: Keeping recovery records bounded and local made session resume and summary staging safer.
+- [P02] **Integrated fixture orchestration**: One closeout fixture module can exercise recovery, validation, previews, recommendations, suggestions, and queues without duplicating service tests.
+- [P02] **Preview-only enforcement**: Framework update dry-run plans are easier to audit when create, update, skip, conflict, excluded, hash, issue, and recovery fields are asserted together.
+- [P02] **Maintenance remains review-first**: Recommendations, placement suggestions, and ingestion outputs stay safer when integration tests assert staged-change handoff instead of direct vault mutation.
+- [P02] **Queue recovery metadata**: Provider-denied, citation-blocked, canceled, retried, staged, and failed queue states are recoverable when summaries keep item IDs, source paths, target paths, staged-change IDs, validation output, and provider decisions.
 
 ### What to Avoid
 
@@ -60,6 +64,7 @@ Proven patterns and anti-patterns. Reference during implementation.
 - [P01] **Stale modal state**: Reuse of modal/store state without reset or revalidation causes misleading recovery and retry behavior.
 - [P01] **Command/doc drift**: Updating a command implementation without updating docs and tests invites stale instructions.
 - [P01] **Silent fallback to cloud**: Local workflows should not quietly escalate to cloud providers when preflight fails.
+- [P02] **Late-only doc updates**: Waiting until the end of a session to update docs increases drift; update command docs and PRD records as validation evidence becomes available.
 
 ### Tool/Library Notes
 
@@ -78,6 +83,8 @@ Recently closed items (buffer - rotates out after 2 phases).
 | Phase | Item | Resolution |
 |-------|------|------------|
 | P01 | Local analyzer entry points | `scripts/analyze-project.sh` and `.spec_system/scripts/analyze-project.sh` now exist for deterministic apex-spec validation and update flows. |
+| P01 | Recovery surface gap | Phase 02 implemented `voidbrain.recover-session` and validated redacted local support-record recovery across hot cache, logs, reports, staged changes, and validation output. |
+| P01 | Workflow drift risk | Phase 02 closeout added integration validation, command docs, PRD progress, summary artifacts, and full validation evidence for the agentic maintenance phase. |
 | P00 | Staged-write gap | Session 06 implemented explicit staged-change review/apply flows with conflict revalidation and backups. |
 | P00 | Provider disclosure boundary | Phase 01 added auth, trust, capability, and disclosure preflight before provider-dependent workflows. |
 | P00 | Command-surface sync | Session 04-08 synchronized command catalogs, AGENTS, CLAUDE, GEMINI, docs, and skills with implemented behavior. |
