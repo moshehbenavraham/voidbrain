@@ -123,3 +123,13 @@ Common blocked plan states:
 Keep support records bounded to synthetic paths and plugin artifacts. Do not
 paste provider secrets, authorization headers, prompt bodies, hidden provider
 state, private vault content, or private machine paths into issue reports.
+
+## Phase 04 Closeout
+
+Phase 04 distribution integration validation exercises install and update
+planning together with release artifact validation, rollback intent, downgrade
+blocking, dry-run guidance, troubleshooting, and selected plugin artifact
+copying. See
+[Phase 04 Distribution Integration Validation](phase04-distribution-integration-validation.md)
+for the closeout evidence and recovery details. The validation does not mutate
+user vault notes and keeps note outputs behind staged-change review.

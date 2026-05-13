@@ -24,6 +24,13 @@ remediation, command IDs, and recovery details, but excludes raw note bodies,
 provider secrets, authorization headers, raw hidden provider state, and private
 diagnostics.
 
+Selected redacted reports can be handed off through
+[Ecosystem Export And Handoff Boundaries](ecosystem-export-handoff-boundaries.md).
+Preserve report IDs, affected paths, staged-change IDs when available,
+validation output, command IDs, and retry guidance. Do not hand off full vault
+exports, raw report payloads, private diagnostics, or `.voidbrain` support
+records by default.
+
 ## Repair Staging
 
 Safe repairs are staged changes, never direct writes. The current safe repair

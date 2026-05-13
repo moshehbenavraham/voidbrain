@@ -120,7 +120,7 @@ This system delivers the product via phases. Each phase is implemented via multi
 | 01 | Vault Intelligence MVP | 8 | Complete |
 | 02 | Agentic Maintenance | 7 | Complete |
 | 03 | Offline and Provider Hardening | 6 | Complete |
-| 04 | Distribution and Ecosystem | 6 | In Progress |
+| 04 | Distribution and Ecosystem | 6 | Complete |
 
 ## Phase 00: Foundation
 
@@ -238,7 +238,8 @@ the validated plugin, provider, retrieval, staged-change, recovery, and agent
 surface workflows into installable, documented, and validated distribution
 artifacts without weakening vault privacy or review-first mutation guarantees.
 
-Current phase progress: 4 of 6 sessions are complete as of 2026-05-13.
+Current phase progress: 6 of 6 sessions are complete as of 2026-05-13.
+Phase 04 is complete and archived in `.spec_system/archive/phases/phase_04/`.
 
 ### Objectives
 

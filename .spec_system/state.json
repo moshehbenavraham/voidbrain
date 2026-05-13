@@ -68,7 +68,9 @@
     "phase04-session01-release-metadata-build-artifacts",
     "phase04-session02-obsidian-install-update-workflow",
     "phase04-session03-agent-skill-surface-packaging",
-    "phase04-session04-onboarding-provider-readiness-guides"
+    "phase04-session04-onboarding-provider-readiness-guides",
+    "phase04-session05-ecosystem-export-handoff-boundaries",
+    "phase04-session06-distribution-integration-validation"
   ],
   "next_session_history": [
     {
@@ -339,6 +341,21 @@
     {
       "date": "2026-05-13",
       "session": "phase04-session04-onboarding-provider-readiness-guides",
+      "status": "completed"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase04-session05-ecosystem-export-handoff-boundaries",
+      "status": "completed"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase04-session06-distribution-integration-validation",
+      "status": "planned"
+    },
+    {
+      "date": "2026-05-13",
+      "session": "phase04-session06-distribution-integration-validation",
       "status": "completed"
     }
   ]

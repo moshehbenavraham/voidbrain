@@ -75,3 +75,10 @@ Phase 03 provider integration evidence lives in
 providers, OpenAI-compatible providers, invocation boundaries, semantic
 fallback, provider troubleshooting, dry-run language, staged changes, citations,
 provider secrets redaction, synthetic fixtures, and recovery records.
+
+Phase 04 distribution integration evidence lives in
+`docs/phase04-distribution-integration-validation.md` and validates release
+artifacts, local install/update dry runs, agent surface packaging, onboarding,
+provider readiness, selected-output handoff boundaries, fixture safety, staged
+mutation policy, dry-run language, provider disclosure gates, and recovery
+records.

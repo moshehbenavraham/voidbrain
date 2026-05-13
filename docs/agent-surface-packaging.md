@@ -61,6 +61,16 @@ fixture vault notes, provider configuration, raw prompt bodies, private note
 content, or local research inputs. Keep any downstream examples under
 `test/fixtures/vault/` or clearly fake paths such as `fixtures/demo-vault/`.
 
+## Ecosystem Handoff
+
+Agent surface package reuse is a selected framework-surface handoff. Follow
+[Ecosystem Export And Handoff Boundaries](ecosystem-export-handoff-boundaries.md)
+and preserve selected surface paths, target ecosystems, command catalog status,
+checksums, validation output, package diagnostic path when present, and
+recovery details. This is local file reuse only; it is not hosted publishing,
+marketplace distribution, external sync, or permission to copy user vault
+notes.
+
 ## Recovery Details
 
 If validation fails, keep the package diagnostic output with:
@@ -75,3 +85,12 @@ If validation fails, keep the package diagnostic output with:
 These details are enough to inspect, retry, or discard the package plan without
 recording provider secrets, raw hidden provider state, private vault content,
 authorization headers, or prompt bodies.
+
+## Phase 04 Closeout
+
+Phase 04 distribution integration validation checks agent surface packaging as
+part of the full release path. The closeout covers AGENTS, CLAUDE, GEMINI, the
+Voidbrain skill, human command docs, supported package output paths, command
+status synchronization, fixture-safe examples, checksums, validation output,
+and recovery records. See
+[Phase 04 Distribution Integration Validation](phase04-distribution-integration-validation.md).

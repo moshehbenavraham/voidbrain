@@ -66,3 +66,12 @@ bun run validate
 
 If that passes, the repository is ready for feature work, docs edits, or spec
 workflow steps.
+
+## Phase 04 Closeout
+
+Phase 04 distribution integration validation confirms the first-run local
+workflow still starts with release validation, local install/update dry runs,
+agent surface package checks, local provider readiness, and selected-output
+handoff boundaries. See
+[Phase 04 Distribution Integration Validation](phase04-distribution-integration-validation.md)
+for the synthetic closeout coverage and recovery fields.

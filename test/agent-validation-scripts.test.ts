@@ -11,6 +11,10 @@ import {
 	createPhase03SurfaceFixtureSet,
 } from "./fixtures/providers/phase03-provider-integration-fixtures";
 import {
+	createPhase04DistributionSurfaceFixtureSet,
+	createPhase04FixtureSafetyEntries,
+} from "./fixtures/release/phase04-distribution-integration-fixtures";
+import {
 	createPhase02FixtureSafetyEntries,
 	createPhase02SurfaceFixtureSet,
 } from "./fixtures/vault/phase02-integration-fixtures";
@@ -112,6 +116,61 @@ describe("agent surface validation script adapter", () => {
 					expect.objectContaining({
 						code: "surface.stale-command-status",
 						commandId: "voidbrain.validate-agent-surfaces",
+					}),
+				]),
+			);
+		});
+	});
+
+	it("accepts synchronized Phase 04 distribution surfaces with disclosure, dry-run, package, and recovery language", () => {
+		withTempRepo((repoRoot) => {
+			const { completeMarkdown, requiredSurfacePhrases } = createPhase04DistributionSurfaceFixtureSet();
+
+			for (const surface of AGENT_SURFACES) {
+				const surfacePath = join(repoRoot, surface.path);
+				mkdirSync(dirname(surfacePath), { recursive: true });
+				writeFileSync(surfacePath, completeMarkdown);
+			}
+
+			const result = runAgentSurfaceValidationScript(repoRoot);
+
+			expect(result.issues).toEqual([]);
+			for (const phrase of requiredSurfacePhrases) {
+				expect(completeMarkdown.toLowerCase()).toContain(phrase.toLowerCase());
+			}
+		});
+	});
+
+	it("fails closed for Phase 04 distribution surface command status drift and missing disclosure language", () => {
+		withTempRepo((repoRoot) => {
+			const { staleStatusMarkdown, missingDisclosureMarkdown } = createPhase04DistributionSurfaceFixtureSet();
+			const [firstSurface, ...remainingSurfaces] = AGENT_SURFACES;
+
+			if (firstSurface === undefined) {
+				throw new Error("Expected agent surface definitions.");
+			}
+
+			for (const surface of remainingSurfaces) {
+				const surfacePath = join(repoRoot, surface.path);
+				mkdirSync(dirname(surfacePath), { recursive: true });
+				writeFileSync(surfacePath, missingDisclosureMarkdown);
+			}
+
+			const firstSurfacePath = join(repoRoot, firstSurface.path);
+			mkdirSync(dirname(firstSurfacePath), { recursive: true });
+			writeFileSync(firstSurfacePath, staleStatusMarkdown);
+
+			const result = runAgentSurfaceValidationScript(repoRoot);
+
+			expect(result.issues).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						code: "surface.stale-command-status",
+						commandId: "voidbrain.validate-agent-surfaces",
+					}),
+					expect.objectContaining({
+						code: "surface.missing-safety-phrase",
+						path: expect.any(String),
 					}),
 				]),
 			);
@@ -227,6 +286,41 @@ describe("fixture safety script adapter", () => {
 		});
 	});
 
+	it("maps Phase 04 distribution closeout fixture safety failures to deterministic issue codes", () => {
+		withTempRepo((repoRoot) => {
+			const entries = createPhase04FixtureSafetyEntries();
+
+			for (const entry of entries) {
+				const entryPath = join(repoRoot, entry.path);
+				mkdirSync(dirname(entryPath), { recursive: true });
+				writeFileSync(entryPath, entry.content);
+			}
+
+			const result = runFixtureSafetyScript(
+				repoRoot,
+				entries.map((entry) => entry.path),
+			);
+
+			expect(result.entries.map((entry) => entry.path)).toEqual(entries.map((entry) => entry.path));
+			expect(result.issues).toEqual(
+				expect.arrayContaining([
+					expect.objectContaining({
+						code: "fixture.secret-like-key",
+						path: "docs/phase04-unsafe-distribution-closeout.md",
+					}),
+					expect.objectContaining({
+						code: "fixture.credential-like-value",
+						path: "docs/phase04-unsafe-distribution-closeout.md",
+					}),
+					expect.objectContaining({
+						code: "fixture.private-path-hint",
+						path: "docs/phase04-unsafe-distribution-closeout.md",
+					}),
+				]),
+			);
+		});
+	});
+
 	it("accepts provider readiness docs with fixture-safe disclosure language", () => {
 		const providerReadinessDocs = [
 			"README.md",
@@ -245,6 +339,37 @@ describe("fixture safety script adapter", () => {
 		expect(combinedMarkdown).toContain("provider review, trust, auth, capability, and disclosure");
 		expect(combinedMarkdown).toContain("untrusted cloud providers are blocked for private vault content");
 		expect(combinedMarkdown).toContain("does not silently fall back from local providers to cloud providers");
+		expect(combinedMarkdown).toContain("fixtures/demo-vault");
+	});
+
+	it("accepts ecosystem handoff docs with fixture-safe selected-output boundaries", () => {
+		const ecosystemHandoffDocs = [
+			"README.md",
+			"docs/ecosystem-export-handoff-boundaries.md",
+			"docs/source-ingestion-staging.md",
+			"docs/staged-change-review-apply.md",
+			"docs/vault-health-repair-staging.md",
+			"docs/release-artifacts.md",
+			"docs/agent-surface-packaging.md",
+			"docs/provider-readiness-guide.md",
+		];
+		const result = runFixtureSafetyScript(process.cwd(), ecosystemHandoffDocs);
+		const combinedMarkdown = ecosystemHandoffDocs
+			.map((path) => readFileSync(path, "utf8"))
+			.join("\n")
+			.toLowerCase();
+
+		expect(result.issues).toEqual([]);
+		expect(combinedMarkdown).toContain("ecosystem export and handoff boundaries");
+		expect(combinedMarkdown).toContain("explicit user selection");
+		expect(combinedMarkdown).toContain("citation id");
+		expect(combinedMarkdown).toContain("source record");
+		expect(combinedMarkdown).toContain("staged-change id");
+		expect(combinedMarkdown).toContain("report id");
+		expect(combinedMarkdown).toContain("validation output");
+		expect(combinedMarkdown).toContain("provider review, trust, auth, capability, and disclosure");
+		expect(combinedMarkdown).toContain("direct publishing");
+		expect(combinedMarkdown).toContain("full-vault export defaults");
 		expect(combinedMarkdown).toContain("fixtures/demo-vault");
 	});
 });

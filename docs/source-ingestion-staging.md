@@ -35,6 +35,17 @@ directly to vault files. Each staged record keeps target path, source paths,
 citation IDs, diff context, validation output, and recovery metadata. Apply and
 review controls belong to the staged-change workflow.
 
+## Ecosystem Handoff
+
+Source records and source-derived summaries can be handed off only when the
+user explicitly selects them. Follow
+[Ecosystem Export And Handoff Boundaries](ecosystem-export-handoff-boundaries.md)
+and preserve source paths, target paths, citation IDs, source record IDs,
+provider decisions, staged-change IDs when available, validation output, and
+retry guidance. Handoff summaries must not include raw source bodies, prompt
+bodies, hidden provider state, authorization headers, provider secrets, or
+private absolute paths.
+
 ## Recovery
 
 Failures preserve command ID, source path, generated target paths,

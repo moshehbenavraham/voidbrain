@@ -40,6 +40,17 @@ remote disclosure. Custom remote and trusted cloud paths require all remote
 gates to pass before private vault content can leave the machine. Untrusted
 cloud paths are blocked for private vault content even when auth succeeds.
 
+## Ecosystem Handoff
+
+Remote or cloud handoff of selected markdown output uses the same provider
+boundary. Follow
+[Ecosystem Export And Handoff Boundaries](ecosystem-export-handoff-boundaries.md)
+and keep the handoff review-required until provider review, trust, auth,
+capability, and disclosure gates are explicit. Local Git, filesystem, copy,
+and markdown-bundle modes do not call providers. Untrusted cloud targets,
+direct publishing, hosted sync, and team knowledge-base pushes remain blocked
+for private vault content.
+
 ## Path Details
 
 ### Local Runtime
@@ -148,3 +159,12 @@ Safe recovery records can include values like:
 Do not include raw diagnostics, provider responses, note bodies, prompt bodies,
 hidden provider state, request headers, credentials, or private absolute paths
 in recovery records.
+
+## Phase 04 Closeout
+
+Phase 04 distribution integration validation checks provider readiness as part
+of release closeout. The synthetic coverage verifies local runtime readiness,
+custom remote review, trusted cloud disclosure, untrusted cloud blocking,
+disabled cloud disclosure, lexical fallback, bounded recovery fields, and
+redaction of unsafe diagnostics. See
+[Phase 04 Distribution Integration Validation](phase04-distribution-integration-validation.md).

@@ -72,6 +72,15 @@ Release diagnostics must not contain:
 - Absolute private machine paths.
 - Raw artifact file content.
 
+## Ecosystem Handoff
+
+Release evidence can be handed off only as selected repository evidence. Follow
+[Ecosystem Export And Handoff Boundaries](ecosystem-export-handoff-boundaries.md)
+and preserve repository-relative artifact paths, SHA-256 checksums, byte sizes
+when available, command IDs, validation issue codes, remediation, and validation
+output. Handoff does not publish the plugin, upload artifacts, sync a vault, or
+copy private vault content.
+
 ## Dev-Vault Dry Run
 
 Preview a dev-vault deploy without building or copying:
@@ -115,3 +124,12 @@ Common retries:
 - Package file drift: restore the release file list to the artifact contract.
 - Unsafe diagnostic output: replace the unsafe value with a fake placeholder or
   a repository-relative path.
+
+## Phase 04 Closeout
+
+Phase 04 distribution integration validation links release metadata, generated
+artifacts, checksums, install/update plans, agent packages, provider guidance,
+and selected-output handoff evidence in one synthetic local workflow. See
+[Phase 04 Distribution Integration Validation](phase04-distribution-integration-validation.md)
+for the closeout test coverage, artifact paths, checksum expectations,
+validation output, recovery fields, and residual risk record.

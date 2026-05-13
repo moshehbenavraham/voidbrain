@@ -47,6 +47,15 @@ Index refresh is triggered after successful apply with a timeout and retry.
 Refresh failure is reported as retryable recovery context and does not hide a
 completed vault mutation.
 
+## Ecosystem Handoff
+
+Staged-change summaries can be handed off only as selected review evidence.
+Follow
+[Ecosystem Export And Handoff Boundaries](ecosystem-export-handoff-boundaries.md)
+and keep staged-change IDs, target paths, backup intent, validation output,
+audit entry IDs, and retry guidance with the summary. Handoff does not apply,
+reject, dismiss, sync, publish, or otherwise mutate the user vault.
+
 ## Limitations
 
 There is no auto-apply mode. Remote sync conflict resolution, vault health

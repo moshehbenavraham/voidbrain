@@ -1,7 +1,7 @@
 # Session 05: Ecosystem Export and Handoff Boundaries
 
 **Session ID**: `phase04-session05-ecosystem-export-handoff-boundaries`
-**Status**: Not Started
+**Status**: Complete
 **Estimated Tasks**: ~12-25
 **Estimated Duration**: 2-4 hours
 
@@ -40,10 +40,10 @@ hosted publishing, external sync, or silent cloud disclosure.
 
 ## Prerequisites
 
-- [ ] Staged-change, source ingestion, chat, health, recovery, and provider
+- [x] Staged-change, source ingestion, chat, health, recovery, and provider
       review workflows are available.
-- [ ] Existing docs define local-first privacy and citation requirements.
-- [ ] Synthetic fixture vault paths are available for examples and tests.
+- [x] Existing docs define local-first privacy and citation requirements.
+- [x] Synthetic fixture vault paths are available for examples and tests.
 
 ---
 
@@ -57,10 +57,10 @@ hosted publishing, external sync, or silent cloud disclosure.
 
 ## Success Criteria
 
-- [ ] Export and handoff guidance requires explicit user selection for any
+- [x] Export and handoff guidance requires explicit user selection for any
       vault-derived content.
-- [ ] User-facing outputs grounded in retrieval keep citations to vault paths,
+- [x] User-facing outputs grounded in retrieval keep citations to vault paths,
       headings, and source records.
-- [ ] Examples avoid provider secrets, private note bodies, prompt bodies,
+- [x] Examples avoid provider secrets, private note bodies, prompt bodies,
       hidden provider state, and private path hints.
-- [ ] External publishing remains documented as out of scope for the MVP.
+- [x] External publishing remains documented as out of scope for the MVP.

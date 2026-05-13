@@ -61,6 +61,13 @@ remote or trusted cloud providers only after provider review, trust, auth,
 capability, and disclosure gates pass. Untrusted cloud providers remain
 blocked for private vault content.
 
+Selected markdown reports, staged-change summaries, source records, release
+evidence, and local agent surface packages use
+[Ecosystem Export And Handoff Boundaries](docs/ecosystem-export-handoff-boundaries.md).
+Handoff requires explicit user selection, citations when grounded, bounded
+recovery records, and local modes by default; direct publishing, hosted sync,
+team knowledge-base pushes, and full-vault export defaults stay blocked.
+
 ## Project Docs
 
 - [Contributing](CONTRIBUTING.md)
@@ -77,6 +84,8 @@ blocked for private vault content.
 - [Release Artifact Validation](docs/release-artifacts.md)
 - [Obsidian Install And Update Workflow](docs/obsidian-install-update.md)
 - [Agent Surface Packaging](docs/agent-surface-packaging.md)
+- [Ecosystem Export And Handoff Boundaries](docs/ecosystem-export-handoff-boundaries.md)
+- [Phase 04 Distribution Integration Validation](docs/phase04-distribution-integration-validation.md)
 - [Provider Readiness Guide](docs/provider-readiness-guide.md)
 - [Provider Setup](docs/provider-setup.md)
 - [Provider Troubleshooting and Recovery](docs/provider-troubleshooting-recovery.md)
@@ -127,8 +136,9 @@ provider invocation boundaries, offline embedding compatibility, lexical
 fallback, provider troubleshooting recovery, and synchronized agent-surface
 safety checks.
 
-Phase 04 distribution work has started with local release artifact validation
-for package metadata, Obsidian manifest metadata, version maps, checksums,
-bounded diagnostics, reproducible build output, and vault-safe Obsidian
-install/update planning. Agent surface packaging now validates local reusable
-instruction surfaces before they are copied into compatible tool setups.
+Phase 04 distribution work now has integrated closeout validation for local
+release artifacts, Obsidian install/update dry runs, agent surface packaging,
+onboarding, provider readiness, selected-output ecosystem handoff, fixture
+safety, staged mutation policy, provider disclosure gates, and bounded recovery
+records. The evidence is recorded in
+[Phase 04 Distribution Integration Validation](docs/phase04-distribution-integration-validation.md).

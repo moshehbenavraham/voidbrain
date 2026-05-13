@@ -57,6 +57,13 @@ Phase 03 provider integration evidence lives in
 provider setup, invocation boundaries, semantic fallback, troubleshooting, or
 agent surface language.
 
+Phase 04 distribution integration evidence lives in
+`docs/phase04-distribution-integration-validation.md`. Use it when changing
+release artifacts, install/update guidance, agent package reuse, onboarding,
+provider readiness, ecosystem handoff boundaries, staged mutation policy,
+fixture safety, dry-run language, provider disclosure gates, or recovery
+records.
+
 ## Packaging Reuse
 
 Agent surface packaging is repository-local validation, not hosted marketplace

@@ -107,6 +107,17 @@ Phase 03 provider closeout:
 }
 ```
 
+Phase 04 distribution closeout:
+
+```json
+{
+  "evidence": "docs/phase04-distribution-integration-validation.md",
+  "distributionPolicy": "local release, dry-run install, fixture-safe package reuse, and selected-output handoff",
+  "providerPolicy": "provider review, trust, auth, capability, and disclosure before cloud or custom remote private-vault handling",
+  "recoveryFields": ["command ID", "target path", "artifact path", "cache path", "report ID", "staged-change ID", "validation output"]
+}
+```
+
 Agent surface package reuse:
 
 ```json

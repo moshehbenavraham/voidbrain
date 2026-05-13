@@ -55,6 +55,13 @@ sync with provider setup, invocation boundaries, semantic fallback,
 troubleshooting, staged changes, dry-run language, citations, synthetic
 fixtures, provider secrets redaction, and recovery records.
 
+Phase 04 distribution integration evidence lives in
+`docs/phase04-distribution-integration-validation.md` and should stay in sync
+with release artifacts, local install/update dry runs, agent package reuse,
+onboarding, provider readiness, ecosystem handoff boundaries, staged mutation
+policy, fixture safety, dry-run language, provider disclosure gates, and
+recovery records.
+
 ## Packaging Reuse
 
 Reusable agent surfaces stay local and framework-owned. Run

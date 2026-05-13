@@ -296,6 +296,28 @@ codes, fallback mode, and validation output. They must omit provider secrets,
 authorization headers, prompt bodies, raw private note bodies, hidden provider
 state, private path hints, and live provider payloads.
 
+## Phase 04 Distribution Closeout
+
+Phase 04 closeout treats release artifacts, Obsidian install/update guidance,
+agent surface packaging, onboarding, provider readiness, ecosystem handoff,
+fixture safety, and recovery records as one local distribution workflow.
+Synthetic coverage is recorded in
+`docs/phase04-distribution-integration-validation.md` and
+`.spec_system/specs/phase04-session06-distribution-integration-validation/`.
+
+Distribution disclosure remains explicit. Release and install paths stay local,
+agent packages include only framework surfaces, cloud or custom remote paths
+must pass provider review, trust, auth, capability, and disclosure gates, and
+ecosystem handoff remains selected-output only.
+
+Distribution recovery records are bounded to command ID, target path, artifact
+path, cache path, report ID, staged-change ID, checksum, issue code,
+validation output, and retry guidance. They must omit user vault notes,
+`.voidbrain` support records from packages, provider secrets, authorization
+headers, prompt bodies, raw private note bodies, hidden provider state, private
+path hints, direct publishing output, hosted sync payloads, and full-vault
+export defaults.
+
 ## Deferred Behavior
 
 These surfaces do not implement autonomous web research, destructive framework
