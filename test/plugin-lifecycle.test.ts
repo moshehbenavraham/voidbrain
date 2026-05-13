@@ -8,13 +8,17 @@ import { DEFAULT_PLUGIN_SETTINGS, SHOW_STATUS_COMMAND_ID } from "../src/types/pl
 import { VOIDBRAIN_CHAT_VIEW_TYPE } from "../src/views/chat-view";
 import { VOIDBRAIN_STATUS_VIEW_TYPE } from "../src/views/status-view";
 import type { Command, PluginSettingTab, RibbonAction } from "./__mocks__/obsidian";
-import { App as MockApp } from "./__mocks__/obsidian";
+import { App as MockApp, TFile } from "./__mocks__/obsidian";
 import { notices, resetObsidianMockState } from "./__mocks__/obsidian";
 import {
 	RUNTIME_INDEXING_FIXTURE_FILES,
 	configureRuntimeFixtureVault,
 	createRuntimeFixtureFiles,
 } from "./fixtures/vault/runtime-indexing-fixtures";
+import {
+	INGESTION_FIXTURE_MARKDOWN,
+	INGESTION_FIXTURE_MARKDOWN_PATH,
+} from "./fixtures/vault/source-ingestion-fixtures";
 
 interface MockedPluginRuntime extends VoidbrainPlugin {
 	commands: Command[];
@@ -43,6 +47,17 @@ const runtimeIndexingNotes = RUNTIME_INDEXING_FIXTURE_FILES.filter(
 const flushPromises = async (count = 8): Promise<void> => {
 	for (let index = 0; index < count; index += 1) {
 		await Promise.resolve();
+		await vi.advanceTimersByTimeAsync(0);
+	}
+};
+
+const waitForCondition = async (predicate: () => boolean, count = 1000): Promise<void> => {
+	for (let index = 0; index < count; index += 1) {
+		if (predicate()) {
+			return;
+		}
+		await Promise.resolve();
+		await vi.advanceTimersByTimeAsync(0);
 	}
 };
 
@@ -343,6 +358,50 @@ describe("VoidbrainPlugin lifecycle", () => {
 		expect(app.workspace.getLeavesOfType(VOIDBRAIN_CHAT_VIEW_TYPE)[0]?.view?.containerEl.textContent).toContain(
 			"Provider role is not selected.",
 		);
+	});
+
+	it("opens source ingestion command, stages generated changes, and avoids direct vault writes", async () => {
+		const app = new MockApp();
+		const sourceFile = new TFile(INGESTION_FIXTURE_MARKDOWN_PATH);
+		app.vault.setFiles([sourceFile]);
+		app.vault.setReadContent(INGESTION_FIXTURE_MARKDOWN_PATH, INGESTION_FIXTURE_MARKDOWN);
+		const plugin = new VoidbrainPlugin(
+			app as unknown as App,
+			{
+				id: "voidbrain",
+				name: "voidbrain",
+				version: "0.1.0",
+			} as PluginManifest,
+		) as MockedPluginRuntime;
+		plugin.loadData.mockResolvedValue(undefined);
+
+		await plugin.onload();
+		const ingestCommand = plugin.commands.find((command) => command.id === "voidbrain.ingest-source");
+		ingestCommand?.callback?.();
+		await flushPromises();
+
+		const pathInput = document.body.querySelector<HTMLInputElement>("[data-source-field='path']");
+		if (pathInput === null) {
+			throw new Error("Expected source ingestion path input");
+		}
+		pathInput.value = INGESTION_FIXTURE_MARKDOWN_PATH;
+		pathInput.dispatchEvent(new Event("input", { bubbles: true }));
+		document.body.querySelector("form")?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+		await waitForCondition(() => document.body.textContent?.includes("Synthetic Source Ingestion Demo") === true);
+
+		expect(document.body.textContent).toContain("Synthetic Source Ingestion Demo");
+		const stageButton = [...document.body.querySelectorAll<HTMLButtonElement>("button")].find(
+			(button) => button.textContent === "Stage",
+		);
+		stageButton?.click();
+		await waitForCondition(() => document.body.textContent?.includes("Staged changes:") === true);
+
+		expect(notices.some((notice) => notice.message.includes("Source ingestion staged"))).toBe(true);
+		expect(document.body.textContent).toContain("Staged changes:");
+		expect(app.vault.adapter.write).not.toHaveBeenCalled();
+		expect(
+			plugin.getRuntimeStatusSnapshot().items.find((item) => item.id === "staged-change-readiness"),
+		).toBeDefined();
 	});
 
 	it("saves validated settings through Obsidian plugin storage", async () => {

@@ -17,10 +17,16 @@ export interface ChatRuntimeCommandExecutionOptions {
 	readonly canOpenChat?: () => boolean;
 }
 
+export interface IngestionRuntimeCommandExecutionOptions {
+	readonly openIngestionModal: () => Promise<void> | void;
+	readonly canOpenIngestion?: () => boolean;
+}
+
 export interface RuntimeCommandHandlerOptions {
 	readonly getSettings: () => VoidbrainPluginSettings;
 	readonly getStatusSnapshot: () => RuntimeStatusSnapshot;
 	readonly chat?: ChatRuntimeCommandExecutionOptions;
+	readonly ingestion?: IngestionRuntimeCommandExecutionOptions;
 }
 
 export class RuntimeCommandRegistrationError extends Error {
@@ -34,8 +40,7 @@ export class RuntimeCommandRegistrationError extends Error {
 }
 
 const plannedWorkflowMessages: Readonly<Record<AgentCommandId, string>> = {
-	"voidbrain.ingest-source":
-		"Source ingestion is not ready yet. Retrieval readiness must be checked before provider work, and this command will create staged changes only after the ingestion workflow is implemented.",
+	"voidbrain.ingest-source": "Source ingestion staging is unavailable. No generated notes were applied to the vault.",
 	"voidbrain.chat-with-vault":
 		"Grounded vault chat is not ready yet. Retrieval readiness must be ready, and vault content will not be sent to a provider before explicit provider review exists.",
 	"voidbrain.health-check":
@@ -52,7 +57,7 @@ const plannedWorkflowMessages: Readonly<Record<AgentCommandId, string>> = {
 
 const recoveryHints: Readonly<Record<AgentCommandId, string>> = {
 	"voidbrain.ingest-source":
-		"Refresh retrieval readiness and use synthetic source fixtures until the ingestion staging workflow is implemented.",
+		"Retry from an approved markdown, text, pasted, or URL source record and inspect staged-change IDs before apply.",
 	"voidbrain.chat-with-vault":
 		"Build or refresh the lexical index and configure providers first; chat remains blocked until retrieval and provider preflight are ready.",
 	"voidbrain.health-check": "Use the repository validation commands until runtime health checks are implemented.",
@@ -133,6 +138,34 @@ const buildChatCommandOutcome = (
 	};
 };
 
+const buildIngestionCommandOutcome = (
+	context: RuntimeCommandContext,
+	ingestion: IngestionRuntimeCommandExecutionOptions | undefined,
+): RuntimeCommandOutcome => {
+	if (context.command.id !== "voidbrain.ingest-source" || context.command.status !== "implemented") {
+		return buildCommandOutcome(context);
+	}
+
+	if (ingestion === undefined || ingestion.canOpenIngestion?.() === false) {
+		return {
+			commandId: context.command.id,
+			kind: "not-ready",
+			severity: "error",
+			userMessage: "Source ingestion staging runtime is unavailable. No vault notes were changed.",
+			recoveryHint: "Reload the plugin and retry with a bounded source path or pasted source record.",
+		};
+	}
+
+	void ingestion.openIngestionModal();
+	return {
+		commandId: context.command.id,
+		kind: "opened",
+		severity: "ready",
+		userMessage: "Source ingestion staging opened with local-first preview and staged-change review gates.",
+		recoveryHint: "Preview target paths and staged-change IDs before trusting generated notes.",
+	};
+};
+
 export const mapRuntimeCommandError = (command: AgentCommand, error: unknown): RuntimeCommandOutcome => ({
 	commandId: command.id,
 	kind: "error",
@@ -154,14 +187,19 @@ export const createRuntimeCommandHandlers = (
 		command,
 		run: () => {
 			try {
-				return buildChatCommandOutcome(
-					{
-						command,
-						settings: options.getSettings(),
-						statusSnapshot: options.getStatusSnapshot(),
-					},
-					options.chat,
-				);
+				const context = {
+					command,
+					settings: options.getSettings(),
+					statusSnapshot: options.getStatusSnapshot(),
+				};
+				if (command.id === "voidbrain.ingest-source") {
+					return buildIngestionCommandOutcome(context, options.ingestion);
+				}
+				if (command.id === "voidbrain.chat-with-vault") {
+					return buildChatCommandOutcome(context, options.chat);
+				}
+
+				return buildCommandOutcome(context);
 			} catch (error) {
 				return mapRuntimeCommandError(command, error);
 			}

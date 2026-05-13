@@ -4,7 +4,7 @@
 **Sessions**: 8
 **Estimated Duration**: 8-12 days
 
-**Progress**: 4/8 sessions (50.0%)
+**Progress**: 5/8 sessions (62.5%)
 
 ---
 
@@ -24,7 +24,7 @@ The phase preserves the vault as user-owned data. Provider calls require explici
 | 02 | Provider Setup and Privacy Preflight | Complete | ~12-25 | PASS |
 | 03 | Indexing Runtime and Retrieval Readiness | Complete | ~12-25 | PASS |
 | 04 | Grounded Vault Chat | Complete | ~12-25 | PASS |
-| 05 | Source Ingestion Staging | Not Started | ~12-25 | - |
+| 05 | Source Ingestion Staging | Complete | ~12-25 | PASS |
 | 06 | Staged Change Review and Apply | Not Started | ~12-25 | - |
 | 07 | Vault Health Check and Repair Staging | Not Started | ~12-25 | - |
 | 08 | Hot Cache and MVP Integration Validation | Not Started | ~12-25 | - |
@@ -36,13 +36,13 @@ The phase preserves the vault as user-owned data. Provider calls require explici
 - `phase01-session01-obsidian-runtime-settings`
 - `phase01-session02-provider-setup-privacy-preflight`
 - `phase01-session03-indexing-runtime-retrieval-readiness`
+- `phase01-session04-grounded-vault-chat`
+- `phase01-session05-source-ingestion-staging`
 
 ---
 
 ## Upcoming Sessions
 
-- Session 04: Grounded Vault Chat
-- Session 05: Source Ingestion Staging
 - Session 06: Staged Change Review and Apply
 - Session 07: Vault Health Check and Repair Staging
 - Session 08: Hot Cache and MVP Integration Validation

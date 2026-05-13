@@ -64,6 +64,27 @@ export type {
 	StagedChangeServiceHooks,
 	StagedChangeServiceOptions,
 } from "./staged-change-service";
+export { validateGeneratedIngestionArtifacts, validateSourceCitationEvidence } from "./source-citation-validation";
+export {
+	SourceIngestionIntakeService,
+	createSourceIngestionPreview,
+	slugifyIngestionTitle,
+} from "./source-ingestion-intake-service";
+export type { SourceIngestionIntakeServiceOptions } from "./source-ingestion-intake-service";
+export {
+	renderSourceIngestionArtifacts,
+	toAsciiText,
+} from "./source-ingestion-renderer";
+export type {
+	RenderSourceIngestionArtifactsInput,
+	SourceIngestionExtractionCandidate,
+} from "./source-ingestion-renderer";
+export { SourceIngestionStagingService, stageSourceIngestion } from "./source-ingestion-staging-service";
+export type {
+	SourceIngestionProviderExtractionInput,
+	SourceIngestionProviderExtractor,
+	SourceIngestionStagingServiceOptions,
+} from "./source-ingestion-staging-service";
 export {
 	createVaultHealthReport,
 	scanVaultHealth,

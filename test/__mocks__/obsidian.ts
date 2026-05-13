@@ -237,6 +237,42 @@ export class Notice {
 	hide = vi.fn();
 }
 
+export class Modal {
+	contentEl: HTMLElement;
+	modalEl: HTMLElement;
+	isOpen = false;
+
+	constructor(readonly app: App) {
+		this.modalEl = document.createElement("section");
+		this.contentEl = document.createElement("div");
+		this.modalEl.append(this.contentEl);
+	}
+
+	open(): void {
+		if (this.isOpen) {
+			return;
+		}
+
+		this.isOpen = true;
+		document.body.append(this.modalEl);
+		this.onOpen();
+	}
+
+	close(): void {
+		if (!this.isOpen) {
+			return;
+		}
+
+		this.onClose();
+		this.isOpen = false;
+		this.modalEl.remove();
+	}
+
+	onOpen(): void {}
+
+	onClose(): void {}
+}
+
 export class View {
 	app: App;
 	icon: IconName = "file";

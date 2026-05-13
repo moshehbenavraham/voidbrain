@@ -1,7 +1,7 @@
 # Session 05: Source Ingestion Staging
 
 **Session ID**: `phase01-session05-source-ingestion-staging`
-**Status**: Not Started
+**Status**: Complete
 **Estimated Tasks**: ~12-25
 **Estimated Duration**: 2-4 hours
 
@@ -51,7 +51,7 @@ Convert approved source material into citation-backed staged markdown records fo
 
 ## Success Criteria
 
-- [ ] Ingestion never writes directly to user notes.
-- [ ] Generated notes link back to source paths or source records.
-- [ ] Unsupported or unsafe sources fail closed with recoverable diagnostics.
-- [ ] Tests use only synthetic fixture vault content.
+- [x] Ingestion never writes directly to user notes.
+- [x] Generated notes link back to source paths or source records.
+- [x] Unsupported or unsafe sources fail closed with recoverable diagnostics.
+- [x] Tests use only synthetic fixture vault content.

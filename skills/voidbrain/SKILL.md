@@ -27,7 +27,7 @@ behavior, and recovery context.
 
 | Command ID | Status | Use |
 |------------|--------|-----|
-| `voidbrain.ingest-source` | planned | Plan fixture-safe source ingestion and staged generated notes. |
+| `voidbrain.ingest-source` | implemented | Preview approved fixture-safe sources and stage generated source, entity, concept, and summary notes with citations and recovery details. |
 | `voidbrain.chat-with-vault` | implemented | Run cited vault chat with explicit provider review before cloud use. |
 | `voidbrain.health-check` | planned | Plan read-only plugin, provider, index, fixture, and doc status checks. |
 | `voidbrain.stage-change` | planned | Plan staged changes with before/after review context. |
@@ -43,7 +43,8 @@ Fixture-safe source path:
 {
   "command": "voidbrain.ingest-source",
   "sourcePath": "test/fixtures/vault/sources/demo-article.md",
-  "writePolicy": "staged changes"
+  "writePolicy": "staged changes",
+  "requiredEvidence": ["source path", "citation IDs", "staged-change IDs"]
 }
 ```
 

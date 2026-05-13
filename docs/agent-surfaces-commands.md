@@ -24,7 +24,7 @@ is the source of truth; this document is the human-readable companion.
 
 | Command ID | Intent | Status | Privacy | Write Policy | Required Evidence |
 |------------|--------|--------|---------|--------------|-------------------|
-| `voidbrain.ingest-source` | Convert a synthetic source record into vault-ready artifacts. | planned | local-first | staged changes | source path, generated note paths |
+| `voidbrain.ingest-source` | Preview and stage approved source content as vault-ready artifacts. | implemented | local-first | staged changes | source path, source record, citation IDs, generated note paths, staged-change IDs |
 | `voidbrain.chat-with-vault` | Answer from indexed vault evidence with citations. | implemented | explicit provider review | no direct writes | cited retrieval paths and headings |
 | `voidbrain.health-check` | Report plugin, provider, index, and fixture safety state. | planned | local-first | read-only | status summary and failing checks |
 | `voidbrain.stage-change` | Create an inspectable proposed note mutation. | planned | local-first | staged changes | before/after diff and target path |
@@ -44,13 +44,30 @@ Status labels are intentionally conservative:
 
 | Command ID | Required Inputs | Outputs |
 |------------|-----------------|---------|
-| `voidbrain.ingest-source` | `sourcePath` under a synthetic fixture or validated vault path | staged artifact paths and source links |
+| `voidbrain.ingest-source` | approved markdown path, text path, pasted content, or approved URL source record | staged-change IDs, generated target paths, source links, citation IDs, and recovery details |
 | `voidbrain.chat-with-vault` | user question and fresh retrieval evidence | cited answer with retrieval paths, headings, and source records |
 | `voidbrain.health-check` | optional bounded scope | pass/fail status with failing checks |
 | `voidbrain.stage-change` | `targetPath` and proposed markdown content | staged-change ID and before/after diff context |
 | `voidbrain.recover-session` | recoverable session or staged-change ID | recovery summary with retry or discard options |
 | `voidbrain.validate-agent-surfaces` | known surface paths from the repository root | deterministic validation issues or pass status |
 | `voidbrain.preview-framework-update` | optional repository-relative framework paths | dry-run action list and excluded user-content paths |
+
+## Source Ingestion Staging
+
+`voidbrain.ingest-source` now opens a local-first staging workflow for approved
+markdown files, text files, pasted content, and user-approved URL source
+records. The workflow previews source metadata, privacy boundary, duplicate
+status, provider requirement, target paths, and citation expectations before
+staging any generated artifacts.
+
+Generated source, entity, concept, and summary notes are created only as staged
+changes. They include source paths, citation IDs, wikilinks, stable
+frontmatter, and recovery metadata. Provider-assisted summaries are optional
+and must pass explicit provider review and preflight first; denied or
+unavailable providers fall back to deterministic local extraction.
+
+Apply behavior is not part of ingestion staging. Review and apply controls stay
+in the staged-change workflow.
 
 ## Staged Change And Health Primitives
 
@@ -94,7 +111,7 @@ future apply plan automatically.
 
 ## Deferred Behavior
 
-These surfaces do not implement live ingestion, autonomous chat, destructive
-framework updates, provider calls, or direct writes to user notes. Those
-workflows remain planned until later sessions add review primitives, provider
-preflight enforcement, and staged-write application paths.
+These surfaces do not implement autonomous web research, destructive framework
+updates, direct writes to user notes, or staged-change apply behavior. Those
+workflows remain planned until later sessions add review primitives and
+staged-write application paths.

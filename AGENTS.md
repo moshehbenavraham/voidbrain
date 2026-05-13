@@ -26,7 +26,7 @@ inspectable, provider-aware, and recoverable.
 
 | Command ID | Status | Agent Behavior |
 |------------|--------|----------------|
-| `voidbrain.ingest-source` | planned | Use only synthetic source examples; generated artifacts must be staged changes linked to source paths. |
+| `voidbrain.ingest-source` | implemented | Preview approved markdown, text, pasted content, or URL source records; stage generated artifacts with citations and recovery details only. |
 | `voidbrain.chat-with-vault` | implemented | Require retrieval citations and explicit provider review before any cloud call. |
 | `voidbrain.health-check` | planned | Report plugin, provider, index, fixture, and documentation status without mutating files. |
 | `voidbrain.stage-change` | planned | Produce before/after diff context and a staged-change ID; do not write directly to notes. |

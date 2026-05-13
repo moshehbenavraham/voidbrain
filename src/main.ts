@@ -1,6 +1,12 @@
 import { Notice, Plugin, type TFile } from "obsidian";
 import "./styles.css";
-import { GroundedVaultChatService, createRuntimeCommandHandlers, createRuntimeStatusSnapshot } from "./agent";
+import {
+	GroundedVaultChatService,
+	SourceIngestionIntakeService,
+	SourceIngestionStagingService,
+	createRuntimeCommandHandlers,
+	createRuntimeStatusSnapshot,
+} from "./agent";
 import {
 	buildProviderDefinitionsForSettings,
 	createInMemoryProviderSecretStore,
@@ -9,10 +15,16 @@ import {
 } from "./providers";
 import { BASELINE_PROVIDERS } from "./providers/provider-registry";
 import { type ChatThreadStore, createChatThreadStore } from "./stores/chat-thread-store";
+import {
+	type IngestionStagingStore,
+	type PersistedIngestionStagingState,
+	createIngestionStagingStore,
+} from "./stores/ingestion-staging-store";
 import { type RuntimeStatusStore, createRuntimeStatusStore } from "./stores/runtime-status-store";
 import type { IndexingRuntimeState } from "./types/indexing-runtime";
 import { DEFAULT_PLUGIN_SETTINGS, SHOW_STATUS_COMMAND_ID, type VoidbrainPluginSettings } from "./types/plugin";
 import type { RuntimeCommandOutcome, RuntimeStatusSnapshot } from "./types/runtime";
+import type { StagedChangeRecord } from "./types/vault";
 import {
 	type SettingsLoadStatus,
 	type SettingsValidationError,
@@ -23,6 +35,7 @@ import { normalizeVaultPath } from "./utils/vault-paths";
 import { IndexingRuntimeService, createObsidianMarkdownIndexSource } from "./vectorstore";
 import { VOIDBRAIN_CHAT_VIEW_TYPE, VoidbrainChatView } from "./views/chat-view";
 import { VoidbrainSettingsTab } from "./views/settings-tab";
+import { SourceIngestionModal } from "./views/source-ingestion-modal";
 import { VOIDBRAIN_STATUS_VIEW_TYPE, VoidbrainStatusView } from "./views/status-view";
 
 type CleanupCallback = () => void;
@@ -51,6 +64,11 @@ export default class VoidbrainPlugin extends Plugin {
 	private unsubscribeFromIndexingRuntime: CleanupCallback | null = null;
 	private chatService: GroundedVaultChatService | null = null;
 	private chatThreadStore: ChatThreadStore | null = null;
+	private ingestionIntakeService: SourceIngestionIntakeService | null = null;
+	private ingestionStagingService: SourceIngestionStagingService | null = null;
+	private ingestionStagingStore: IngestionStagingStore | null = null;
+	private ingestionPersistenceState: PersistedIngestionStagingState | null = null;
+	private readonly ingestionStagedChanges: StagedChangeRecord[] = [];
 	private ribbonActionCount = 0;
 	private settingsTabCount = 0;
 	private runtimeStatusSnapshot: RuntimeStatusSnapshot = createRuntimeStatusSnapshot({
@@ -67,6 +85,7 @@ export default class VoidbrainPlugin extends Plugin {
 		this.settingsLoadStatus = settingsLoadResult.status;
 		this.createIndexingRuntime();
 		this.createChatRuntime();
+		this.createIngestionRuntime();
 		this.refreshRuntimeStatusSnapshot();
 		this.isRuntimeLoaded = true;
 
@@ -90,6 +109,11 @@ export default class VoidbrainPlugin extends Plugin {
 			this.chatThreadStore?.clear();
 			this.chatThreadStore = null;
 			this.chatService = null;
+			this.ingestionStagingStore?.clear();
+			this.ingestionStagingStore = null;
+			this.ingestionStagingService = null;
+			this.ingestionIntakeService = null;
+			this.ingestionStagedChanges.splice(0, this.ingestionStagedChanges.length);
 			this.isRuntimeLoaded = false;
 			this.runtimeStatusStore.clear();
 		});
@@ -150,6 +174,7 @@ export default class VoidbrainPlugin extends Plugin {
 			...(lexicalReport === null || lexicalReport.failedPaths.length === 0
 				? {}
 				: { recentIndexFailures: lexicalReport.failedPaths }),
+			stagedChanges: this.ingestionStagedChanges,
 		});
 		this.runtimeStatusStore.setSnapshot(this.runtimeStatusSnapshot);
 
@@ -182,6 +207,27 @@ export default class VoidbrainPlugin extends Plugin {
 			getSettings: () => this.settings,
 			getIndexingState: () => this.indexingRuntime?.getState() ?? null,
 			getProviders: () => buildProviderDefinitionsForSettings(this.settings, BASELINE_PROVIDERS),
+		});
+	}
+
+	private createIngestionRuntime(): void {
+		this.ingestionIntakeService = new SourceIngestionIntakeService({
+			maxSourceBytes: this.settings.indexing.maxNoteBytes,
+		});
+		this.ingestionStagingService = new SourceIngestionStagingService({
+			intakeService: this.ingestionIntakeService,
+			getSettings: () => this.settings,
+			baselineProviders: BASELINE_PROVIDERS,
+		});
+		this.ingestionStagingStore = createIngestionStagingStore({
+			...(this.ingestionPersistenceState === null
+				? {}
+				: { initialPersistedState: this.ingestionPersistenceState }),
+			persistence: {
+				save: async (state) => {
+					this.ingestionPersistenceState = state;
+				},
+			},
 		});
 	}
 
@@ -226,6 +272,13 @@ export default class VoidbrainPlugin extends Plugin {
 			chat: {
 				openChatView: () => this.openChatView(),
 				canOpenChat: () => this.chatService !== null && this.chatThreadStore !== null,
+			},
+			ingestion: {
+				openIngestionModal: () => this.openIngestionModal(),
+				canOpenIngestion: () =>
+					this.ingestionIntakeService !== null &&
+					this.ingestionStagingService !== null &&
+					this.ingestionStagingStore !== null,
 			},
 		});
 
@@ -369,6 +422,73 @@ export default class VoidbrainPlugin extends Plugin {
 				new Notice("Voidbrain chat view could not be opened. No vault files were changed.", 7000);
 			}
 		}
+	}
+
+	private async openIngestionModal(): Promise<void> {
+		const intakeService = this.ingestionIntakeService;
+		const stagingService = this.ingestionStagingService;
+		const store = this.ingestionStagingStore;
+		if (intakeService === null || stagingService === null || store === null) {
+			if (this.settings.shouldShowStatusNotices) {
+				new Notice("Voidbrain source ingestion is unavailable. No vault files were changed.", 7000);
+			}
+			return;
+		}
+
+		new SourceIngestionModal(this.app, {
+			store,
+			previewSource: async (request) =>
+				intakeService.createPreview({
+					...request,
+					existingNotes: this.getExistingMarkdownNotePlaceholders(),
+					existingStagedChanges: this.ingestionStagedChanges,
+				}),
+			stageSource: async (request) => {
+				const result = await stagingService.stageSource({
+					...request,
+					existingNotes: this.getExistingMarkdownNotePlaceholders(),
+					existingStagedChanges: this.ingestionStagedChanges,
+				});
+				if (result.ok) {
+					this.ingestionStagedChanges.push(...result.stagedChanges);
+					this.refreshRuntimeStatusSnapshot();
+				}
+
+				return result;
+			},
+			readSourcePath: (path) => this.readVaultSourcePath(path),
+			getExistingNotes: () => this.getExistingMarkdownNotePlaceholders(),
+			getExistingStagedChanges: () => this.ingestionStagedChanges,
+			onNotice: (message) => {
+				if (this.settings.shouldShowStatusNotices) {
+					new Notice(message, 7000);
+				}
+			},
+		}).open();
+	}
+
+	private async readVaultSourcePath(path: string): Promise<string> {
+		const normalized = normalizeVaultPath(path);
+		if (!normalized.ok) {
+			throw new Error("Source path must be vault-relative.");
+		}
+
+		const file = this.app.vault.getFiles().find((candidate) => candidate.path === normalized.value);
+		if (file === undefined) {
+			throw new Error(`Source path is not present in the active vault: ${normalized.value}`);
+		}
+
+		return this.app.vault.read(file as TFile);
+	}
+
+	private getExistingMarkdownNotePlaceholders(): readonly { readonly path: string; readonly content: string }[] {
+		return this.app.vault
+			.getFiles()
+			.filter((file) => file.path.endsWith(".md"))
+			.map((file) => ({
+				path: file.path,
+				content: "",
+			}));
 	}
 
 	private getActiveVaultPath() {
