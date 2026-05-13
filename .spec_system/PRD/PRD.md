@@ -202,8 +202,8 @@ turns existing provider privacy, capability, auth, redaction, retrieval, and
 indexing contracts into inspectable provider profiles, invocation boundaries,
 offline embedding compatibility, troubleshooting, and closeout validation.
 
-Phase 03 is in progress. Session 01 is complete and the remaining sessions
-continue in the same phase.
+Phase 03 is in progress. Sessions 01 through 04 are complete and sessions 05
+and 06 remain in the same phase.
 
 ### Objectives
 

@@ -36,6 +36,6 @@ Semantic vectors now fail closed unless provider readiness, embedding family, di
 
 ## Next Workflow Step
 
-Run the `validate` workflow step to verify session completeness against the spec system checklist.
+Run `plansession` for `phase03-session05-provider-troubleshooting-recovery-ux`.
 
 ---
