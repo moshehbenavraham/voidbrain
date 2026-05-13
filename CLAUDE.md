@@ -26,7 +26,7 @@ mutate notes.
 | Command ID | Status | Claude Code Guidance |
 |------------|--------|----------------------|
 | `voidbrain.ingest-source` | planned | Treat source ingestion as planned; examples must be synthetic fixtures and outputs must be staged changes. |
-| `voidbrain.chat-with-vault` | planned | Require citations and explicit provider review before any cloud provider handling of vault content. |
+| `voidbrain.chat-with-vault` | implemented | Require citations and explicit provider review before any cloud provider handling of vault content. |
 | `voidbrain.health-check` | planned | Read local status only and report actionable failures without changing vault files. |
 | `voidbrain.stage-change` | planned | Create inspectable staged-change records, never direct note rewrites. |
 | `voidbrain.recover-session` | planned | Recover from logs and staged files, redacting provider secrets and private diagnostics. |

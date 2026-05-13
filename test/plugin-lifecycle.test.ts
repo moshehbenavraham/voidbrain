@@ -5,6 +5,7 @@ import VoidbrainPlugin from "../src/main";
 import { TRUSTED_CLOUD_FIXTURE_PROVIDER_ID } from "../src/providers/provider-registry";
 import { AGENT_COMMAND_IDS } from "../src/types/agent-commands";
 import { DEFAULT_PLUGIN_SETTINGS, SHOW_STATUS_COMMAND_ID } from "../src/types/plugin";
+import { VOIDBRAIN_CHAT_VIEW_TYPE } from "../src/views/chat-view";
 import { VOIDBRAIN_STATUS_VIEW_TYPE } from "../src/views/status-view";
 import type { Command, PluginSettingTab, RibbonAction } from "./__mocks__/obsidian";
 import { App as MockApp } from "./__mocks__/obsidian";
@@ -59,10 +60,10 @@ describe("VoidbrainPlugin lifecycle", () => {
 		expect(plugin.getSettings()).toEqual(DEFAULT_PLUGIN_SETTINGS);
 		expect(plugin.getRuntimeStatus()).toEqual({
 			isLoaded: true,
-			ownedResourceCount: 12,
+			ownedResourceCount: 13,
 			registeredCommandCount: AGENT_COMMAND_IDS.length + 1,
 			ribbonActionCount: 1,
-			registeredViewCount: 1,
+			registeredViewCount: 2,
 			settingsTabCount: 1,
 			settingsLoadErrorCount: 0,
 			settingsLoadStatus: "defaulted",
@@ -72,7 +73,7 @@ describe("VoidbrainPlugin lifecycle", () => {
 		expect(plugin.commands.map((command) => command.id)).toEqual([SHOW_STATUS_COMMAND_ID, ...AGENT_COMMAND_IDS]);
 		expect(plugin.ribbonActions).toHaveLength(1);
 		expect(plugin.settingTabs).toHaveLength(1);
-		expect(plugin.getRegisteredCleanupCount()).toBe(12);
+		expect(plugin.getRegisteredCleanupCount()).toBe(13);
 	});
 
 	it("recovers malformed persisted settings to safe defaults", async () => {
@@ -158,7 +159,7 @@ describe("VoidbrainPlugin lifecycle", () => {
 		});
 	});
 
-	it("registers ribbon, status view, settings tab, and cleans view leaves on unload", async () => {
+	it("registers ribbon, status view, chat view, settings tab, and cleans view leaves on unload", async () => {
 		const app = new MockApp();
 		const plugin = new VoidbrainPlugin(
 			app as unknown as App,
@@ -184,6 +185,7 @@ describe("VoidbrainPlugin lifecycle", () => {
 
 		plugin.onunload();
 		expect(app.workspace.detachedViewTypes).toContain(VOIDBRAIN_STATUS_VIEW_TYPE);
+		expect(app.workspace.detachedViewTypes).toContain(VOIDBRAIN_CHAT_VIEW_TYPE);
 		expect(plugin.getRuntimeStatus()).toMatchObject({
 			isLoaded: false,
 			registeredCommandCount: 0,
@@ -294,17 +296,53 @@ describe("VoidbrainPlugin lifecycle", () => {
 		await Promise.resolve();
 	});
 
-	it("shows explicit local-first placeholder notices for planned catalog commands", async () => {
-		const plugin = createPlugin();
-		plugin.loadData.mockResolvedValue(undefined);
+	it("opens chat command, reports provider denial, and avoids direct vault writes", async () => {
+		const app = new MockApp();
+		configureRuntimeFixtureVault(app.vault, runtimeIndexingNotes);
+		const plugin = new VoidbrainPlugin(
+			app as unknown as App,
+			{
+				id: "voidbrain",
+				name: "voidbrain",
+				version: "0.1.0",
+			} as PluginManifest,
+		) as MockedPluginRuntime;
+		plugin.loadData.mockResolvedValue({
+			...DEFAULT_PLUGIN_SETTINGS,
+			indexing: {
+				...DEFAULT_PLUGIN_SETTINGS.indexing,
+				shouldIndexOnStartup: true,
+			},
+		});
 
 		await plugin.onload();
+		await flushPromises();
 		const chatCommand = plugin.commands.find((command) => command.id === "voidbrain.chat-with-vault");
 		chatCommand?.callback?.();
+		await flushPromises();
 
-		expect(notices[0]?.message).toContain("Grounded vault chat is not ready yet.");
-		expect(notices[0]?.message).toContain("Provider review remains required.");
-		expect(notices[0]?.message).not.toContain("sk-");
+		const chatLeaf = app.workspace.getLeavesOfType(VOIDBRAIN_CHAT_VIEW_TYPE)[0];
+		expect(chatLeaf).toBeDefined();
+		expect(notices.at(-1)?.message).toContain("Grounded vault chat opened");
+
+		const textarea = chatLeaf?.view?.containerEl.querySelector("textarea");
+		if (!(textarea instanceof HTMLTextAreaElement)) {
+			throw new Error("Expected chat composer textarea");
+		}
+		textarea.value = "How does local indexing support deterministic retrieval tests?";
+		textarea.dispatchEvent(new Event("input", { bubbles: true }));
+		await flushPromises();
+		const form = app.workspace
+			.getLeavesOfType(VOIDBRAIN_CHAT_VIEW_TYPE)[0]
+			?.view?.containerEl.querySelector("form");
+		form?.dispatchEvent(new Event("submit", { bubbles: true, cancelable: true }));
+		await flushPromises();
+
+		expect(notices.at(-1)?.message).toContain("Provider role is not selected.");
+		expect(app.vault.adapter.write).not.toHaveBeenCalled();
+		expect(app.workspace.getLeavesOfType(VOIDBRAIN_CHAT_VIEW_TYPE)[0]?.view?.containerEl.textContent).toContain(
+			"Provider role is not selected.",
+		);
 	});
 
 	it("saves validated settings through Obsidian plugin storage", async () => {

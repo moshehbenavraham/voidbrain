@@ -14,6 +14,13 @@ export type {
 	RuntimeCommandHandlerEntry,
 	RuntimeCommandHandlerOptions,
 } from "./runtime-command-handlers";
+export { GroundedVaultChatService } from "./grounded-vault-chat-service";
+export type {
+	GroundedVaultChatAskFailure,
+	GroundedVaultChatAskResult,
+	GroundedVaultChatAskSuccess,
+	GroundedVaultChatServiceOptions,
+} from "./grounded-vault-chat-service";
 export { createRuntimeStatusSnapshot } from "./runtime-status";
 export {
 	findMissingRequiredSafetyPhrases,

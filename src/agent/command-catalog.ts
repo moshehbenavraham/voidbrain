@@ -100,7 +100,7 @@ export const AGENT_COMMAND_CATALOG: readonly AgentCommand[] = [
 		id: "voidbrain.chat-with-vault",
 		name: "Chat with vault",
 		intent: "Answer from indexed vault evidence with citations and explicit provider review before cloud use.",
-		status: "planned",
+		status: "implemented",
 		privacyLevel: "explicit-provider-review",
 		writePolicy: "no-direct-writes",
 		prerequisites: [
@@ -127,7 +127,10 @@ export const AGENT_COMMAND_CATALOG: readonly AgentCommand[] = [
 		requiredSafetyPhrases: ["local-first", "provider secrets", "citations", "recovery"],
 		recoveryBehavior:
 			"Return visible provider or retrieval failure context without exposing secrets or stack traces.",
-		notes: ["Full chat execution is planned for a later session."],
+		notes: [
+			"Runtime chat view, lexical retrieval preview, provider preflight, cited synthesis boundary, retry, branch, and recovery state are implemented.",
+			"Generated note edits remain deferred to staged-change workflows.",
+		],
 	},
 	{
 		id: "voidbrain.health-check",

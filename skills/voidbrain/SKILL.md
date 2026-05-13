@@ -28,7 +28,7 @@ behavior, and recovery context.
 | Command ID | Status | Use |
 |------------|--------|-----|
 | `voidbrain.ingest-source` | planned | Plan fixture-safe source ingestion and staged generated notes. |
-| `voidbrain.chat-with-vault` | planned | Plan cited vault chat with explicit provider review before cloud use. |
+| `voidbrain.chat-with-vault` | implemented | Run cited vault chat with explicit provider review before cloud use. |
 | `voidbrain.health-check` | planned | Plan read-only plugin, provider, index, fixture, and doc status checks. |
 | `voidbrain.stage-change` | planned | Plan staged changes with before/after review context. |
 | `voidbrain.recover-session` | planned | Plan recovery from logs and staged files with redacted diagnostics. |

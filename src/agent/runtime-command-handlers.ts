@@ -12,9 +12,15 @@ export interface RuntimeCommandHandlerEntry {
 	readonly run: () => RuntimeCommandOutcome;
 }
 
+export interface ChatRuntimeCommandExecutionOptions {
+	readonly openChatView: () => Promise<void> | void;
+	readonly canOpenChat?: () => boolean;
+}
+
 export interface RuntimeCommandHandlerOptions {
 	readonly getSettings: () => VoidbrainPluginSettings;
 	readonly getStatusSnapshot: () => RuntimeStatusSnapshot;
+	readonly chat?: ChatRuntimeCommandExecutionOptions;
 }
 
 export class RuntimeCommandRegistrationError extends Error {
@@ -99,6 +105,34 @@ const buildCommandOutcome = (context: RuntimeCommandContext): RuntimeCommandOutc
 	};
 };
 
+const buildChatCommandOutcome = (
+	context: RuntimeCommandContext,
+	chat: ChatRuntimeCommandExecutionOptions | undefined,
+): RuntimeCommandOutcome => {
+	if (context.command.id !== "voidbrain.chat-with-vault" || context.command.status !== "implemented") {
+		return buildCommandOutcome(context);
+	}
+
+	if (chat === undefined || chat.canOpenChat?.() === false) {
+		return {
+			commandId: context.command.id,
+			kind: "not-ready",
+			severity: "error",
+			userMessage: "Grounded vault chat runtime is unavailable. No vault notes were changed.",
+			recoveryHint: "Reload the plugin and verify chat, provider, and retrieval readiness.",
+		};
+	}
+
+	void chat.openChatView();
+	return {
+		commandId: context.command.id,
+		kind: "opened",
+		severity: "ready",
+		userMessage: "Grounded vault chat opened with local retrieval and explicit provider review gates.",
+		recoveryHint: "Inspect retrieval evidence and citations before trusting an answer.",
+	};
+};
+
 export const mapRuntimeCommandError = (command: AgentCommand, error: unknown): RuntimeCommandOutcome => ({
 	commandId: command.id,
 	kind: "error",
@@ -120,11 +154,14 @@ export const createRuntimeCommandHandlers = (
 		command,
 		run: () => {
 			try {
-				return buildCommandOutcome({
-					command,
-					settings: options.getSettings(),
-					statusSnapshot: options.getStatusSnapshot(),
-				});
+				return buildChatCommandOutcome(
+					{
+						command,
+						settings: options.getSettings(),
+						statusSnapshot: options.getStatusSnapshot(),
+					},
+					options.chat,
+				);
 			} catch (error) {
 				return mapRuntimeCommandError(command, error);
 			}

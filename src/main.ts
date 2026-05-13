@@ -1,6 +1,6 @@
 import { Notice, Plugin, type TFile } from "obsidian";
 import "./styles.css";
-import { createRuntimeCommandHandlers, createRuntimeStatusSnapshot } from "./agent";
+import { GroundedVaultChatService, createRuntimeCommandHandlers, createRuntimeStatusSnapshot } from "./agent";
 import {
 	buildProviderDefinitionsForSettings,
 	createInMemoryProviderSecretStore,
@@ -8,6 +8,7 @@ import {
 	summarizeProviderSetup,
 } from "./providers";
 import { BASELINE_PROVIDERS } from "./providers/provider-registry";
+import { type ChatThreadStore, createChatThreadStore } from "./stores/chat-thread-store";
 import { type RuntimeStatusStore, createRuntimeStatusStore } from "./stores/runtime-status-store";
 import type { IndexingRuntimeState } from "./types/indexing-runtime";
 import { DEFAULT_PLUGIN_SETTINGS, SHOW_STATUS_COMMAND_ID, type VoidbrainPluginSettings } from "./types/plugin";
@@ -18,7 +19,9 @@ import {
 	loadPluginSettings,
 	savePluginSettings,
 } from "./utils/settings";
+import { normalizeVaultPath } from "./utils/vault-paths";
 import { IndexingRuntimeService, createObsidianMarkdownIndexSource } from "./vectorstore";
+import { VOIDBRAIN_CHAT_VIEW_TYPE, VoidbrainChatView } from "./views/chat-view";
 import { VoidbrainSettingsTab } from "./views/settings-tab";
 import { VOIDBRAIN_STATUS_VIEW_TYPE, VoidbrainStatusView } from "./views/status-view";
 
@@ -46,6 +49,8 @@ export default class VoidbrainPlugin extends Plugin {
 	private readonly providerSecretStore = createInMemoryProviderSecretStore();
 	private indexingRuntime: IndexingRuntimeService | null = null;
 	private unsubscribeFromIndexingRuntime: CleanupCallback | null = null;
+	private chatService: GroundedVaultChatService | null = null;
+	private chatThreadStore: ChatThreadStore | null = null;
 	private ribbonActionCount = 0;
 	private settingsTabCount = 0;
 	private runtimeStatusSnapshot: RuntimeStatusSnapshot = createRuntimeStatusSnapshot({
@@ -61,6 +66,7 @@ export default class VoidbrainPlugin extends Plugin {
 		this.settingsLoadErrors = settingsLoadResult.errors;
 		this.settingsLoadStatus = settingsLoadResult.status;
 		this.createIndexingRuntime();
+		this.createChatRuntime();
 		this.refreshRuntimeStatusSnapshot();
 		this.isRuntimeLoaded = true;
 
@@ -71,6 +77,7 @@ export default class VoidbrainPlugin extends Plugin {
 		this.registerStatusCommand();
 		this.registerCatalogCommands();
 		this.registerStatusView();
+		this.registerChatView();
 		this.registerRibbonAction();
 		this.registerSettingsTab();
 		this.startIndexingOnStartup();
@@ -80,6 +87,9 @@ export default class VoidbrainPlugin extends Plugin {
 			this.unsubscribeFromIndexingRuntime = null;
 			this.indexingRuntime?.dispose();
 			this.indexingRuntime = null;
+			this.chatThreadStore?.clear();
+			this.chatThreadStore = null;
+			this.chatService = null;
 			this.isRuntimeLoaded = false;
 			this.runtimeStatusStore.clear();
 		});
@@ -166,6 +176,15 @@ export default class VoidbrainPlugin extends Plugin {
 		});
 	}
 
+	private createChatRuntime(): void {
+		this.chatThreadStore = createChatThreadStore();
+		this.chatService = new GroundedVaultChatService({
+			getSettings: () => this.settings,
+			getIndexingState: () => this.indexingRuntime?.getState() ?? null,
+			getProviders: () => buildProviderDefinitionsForSettings(this.settings, BASELINE_PROVIDERS),
+		});
+	}
+
 	private startIndexingOnStartup(): void {
 		if (!this.settings.indexing.shouldIndexOnStartup || this.indexingRuntime === null) {
 			return;
@@ -204,6 +223,10 @@ export default class VoidbrainPlugin extends Plugin {
 		const handlers = createRuntimeCommandHandlers({
 			getSettings: () => this.getSettings(),
 			getStatusSnapshot: () => this.refreshRuntimeStatusSnapshot(),
+			chat: {
+				openChatView: () => this.openChatView(),
+				canOpenChat: () => this.chatService !== null && this.chatThreadStore !== null,
+			},
 		});
 
 		for (const handler of handlers) {
@@ -232,6 +255,34 @@ export default class VoidbrainPlugin extends Plugin {
 				}),
 		);
 		this.trackViewRegistration(VOIDBRAIN_STATUS_VIEW_TYPE);
+	}
+
+	private registerChatView(): void {
+		this.registerView(VOIDBRAIN_CHAT_VIEW_TYPE, (leaf) => {
+			const chatService = this.chatService;
+			const chatThreadStore = this.chatThreadStore;
+			if (chatService === null || chatThreadStore === null) {
+				throw new Error("Voidbrain chat runtime is not initialized.");
+			}
+
+			return new VoidbrainChatView(leaf, {
+				getState: () => chatThreadStore.getState(),
+				subscribe: (subscriber) => chatThreadStore.subscribe(subscriber),
+				ask: (input) => chatService.ask(input),
+				applyActionResult: (result) => chatThreadStore.applyActionResult(result),
+				setDraft: (text, contextChips) => chatThreadStore.setDraft(text, contextChips),
+				retryTurn: (turnId) => chatThreadStore.retryTurn(turnId),
+				branchFromTurn: (turnId) => chatThreadStore.branchFromTurn(turnId),
+				isOnline: () => this.isRuntimeLoaded,
+				getActivePath: () => this.getActiveVaultPath(),
+				onNotice: (message) => {
+					if (this.settings.shouldShowStatusNotices) {
+						new Notice(message, 7000);
+					}
+				},
+			});
+		});
+		this.trackViewRegistration(VOIDBRAIN_CHAT_VIEW_TYPE);
 	}
 
 	private registerRibbonAction(): void {
@@ -301,6 +352,33 @@ export default class VoidbrainPlugin extends Plugin {
 		}
 
 		return this.app.workspace.getRightLeaf(false) ?? this.app.workspace.getLeaf(false);
+	}
+
+	private async openChatView(): Promise<void> {
+		try {
+			const existingLeaf = this.app.workspace.getLeavesOfType(VOIDBRAIN_CHAT_VIEW_TYPE)[0];
+			const leaf = existingLeaf ?? this.app.workspace.getRightLeaf(false) ?? this.app.workspace.getLeaf(false);
+
+			await leaf.setViewState({
+				type: VOIDBRAIN_CHAT_VIEW_TYPE,
+				active: true,
+			});
+			await this.app.workspace.revealLeaf(leaf);
+		} catch {
+			if (this.settings.shouldShowStatusNotices) {
+				new Notice("Voidbrain chat view could not be opened. No vault files were changed.", 7000);
+			}
+		}
+	}
+
+	private getActiveVaultPath() {
+		const activeFile = this.app.workspace.getActiveFile();
+		if (activeFile === null) {
+			return null;
+		}
+
+		const normalized = normalizeVaultPath(activeFile.path);
+		return normalized.ok ? normalized.value : null;
 	}
 
 	private showCommandOutcome(outcome: RuntimeCommandOutcome): void {

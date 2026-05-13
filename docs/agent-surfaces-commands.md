@@ -25,7 +25,7 @@ is the source of truth; this document is the human-readable companion.
 | Command ID | Intent | Status | Privacy | Write Policy | Required Evidence |
 |------------|--------|--------|---------|--------------|-------------------|
 | `voidbrain.ingest-source` | Convert a synthetic source record into vault-ready artifacts. | planned | local-first | staged changes | source path, generated note paths |
-| `voidbrain.chat-with-vault` | Answer from indexed vault evidence with citations. | planned | explicit provider review | no direct writes | cited retrieval paths and headings |
+| `voidbrain.chat-with-vault` | Answer from indexed vault evidence with citations. | implemented | explicit provider review | no direct writes | cited retrieval paths and headings |
 | `voidbrain.health-check` | Report plugin, provider, index, and fixture safety state. | planned | local-first | read-only | status summary and failing checks |
 | `voidbrain.stage-change` | Create an inspectable proposed note mutation. | planned | local-first | staged changes | before/after diff and target path |
 | `voidbrain.recover-session` | Reconstruct recoverable command context from logs and staged files. | planned | local-first | read-only by default | recovery log path and staged-change IDs |

@@ -23,7 +23,7 @@ content is out of scope unless a later reviewed workflow supplies it.
 | Command ID | Status | Gemini CLI Guidance |
 |------------|--------|---------------------|
 | `voidbrain.ingest-source` | planned | Use fixture-safe input only; generated notes must remain staged changes. |
-| `voidbrain.chat-with-vault` | planned | Cite retrieval paths and require explicit provider review before cloud use. |
+| `voidbrain.chat-with-vault` | implemented | Cite retrieval paths and require explicit provider review before cloud use. |
 | `voidbrain.health-check` | planned | Produce read-only status with clear failures and no vault mutation. |
 | `voidbrain.stage-change` | planned | Record before/after context and staged-change IDs for review. |
 | `voidbrain.recover-session` | planned | Read recovery state, redact provider secrets, and report retry or discard options. |
